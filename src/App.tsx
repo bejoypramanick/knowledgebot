@@ -17,16 +17,15 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <div className="min-h-screen bg-background">
-          <Navigation />
+        <Navigation />
+        <main className="min-h-screen bg-background">
           <Routes>
             <Route path="/" element={<ChatbotConfiguration />} />
             <Route path="/performance" element={<ChatbotPerformance />} />
             <Route path="/knowledge-base" element={<KnowledgeBaseManagement />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </div>
+        </main>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
