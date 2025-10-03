@@ -1,6 +1,6 @@
 # Claude API Configuration
 # Replace the placeholder with your actual Claude API key
-CLAUDE_API_KEY = "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"
+CLAUDE_API_KEY ="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"
 
 # AWS Configuration
 AWS_REGION = "ap-south-1"
