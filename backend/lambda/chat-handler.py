@@ -415,7 +415,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         else:
             body = event
         
-        # Check if this is a knowledge base request
+        # Check if this is a knowledge base request FIRST
         action = body.get('action', '')
         
         if action == 'upload':
@@ -427,7 +427,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         elif action == 'get-upload-url':
             return handle_presigned_url_generation(body)
         else:
-            # Handle chat request
+            # Handle chat request - validate as ChatMessage
             try:
                 chat_message = ChatMessage(**body)
             except Exception as e:
