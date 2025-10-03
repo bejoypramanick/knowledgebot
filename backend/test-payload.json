@@ -1,1 +1,1 @@
-{"message": "What documents do you have in your knowledge base?", "session_id": "test-123", "user_id": "test-user"}
+{"filename": "test.txt", "content_type": "text/plain"}

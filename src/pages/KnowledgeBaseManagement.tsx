@@ -101,6 +101,11 @@ const KnowledgeBaseManagement = () => {
       setUploadProgress(30);
       await knowledgeBaseManager.uploadToS3(selectedFile, presignedResponse.presigned_url);
       
+      // Step 2.5: Update S3 object metadata (if needed)
+      if (presignedResponse.metadata) {
+        await knowledgeBaseManager.updateS3ObjectMetadata(presignedResponse.s3_key, presignedResponse.metadata);
+      }
+      
       // Step 3: Wait for processing (simulate progress)
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => {

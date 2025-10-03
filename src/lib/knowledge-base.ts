@@ -116,20 +116,71 @@ export class KnowledgeBaseManager {
       }
     };
 
-    const response = await axios.post(`${this.apiBaseUrl}/knowledge-base`, payload);
+    // Use the chat endpoint for presigned URL generation
+    const response = await axios.post(`${this.apiBaseUrl}/chat`, payload);
+    console.log('Presigned URL response:', response.data);
     return response.data;
   }
 
-  async uploadToS3(file: File, presignedUrl: string): Promise<void> {
-    const response = await axios.put(presignedUrl, file, {
-      headers: {
-        'Content-Type': file.type || 'application/octet-stream'
-      }
-    });
+  async uploadToS3(file: File, presignedUrl: string, metadata: Partial<DocumentMetadata> = {}): Promise<void> {
+    // Extract metadata from the presigned URL response
+    const url = new URL(presignedUrl);
+    const signedHeaders = url.searchParams.get('X-Amz-SignedHeaders');
     
+    let headers: Record<string, string> = {
+      'Content-Type': file.type || 'application/octet-stream'
+    };
+
+    // If the presigned URL expects metadata headers, include them
+    if (signedHeaders && signedHeaders.includes('x-amz-meta-')) {
+      const documentId = crypto.randomUUID();
+      const timestamp = new Date().toISOString();
+      
+      console.log('Expected signed headers:', signedHeaders);
+      
+      // Check which specific metadata headers are expected
+      if (signedHeaders.includes('x-amz-meta-author')) {
+        headers['x-amz-meta-author'] = metadata.author || 'unknown';
+      }
+      if (signedHeaders.includes('x-amz-meta-category')) {
+        headers['x-amz-meta-category'] = metadata.category || 'general';
+      }
+      if (signedHeaders.includes('x-amz-meta-tags')) {
+        headers['x-amz-meta-tags'] = JSON.stringify(metadata.tags || []);
+      }
+      if (signedHeaders.includes('x-amz-meta-document_id')) {
+        headers['x-amz-meta-document_id'] = documentId;
+      }
+      if (signedHeaders.includes('x-amz-meta-original_filename')) {
+        headers['x-amz-meta-original_filename'] = file.name;
+      }
+      if (signedHeaders.includes('x-amz-meta-title')) {
+        headers['x-amz-meta-title'] = metadata.title || file.name;
+      }
+      if (signedHeaders.includes('x-amz-meta-upload_timestamp')) {
+        headers['x-amz-meta-upload_timestamp'] = timestamp;
+      }
+      
+      console.log('Including metadata headers:', Object.keys(headers).filter(k => k.startsWith('x-amz-meta-')));
+    }
+
+    console.log('Upload headers:', headers);
+    console.log('Presigned URL:', presignedUrl);
+
+    const response = await axios.put(presignedUrl, file, { headers });
+
     if (response.status !== 200) {
       throw new Error(`Upload failed with status ${response.status}`);
     }
+  }
+
+  async updateS3ObjectMetadata(s3Key: string, metadata: any): Promise<void> {
+    // This would typically be handled by the backend after upload
+    // For now, we'll just log the metadata
+    console.log('S3 object metadata to be updated:', {
+      s3Key,
+      metadata
+    });
   }
 }
 

@@ -31,15 +31,18 @@ zip -j order-handler.zip config.py
 echo "Deploying to Lambda..."
 aws lambda update-function-code \
     --function-name chatbot-chat-handler \
-    --zip-file fileb://chat-handler.zip
+    --zip-file fileb://chat-handler.zip \
+    --region ap-south-1
 
 aws lambda update-function-code \
     --function-name chatbot-knowledge-base-handler \
-    --zip-file fileb://knowledge-base-handler.zip
+    --zip-file fileb://knowledge-base-handler.zip \
+    --region ap-south-1
 
 aws lambda update-function-code \
     --function-name chatbot-order-handler \
-    --zip-file fileb://order-handler.zip
+    --zip-file fileb://order-handler.zip \
+    --region ap-south-1
 
 echo "Deployment complete!"
 echo ""

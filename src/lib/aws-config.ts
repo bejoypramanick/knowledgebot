@@ -6,8 +6,8 @@ export const AWS_CONFIG = {
   },
   s3: {
     knowledgeBaseBucket: 'chatbot-knowledge-base',
-    documentsBucket: 'chatbot-documents',
-    embeddingsBucket: 'chatbot-embeddings',
+    documentsBucket: 'chatbot-documents-ap-south-1',
+    embeddingsBucket: 'chatbot-embeddings-ap-south-1',
   },
   dynamodb: {
     conversationsTable: 'chatbot-conversations',
