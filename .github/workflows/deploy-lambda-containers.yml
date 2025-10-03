@@ -66,6 +66,9 @@ jobs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
 
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
     - name: Build and push RAG Processor image
       env:
         ECR_REPOSITORY: ${{ env.RAG_PROCESSOR_IMAGE }}
@@ -75,11 +78,15 @@ jobs:
         aws ecr describe-repositories --repository-names $ECR_REPOSITORY --region $AWS_REGION || \
         aws ecr create-repository --repository-name $ECR_REPOSITORY --region $AWS_REGION
         
-        # Build and push image
-        docker build --platform linux/amd64 -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./backend/lambda/rag-processor
-        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        # Build and push image with layer caching
+        docker buildx build \
+          --platform linux/amd64 \
+          --cache-from type=gha,scope=rag-processor \
+          --cache-to type=gha,scope=rag-processor,mode=max \
+          --tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+          --tag $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+          --push \
+          ./backend/lambda/rag-processor
 
     - name: Build and push Chat Handler image
       env:
@@ -90,11 +97,15 @@ jobs:
         aws ecr describe-repositories --repository-names $ECR_REPOSITORY --region $AWS_REGION || \
         aws ecr create-repository --repository-name $ECR_REPOSITORY --region $AWS_REGION
         
-        # Build and push image
-        docker build --platform linux/amd64 -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./backend/lambda/chat-handler
-        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        # Build and push image with layer caching
+        docker buildx build \
+          --platform linux/amd64 \
+          --cache-from type=gha,scope=chat-handler \
+          --cache-to type=gha,scope=chat-handler,mode=max \
+          --tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+          --tag $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+          --push \
+          ./backend/lambda/chat-handler
 
     - name: Deploy RAG Processor Lambda
       env:
