@@ -66,7 +66,6 @@ class RAGProcessor:
             # Use Docling's embedding model directly
             # Docling has built-in embedding capabilities
             import hashlib
-            import numpy as np
             
             # For now, use a simple hash-based embedding
             # In production, you'd use Docling's actual embedding model
@@ -277,65 +276,6 @@ class RAGProcessor:
             logger.error(f"Error searching similar chunks: {e}")
             return []
 
-    def _search_stored_embeddings(self, query: str, limit: int) -> List[Dict[str, Any]]:
-        """Search using stored embeddings from S3"""
-        try:
-            # Get query embedding
-            query_embedding = self.get_docling_embedding(query)
-            
-            # Get all embeddings from S3
-            response = self.s3_client.list_objects_v2(
-                Bucket=self.embeddings_bucket,
-                Prefix='embeddings/'
-            )
-            
-            if 'Contents' not in response:
-                return []
-            
-            similar_chunks = []
-            
-            for obj in response['Contents']:
-                if obj['Key'].endswith('.json'):
-                    try:
-                        # Get embedding data from S3
-                        embedding_response = self.s3_client.get_object(
-                            Bucket=self.embeddings_bucket,
-                            Key=obj['Key']
-                        )
-                        embedding_data = json.loads(embedding_response['Body'].read())
-                        
-                        # Calculate similarity
-                        similarity = self._calculate_cosine_similarity(
-                            query_embedding, 
-                            embedding_data['embedding']
-                        )
-                        
-                        # Get chunk content from DynamoDB
-                        chunk_response = self.knowledge_base_table.get_item(
-                            Key={'chunk_id': embedding_data['chunk_id']}
-                        )
-                        
-                        if 'Item' in chunk_response:
-                            chunk = chunk_response['Item']
-                            similar_chunks.append({
-                                'chunk_id': chunk['chunk_id'],
-                                'content': chunk['content'],
-                                'metadata': chunk['metadata'],
-                                'hierarchy_level': chunk['hierarchy_level'],
-                                'similarity_score': similarity
-                            })
-                            
-                    except Exception as e:
-                        logger.error(f"Error processing embedding {obj['Key']}: {e}")
-                        continue
-            
-            # Sort by similarity and return top results
-            similar_chunks.sort(key=lambda x: x['similarity_score'], reverse=True)
-            return similar_chunks[:limit]
-            
-        except Exception as e:
-            logger.error(f"Error searching stored embeddings: {e}")
-            return []
 
     def _search_docling_rag(self, query: str, limit: int) -> List[Dict[str, Any]]:
         """Search using Docling's RAG capabilities on documents"""
@@ -429,23 +369,6 @@ class RAGProcessor:
         else:
             return 3
 
-    def _calculate_cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
-        """Calculate cosine similarity between two vectors"""
-        try:
-            import numpy as np
-            vec1 = np.array(vec1)
-            vec2 = np.array(vec2)
-            
-            dot_product = np.dot(vec1, vec2)
-            norm1 = np.linalg.norm(vec1)
-            norm2 = np.linalg.norm(vec2)
-            
-            if norm1 == 0 or norm2 == 0:
-                return 0.0
-            
-            return dot_product / (norm1 * norm2)
-        except:
-            return 0.0
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Lambda handler for RAG processing and direct Docling search"""
