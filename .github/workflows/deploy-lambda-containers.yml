@@ -162,7 +162,7 @@ jobs:
         aws s3api put-bucket-notification-configuration \
           --bucket chatbot-documents-ap-south-1 \
           --notification-configuration '{
-            "LambdaConfigurations": [
+            "LambdaFunctionConfigurations": [
               {
                 "Id": "rag-processor-trigger",
                 "LambdaFunctionArn": "'$RAG_ARN'",
