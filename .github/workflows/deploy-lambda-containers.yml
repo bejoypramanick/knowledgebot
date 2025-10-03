@@ -25,6 +25,29 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Debug environment secrets
+      run: |
+        echo "Environment: ${{ github.environment }}"
+        echo "Branch: ${{ github.ref_name }}"
+        echo "Event: ${{ github.event_name }}"
+        echo ""
+        echo "Checking if secrets are available..."
+        if [ -n "$AWS_ACCESS_KEY_ID" ]; then
+          echo "✅ AWS_ACCESS_KEY_ID is available"
+        else
+          echo "❌ AWS_ACCESS_KEY_ID is not available"
+        fi
+        if [ -n "$AWS_SECRET_ACCESS_KEY" ]; then
+          echo "✅ AWS_SECRET_ACCESS_KEY is available"
+        else
+          echo "❌ AWS_SECRET_ACCESS_KEY is not available"
+        fi
+        if [ -n "$CLAUDE_API_KEY" ]; then
+          echo "✅ CLAUDE_API_KEY is available"
+        else
+          echo "❌ CLAUDE_API_KEY is not available"
+        fi
+
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
@@ -46,7 +69,7 @@ jobs:
         aws ecr create-repository --repository-name $ECR_REPOSITORY --region $AWS_REGION
         
         # Build and push image
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./backend/lambda/rag-processor
+        docker build --platform linux/amd64 -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./backend/lambda/rag-processor
         docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
@@ -61,7 +84,7 @@ jobs:
         aws ecr create-repository --repository-name $ECR_REPOSITORY --region $AWS_REGION
         
         # Build and push image
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./backend/lambda/chat-handler
+        docker build --platform linux/amd64 -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./backend/lambda/chat-handler
         docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
