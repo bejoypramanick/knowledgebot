@@ -39,8 +39,8 @@ class DocumentChunk(BaseModel):
 
 class DocumentProcessor:
     def __init__(self):
-        self.s3_client = boto3.client('s3')
-        self.dynamodb = boto3.resource('dynamodb')
+        self.s3_client = boto3.client('s3', region_name='sa-east-1')
+        self.dynamodb = boto3.resource('dynamodb', region_name='sa-east-1')
         self.documents_bucket = DOCUMENTS_BUCKET
         self.embeddings_bucket = EMBEDDINGS_BUCKET
         self.knowledge_base_table = self.dynamodb.Table(KNOWLEDGE_BASE_TABLE)

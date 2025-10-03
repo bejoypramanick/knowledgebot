@@ -357,8 +357,8 @@ def handle_presigned_url_generation(body: Dict[str, Any]) -> Dict[str, Any]:
         file_extension = filename.split('.')[-1] if '.' in filename else 'txt'
         s3_key = f"documents/{document_id}/{filename}"
         
-        # Initialize S3 client
-        s3_client = boto3.client('s3')
+        # Initialize S3 client with correct region
+        s3_client = boto3.client('s3', region_name='sa-east-1')
         
         # Generate presigned URL for PUT request
         presigned_url = s3_client.generate_presigned_url(
