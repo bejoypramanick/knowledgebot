@@ -7,6 +7,14 @@ from pydantic import BaseModel, Field
 from anthropic import Anthropic
 from datetime import datetime
 import uuid
+from decimal import Decimal
+
+# Custom JSON encoder to handle Decimal types from DynamoDB
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+        return super(DecimalEncoder, self).default(obj)
 
 # Add the backend directory to the path to import config
 sys.path.append('/opt/python')
@@ -120,12 +128,21 @@ class DoclingService:
             # Convert to text (simplified)
             text_content = content.decode('utf-8', errors='ignore')
             
-            # Simple chunking by paragraphs
-            paragraphs = text_content.split('\n\n')
+            # Simple chunking by paragraphs or sentences
+            # First try splitting by double newlines, then by single newlines, then by sentences
+            if '\n\n' in text_content:
+                paragraphs = text_content.split('\n\n')
+            elif '\n' in text_content:
+                paragraphs = text_content.split('\n')
+            else:
+                # Split by sentences (simple approach)
+                paragraphs = text_content.split('. ')
+                paragraphs = [p + '.' if not p.endswith('.') else p for p in paragraphs]
+            
             chunks = []
             
             for i, paragraph in enumerate(paragraphs):
-                if len(paragraph.strip()) < 50:
+                if len(paragraph.strip()) < 30:  # Reduced minimum length
                     continue
                     
                 chunk = DocumentChunk(
@@ -310,7 +327,7 @@ def handle_document_listing() -> Dict[str, Any]:
             'body': json.dumps({
                 'documents': documents,
                 'count': len(documents)
-            })
+            }, cls=DecimalEncoder)
         }
     except Exception as e:
         print(f"Error in document listing: {e}")
