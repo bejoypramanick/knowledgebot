@@ -5,10 +5,13 @@ on:
     branches: [ main ]
     paths:
       - 'backend/lambda/**'
+      - '.github/workflows/deploy-lambda-containers.yml'
   pull_request:
     branches: [ main ]
     paths:
       - 'backend/lambda/**'
+      - '.github/workflows/deploy-lambda-containers.yml'
+  workflow_dispatch:
 
 env:
   AWS_REGION: ap-south-1
