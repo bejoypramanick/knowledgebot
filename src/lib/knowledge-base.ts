@@ -36,6 +36,13 @@ export interface DocumentsListResponse {
   count: number;
 }
 
+export interface PresignedUrlResponse {
+  presigned_url: string;
+  document_id: string;
+  s3_key: string;
+  bucket: string;
+}
+
 export class KnowledgeBaseManager {
   private apiBaseUrl: string;
 
@@ -93,6 +100,36 @@ export class KnowledgeBaseManager {
   async getDocuments(): Promise<DocumentsListResponse> {
     const response = await axios.post(`${this.apiBaseUrl}/knowledge-base`, { action: 'list' });
     return response.data;
+  }
+
+  async getPresignedUploadUrl(file: File, metadata: Partial<DocumentMetadata> = {}): Promise<PresignedUrlResponse> {
+    const payload = {
+      action: 'get-upload-url',
+      filename: file.name,
+      content_type: file.type || 'application/octet-stream',
+      metadata: {
+        title: metadata.title || file.name,
+        category: metadata.category || 'general',
+        tags: metadata.tags || [],
+        author: metadata.author || 'unknown',
+        sourceUrl: metadata.sourceUrl
+      }
+    };
+
+    const response = await axios.post(`${this.apiBaseUrl}/knowledge-base`, payload);
+    return response.data;
+  }
+
+  async uploadToS3(file: File, presignedUrl: string): Promise<void> {
+    const response = await axios.put(presignedUrl, file, {
+      headers: {
+        'Content-Type': file.type || 'application/octet-stream'
+      }
+    });
+    
+    if (response.status !== 200) {
+      throw new Error(`Upload failed with status ${response.status}`);
+    }
   }
 }
 

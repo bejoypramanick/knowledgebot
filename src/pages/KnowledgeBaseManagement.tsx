@@ -47,7 +47,24 @@ const KnowledgeBaseManagement = () => {
     try {
       setIsLoading(true);
       const response = await knowledgeBaseManager.getDocuments();
-      setDocuments(response.documents || []);
+      // Transform the response data to match our Document interface
+      const transformedDocuments = (response.documents || []).map((doc: any) => ({
+        id: doc.chunk_id || doc.document_id || Math.random().toString(),
+        name: doc.title || doc.metadata?.source || 'Unknown Document',
+        type: doc.metadata?.document_type || 'txt',
+        status: doc.status || 'processed',
+        chunks: doc.chunks_count ? [doc] : [],
+        metadata: {
+          title: doc.title || doc.metadata?.source,
+          category: doc.metadata?.category || 'general',
+          tags: doc.metadata?.tags || [],
+          author: doc.metadata?.author || 'unknown',
+          sourceUrl: doc.metadata?.sourceUrl
+        },
+        createdAt: doc.created_at || new Date().toISOString(),
+        updatedAt: doc.created_at || new Date().toISOString()
+      }));
+      setDocuments(transformedDocuments);
     } catch (err) {
       console.error('Error loading documents:', err);
       setError('Failed to load documents');
@@ -76,7 +93,15 @@ const KnowledgeBaseManagement = () => {
       setError(null);
       setSuccess(null);
 
-      // Simulate progress
+      // Step 1: Get presigned URL
+      setUploadProgress(10);
+      const presignedResponse = await knowledgeBaseManager.getPresignedUploadUrl(selectedFile, uploadMetadata);
+      
+      // Step 2: Upload to S3
+      setUploadProgress(30);
+      await knowledgeBaseManager.uploadToS3(selectedFile, presignedResponse.presigned_url);
+      
+      // Step 3: Wait for processing (simulate progress)
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => {
           if (prev >= 90) {
@@ -85,14 +110,15 @@ const KnowledgeBaseManagement = () => {
           }
           return prev + 10;
         });
-      }, 200);
+      }, 500);
 
-      const response = await knowledgeBaseManager.uploadDocument(selectedFile, uploadMetadata);
+      // Wait a bit for S3 event processing
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
       clearInterval(progressInterval);
       setUploadProgress(100);
       
-      setSuccess(`Document uploaded successfully! Created ${response.chunks_created} chunks.`);
+      setSuccess(`Document uploaded successfully! Processing will begin shortly.`);
       
       // Reset form
       setSelectedFile(null);
@@ -121,11 +147,14 @@ const KnowledgeBaseManagement = () => {
     }
   };
 
-  const filteredDocuments = documents.filter(doc =>
-    doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    doc.metadata?.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    doc.metadata?.author?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredDocuments = documents.filter(doc => {
+    if (!doc) return false;
+    return (
+      (doc.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (doc.metadata?.category || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (doc.metadata?.author || '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  });
   return (
     <div className="min-h-screen bg-gradient-secondary">
       <div className="p-6 max-w-7xl mx-auto space-y-8 animate-fade-in">
@@ -144,6 +173,9 @@ const KnowledgeBaseManagement = () => {
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>Upload Document to Knowledge Base</DialogTitle>
+                <p className="text-sm text-muted-foreground">
+                  Upload documents to enhance your chatbot's knowledge base
+                </p>
               </DialogHeader>
               <div className="space-y-4">
                 {/* File Selection */}
@@ -200,7 +232,11 @@ const KnowledgeBaseManagement = () => {
                 {isUploading && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
-                      <span>Uploading...</span>
+                      <span>
+                        {uploadProgress < 30 ? 'Getting upload URL...' :
+                         uploadProgress < 90 ? 'Uploading to S3...' :
+                         'Processing document...'}
+                      </span>
                       <span>{uploadProgress}%</span>
                     </div>
                     <Progress value={uploadProgress} className="w-full" />
@@ -329,8 +365,8 @@ const KnowledgeBaseManagement = () => {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredDocuments.map((doc) => (
-                      <TableRow key={doc.id} className="hover:bg-muted/20 transition-colors">
+                    filteredDocuments.map((doc, index) => (
+                      <TableRow key={doc.id || `doc-${index}`} className="hover:bg-muted/20 transition-colors">
                         <TableCell className="font-medium flex items-center space-x-2">
                           <FileText className="h-4 w-4 text-primary" />
                           <span>{doc.name}</span>
