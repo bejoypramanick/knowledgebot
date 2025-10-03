@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Navigation from "./components/Navigation";
+import Chatbot from "./pages/Chatbot";
 import ChatbotConfiguration from "./pages/ChatbotConfiguration";
 import ChatbotPerformance from "./pages/ChatbotPerformance";
 import KnowledgeBaseManagement from "./pages/KnowledgeBaseManagement";
@@ -20,7 +21,8 @@ const App = () => (
         <Navigation />
         <main className="min-h-screen">
           <Routes>
-            <Route path="/" element={<ChatbotConfiguration />} />
+            <Route path="/" element={<Chatbot />} />
+            <Route path="/configuration" element={<ChatbotConfiguration />} />
             <Route path="/performance" element={<ChatbotPerformance />} />
             <Route path="/knowledge-base" element={<KnowledgeBaseManagement />} />
             <Route path="*" element={<NotFound />} />

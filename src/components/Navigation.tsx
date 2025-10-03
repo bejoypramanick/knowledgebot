@@ -1,11 +1,16 @@
 import { NavLink } from "react-router-dom";
-import { Settings, BarChart3, Database } from "lucide-react";
+import { MessageCircle, Settings, BarChart3, Database } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const Navigation = () => {
   const navItems = [
     {
       to: "/",
+      label: "Chat with Mr. Helpful",
+      icon: MessageCircle,
+    },
+    {
+      to: "/configuration",
       label: "Chatbot Configuration",
       icon: Settings,
     },

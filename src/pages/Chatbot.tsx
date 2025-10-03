@@ -1,0 +1,236 @@
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
+import { MessageCircle, Send, MoreHorizontal, Bot, Loader2 } from "lucide-react";
+import { ChatbotAPI, ChatMessage, ChatResponse } from "@/lib/chatbot-api";
+import { AWS_CONFIG } from "@/lib/aws-config";
+
+interface Message {
+  id: string;
+  text: string;
+  sender: 'user' | 'bot';
+  timestamp: string;
+  metadata?: {
+    sources?: any[];
+    orderStatus?: any;
+  };
+}
+
+const Chatbot = () => {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [sessionId, setSessionId] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [apiClient] = useState(new ChatbotAPI(AWS_CONFIG.endpoints.apiGateway));
+  const [error, setError] = useState<string | null>(null);
+
+  // Initialize session on component mount
+  useEffect(() => {
+    const initializeSession = async () => {
+      try {
+        const session = await apiClient.createChatSession();
+        setSessionId(session.id);
+        
+        // Add welcome message
+        const welcomeMessage: Message = {
+          id: 'welcome',
+          text: "Hello! I'm your AI assistant. How can I help you today?",
+          sender: 'bot',
+          timestamp: new Date().toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: false 
+          })
+        };
+        setMessages([welcomeMessage]);
+      } catch (err) {
+        console.error('Error initializing session:', err);
+        setError('Failed to initialize chat session. Please refresh the page.');
+      }
+    };
+
+    initializeSession();
+  }, []);
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !sessionId || isLoading) return;
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      text: newMessage,
+      sender: 'user',
+      timestamp: new Date().toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false 
+      })
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setNewMessage('');
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response: ChatResponse = await apiClient.sendMessage(newMessage, sessionId);
+      
+      const botMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        text: response.response,
+        sender: 'bot',
+        timestamp: new Date().toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          hour12: false 
+        }),
+        metadata: {
+          sources: response.sources || []
+        }
+      };
+
+      setMessages(prev => [...prev, botMessage]);
+    } catch (err: any) {
+      console.error('Error sending message:', err);
+      setError(err.response?.data?.message || 'Failed to send message. Please try again.');
+      
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        text: "I'm sorry, I encountered an error. Please try again or check your connection.",
+        sender: 'bot',
+        timestamp: new Date().toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          hour12: false 
+        })
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-secondary">
+      <div className="max-w-4xl mx-auto h-screen flex flex-col">
+        {/* Header */}
+        <div className="bg-gradient-primary border-b border-border/20 backdrop-blur-sm px-6 py-4">
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center">
+              <MessageCircle className="h-4 w-4 text-primary-foreground" />
+            </div>
+            <h1 className="text-xl font-bold text-primary-foreground">Chat with Mr. Helpful</h1>
+          </div>
+        </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="px-6 py-2">
+            <div className="bg-red-100 border border-red-300 text-red-700 px-4 py-3 rounded">
+              {error}
+            </div>
+          </div>
+        )}
+
+        {/* Chat History */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          {messages.map((message, index) => (
+            <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`flex items-start space-x-2 max-w-xs lg:max-w-md ${message.sender === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                {message.sender === 'bot' && (
+                  <div className="w-6 h-6 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0">
+                    <Bot className="h-3 w-3 text-primary" />
+                  </div>
+                )}
+                <div className={`px-4 py-3 rounded-2xl ${
+                  message.sender === 'user' 
+                    ? 'bg-primary text-primary-foreground' 
+                    : 'bg-card/80 backdrop-blur-sm border border-border/20 text-foreground'
+                }`}>
+                  <p className="text-sm">{message.text}</p>
+                  {message.metadata?.sources && message.metadata.sources.length > 0 && (
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      <p>Sources:</p>
+                      <ul className="list-disc list-inside">
+                        {message.metadata.sources.map((source: any, idx: number) => (
+                          <li key={idx}>{source.title || source.source || 'Unknown'}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  <p className={`text-xs mt-1 ${
+                    message.sender === 'user' 
+                      ? 'text-primary-foreground/70' 
+                      : 'text-muted-foreground'
+                  }`}>
+                    {message.timestamp}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* Loading Indicator */}
+          {isLoading && (
+            <div className="flex justify-start">
+              <div className="flex items-start space-x-2 max-w-xs lg:max-w-md">
+                <div className="w-6 h-6 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0">
+                  <Bot className="h-3 w-3 text-primary" />
+                </div>
+                <div className="px-4 py-3 rounded-2xl bg-card/80 backdrop-blur-sm border border-border/20 text-foreground">
+                  <div className="flex items-center space-x-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <p className="text-sm">Thinking...</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Input Area */}
+        <div className="border-t border-border/20 bg-card/50 backdrop-blur-sm p-4">
+          <div className="flex items-center space-x-3">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="w-10 h-10 p-0 hover:bg-muted/50"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+            <Input
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder={isLoading ? "Please wait..." : "Type here..."}
+              disabled={isLoading || !sessionId}
+              className="flex-1 bg-background/50 border-border/20 focus:border-primary/50 disabled:opacity-50"
+            />
+            <Button 
+              onClick={handleSendMessage}
+              size="sm" 
+              disabled={isLoading || !newMessage.trim() || !sessionId}
+              className="w-10 h-10 p-0 bg-gradient-primary border-0 shadow-glow hover:shadow-glow/80 disabled:opacity-50"
+            >
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Chatbot;
+
