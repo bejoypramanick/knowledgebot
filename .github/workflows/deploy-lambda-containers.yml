@@ -184,14 +184,19 @@ jobs:
         # Get the RAG processor Lambda function ARN
         RAG_ARN=$(aws lambda get-function --function-name $RAG_PROCESSOR_IMAGE --region $AWS_REGION --query 'Configuration.FunctionArn' --output text)
         
-        # Add permission for S3 to invoke Lambda
+        # Add permission for S3 to invoke Lambda (remove existing first)
+        aws lambda remove-permission \
+          --function-name $RAG_PROCESSOR_IMAGE \
+          --statement-id s3-trigger-permission \
+          --region $AWS_REGION 2>/dev/null || echo "Permission doesn't exist yet"
+        
         aws lambda add-permission \
           --function-name $RAG_PROCESSOR_IMAGE \
           --statement-id s3-trigger-permission \
           --action lambda:InvokeFunction \
           --principal s3.amazonaws.com \
           --source-arn arn:aws:s3:::chatbot-documents-ap-south-1 \
-          --region $AWS_REGION || echo "Permission already exists"
+          --region $AWS_REGION
         
         # Create S3 event notification configuration
         aws s3api put-bucket-notification-configuration \
