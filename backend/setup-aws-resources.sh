@@ -156,6 +156,16 @@ cat > lambda-custom-policy.json << EOF
                 "lambda:InvokeFunction"
             ],
             "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ecr:GetAuthorizationToken",
+                "ecr:BatchCheckLayerAvailability",
+                "ecr:GetDownloadUrlForLayer",
+                "ecr:BatchGetImage"
+            ],
+            "Resource": "*"
         }
     ]
 }
