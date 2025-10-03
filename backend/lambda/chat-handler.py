@@ -22,13 +22,14 @@ sys.path.append('/var/task')
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 try:
-    from config import CLAUDE_API_KEY, KNOWLEDGE_BASE_TABLE, CONVERSATIONS_TABLE, EMBEDDINGS_BUCKET
+    from config import CLAUDE_API_KEY, KNOWLEDGE_BASE_TABLE, CONVERSATIONS_TABLE, EMBEDDINGS_BUCKET, DOCUMENTS_BUCKET
 except ImportError:
     # Fallback values if config import fails
     CLAUDE_API_KEY = "sk-ant-api03-your-actual-claude-api-key-here"
     KNOWLEDGE_BASE_TABLE = "chatbot-knowledge-base"
     CONVERSATIONS_TABLE = "chatbot-conversations"
     EMBEDDINGS_BUCKET = "chatbot-embeddings"
+    DOCUMENTS_BUCKET = "chatbot-documents"
 
 # Pydantic models for request/response validation
 class ChatMessage(BaseModel):
@@ -343,6 +344,68 @@ def handle_document_listing() -> Dict[str, Any]:
             })
         }
 
+def handle_presigned_url_generation(body: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle presigned URL generation for S3 uploads"""
+    try:
+        filename = body.get('filename', '')
+        content_type = body.get('content_type', 'application/octet-stream')
+        metadata = body.get('metadata', {})
+        
+        # Generate unique key for the document
+        import uuid
+        document_id = str(uuid.uuid4())
+        file_extension = filename.split('.')[-1] if '.' in filename else 'txt'
+        s3_key = f"documents/{document_id}/{filename}"
+        
+        # Initialize S3 client
+        s3_client = boto3.client('s3')
+        
+        # Generate presigned URL for PUT request
+        presigned_url = s3_client.generate_presigned_url(
+            'put_object',
+            Params={
+                'Bucket': DOCUMENTS_BUCKET,
+                'Key': s3_key,
+                'ContentType': content_type,
+                'Metadata': {
+                    'document_id': document_id,
+                    'original_filename': filename,
+                    'upload_timestamp': datetime.utcnow().isoformat(),
+                    **{k: str(v) for k, v in metadata.items()}
+                }
+            },
+            ExpiresIn=3600  # 1 hour
+        )
+        
+        return {
+            'statusCode': 200,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Methods': 'POST, OPTIONS'
+            },
+            'body': json.dumps({
+                'presigned_url': presigned_url,
+                'document_id': document_id,
+                's3_key': s3_key,
+                'bucket': DOCUMENTS_BUCKET
+            }, cls=DecimalEncoder)
+        }
+    except Exception as e:
+        print(f"Error generating presigned URL: {e}")
+        return {
+            'statusCode': 500,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps({
+                'error': 'Failed to generate presigned URL',
+                'message': str(e)
+            })
+        }
+
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Main Lambda handler for chat and knowledge base requests"""
     try:
@@ -361,6 +424,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return handle_web_scraping(body)
         elif action == 'list':
             return handle_document_listing()
+        elif action == 'get-upload-url':
+            return handle_presigned_url_generation(body)
         else:
             # Handle chat request
             chat_message = ChatMessage(**body)
