@@ -377,6 +377,12 @@ def handle_presigned_url_generation(body: Dict[str, Any]) -> Dict[str, Any]:
             ExpiresIn=3600  # 1 hour
         )
         
+        # Replace the global endpoint with regional endpoint
+        presigned_url = presigned_url.replace(
+            f'{DOCUMENTS_BUCKET}.s3.amazonaws.com',
+            f'{DOCUMENTS_BUCKET}.s3.ap-south-1.amazonaws.com'
+        )
+        
         return {
             'statusCode': 200,
             'headers': {
