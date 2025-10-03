@@ -78,15 +78,19 @@ jobs:
         aws ecr describe-repositories --repository-names $ECR_REPOSITORY --region $AWS_REGION || \
         aws ecr create-repository --repository-name $ECR_REPOSITORY --region $AWS_REGION
         
-        # Build and push image with layer caching
+        # Build image with layer caching
         docker buildx build \
           --platform linux/amd64 \
           --cache-from type=gha,scope=rag-processor \
           --cache-to type=gha,scope=rag-processor,mode=max \
           --tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
           --tag $ECR_REGISTRY/$ECR_REPOSITORY:latest \
-          --push \
+          --load \
           ./backend/lambda/rag-processor
+        
+        # Push images to ECR
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
     - name: Build and push Chat Handler image
       env:
@@ -97,15 +101,19 @@ jobs:
         aws ecr describe-repositories --repository-names $ECR_REPOSITORY --region $AWS_REGION || \
         aws ecr create-repository --repository-name $ECR_REPOSITORY --region $AWS_REGION
         
-        # Build and push image with layer caching
+        # Build image with layer caching
         docker buildx build \
           --platform linux/amd64 \
           --cache-from type=gha,scope=chat-handler \
           --cache-to type=gha,scope=chat-handler,mode=max \
           --tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
           --tag $ECR_REGISTRY/$ECR_REPOSITORY:latest \
-          --push \
+          --load \
           ./backend/lambda/chat-handler
+        
+        # Push images to ECR
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
     - name: Deploy RAG Processor Lambda
       env:
