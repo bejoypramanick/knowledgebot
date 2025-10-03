@@ -29,6 +29,10 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Debug environment secrets
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
       run: |
         echo "Environment: ${{ github.environment }}"
         echo "Branch: ${{ github.ref_name }}"
