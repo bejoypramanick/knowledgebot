@@ -428,7 +428,22 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return handle_presigned_url_generation(body)
         else:
             # Handle chat request
-            chat_message = ChatMessage(**body)
+            try:
+                chat_message = ChatMessage(**body)
+            except Exception as e:
+                return {
+                    'statusCode': 400,
+                    'headers': {
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*',
+                        'Access-Control-Allow-Headers': 'Content-Type',
+                        'Access-Control-Allow-Methods': 'POST, OPTIONS'
+                    },
+                    'body': json.dumps({
+                        'error': 'Invalid request format',
+                        'message': str(e)
+                    })
+                }
             
             # Initialize Docling service
             docling_service = DoclingService()
