@@ -3,7 +3,7 @@
 CLAUDE_API_KEY ="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"
 
 # AWS Configuration
-AWS_REGION = "ap-south-1"
+AWS_REGION = "sa-east-1"
 
 # DynamoDB Table Names
 KNOWLEDGE_BASE_TABLE = "chatbot-knowledge-base"
