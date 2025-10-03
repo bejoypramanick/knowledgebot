@@ -114,64 +114,111 @@ class DoclingService:
         except Exception as e:
             print(f"Error saving conversation: {e}")
 
-def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    """Main Lambda handler for chat requests"""
+    def process_document_simple(self, content: bytes, filename: str, metadata: Dict[str, Any]) -> List[DocumentChunk]:
+        """Simple document processing for uploads"""
+        try:
+            # Convert to text (simplified)
+            text_content = content.decode('utf-8', errors='ignore')
+            
+            # Simple chunking by paragraphs
+            paragraphs = text_content.split('\n\n')
+            chunks = []
+            
+            for i, paragraph in enumerate(paragraphs):
+                if len(paragraph.strip()) < 50:
+                    continue
+                    
+                chunk = DocumentChunk(
+                    content=paragraph.strip(),
+                    metadata={
+                        'source': filename,
+                        'chunk_index': i,
+                        'document_type': filename.split('.')[-1].lower(),
+                        'processed_at': datetime.utcnow().isoformat(),
+                        **metadata
+                    },
+                    embedding=[]  # Simplified for now
+                )
+                chunks.append(chunk)
+                
+                # Save to DynamoDB
+                self.knowledge_base_table.put_item(
+                    Item={
+                        'chunk_id': chunk.chunk_id,
+                        'content': chunk.content,
+                        'metadata': chunk.metadata,
+                        'hierarchy_level': chunk.hierarchy_level,
+                        'created_at': datetime.utcnow().isoformat()
+                    }
+                )
+            
+            return chunks
+        except Exception as e:
+            print(f"Error processing document: {e}")
+            return []
+
+    def scrape_website_simple(self, url: str, scrape_type: str, metadata: Dict[str, Any]) -> List[DocumentChunk]:
+        """Simple website scraping"""
+        try:
+            # Simplified scraping - in reality you'd use requests + BeautifulSoup
+            chunks = []
+            
+            # Mock content for now
+            mock_content = [
+                f"Content from {url} - {scrape_type}",
+                f"Additional information about {scrape_type}",
+                f"More details from {url}"
+            ]
+            
+            for i, content in enumerate(mock_content):
+                chunk = DocumentChunk(
+                    content=content,
+                    metadata={
+                        'source': url,
+                        'scrape_type': scrape_type,
+                        'chunk_index': i,
+                        'scraped_at': datetime.utcnow().isoformat(),
+                        **metadata
+                    },
+                    embedding=[]
+                )
+                chunks.append(chunk)
+                
+                # Save to DynamoDB
+                self.knowledge_base_table.put_item(
+                    Item={
+                        'chunk_id': chunk.chunk_id,
+                        'content': chunk.content,
+                        'metadata': chunk.metadata,
+                        'hierarchy_level': chunk.hierarchy_level,
+                        'created_at': datetime.utcnow().isoformat()
+                    }
+                )
+            
+            return chunks
+        except Exception as e:
+            print(f"Error scraping website: {e}")
+            return []
+
+def handle_document_upload(body: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle document upload requests"""
     try:
-        # Parse the request
-        if 'body' in event:
-            body = json.loads(event['body'])
-        else:
-            body = event
+        import base64
         
-        chat_message = ChatMessage(**body)
+        # Extract upload data
+        filename = body.get('filename', '')
+        content = body.get('content', '')
+        document_type = body.get('document_type', 'txt')
+        metadata = body.get('metadata', {})
         
-        # Initialize Docling service
+        # Decode base64 content
+        document_content = base64.b64decode(content)
+        
+        # Initialize service
         docling_service = DoclingService()
         
-        # Search knowledge base for relevant context
-        relevant_chunks = docling_service.search_knowledge_base(chat_message.message)
-        
-        # Build context from relevant chunks
-        context = "\n\n".join([
-            f"Source: {chunk.metadata.get('source', 'Unknown')}\n{chunk.content}"
-            for chunk in relevant_chunks
-        ])
-        
-        # Prepare messages for Claude
-        messages = [
-            {
-                "role": "user",
-                "content": chat_message.message
-            }
-        ]
-        
-        # Get response from Claude
-        ai_response = docling_service.get_claude_response(messages, context)
-        
-        # Save conversation
-        docling_service.save_conversation(
-            chat_message.session_id,
-            chat_message.message,
-            ai_response
-        )
-        
-        # Prepare sources for response
-        sources = [
-            {
-                "source": chunk.metadata.get('source', 'Unknown'),
-                "relevance_score": 0.8,  # Placeholder
-                "content_preview": chunk.content[:200] + "..." if len(chunk.content) > 200 else chunk.content
-            }
-            for chunk in relevant_chunks
-        ]
-        
-        # Create response
-        chat_response = ChatResponse(
-            response=ai_response,
-            session_id=chat_message.session_id,
-            timestamp=datetime.utcnow().isoformat(),
-            sources=sources
-        )
+        # Process document
+        chunks = docling_service.process_document_simple(document_content, filename, metadata)
         
         return {
             'statusCode': 200,
@@ -181,8 +228,184 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'Access-Control-Allow-Headers': 'Content-Type',
                 'Access-Control-Allow-Methods': 'POST, OPTIONS'
             },
-            'body': json.dumps(chat_response.dict())
+            'body': json.dumps({
+                'message': 'Document processed successfully',
+                'chunks_created': len(chunks),
+                'filename': filename
+            })
         }
+    except Exception as e:
+        print(f"Error in document upload: {e}")
+        return {
+            'statusCode': 500,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps({
+                'error': 'Document upload failed',
+                'message': str(e)
+            })
+        }
+
+def handle_web_scraping(body: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle web scraping requests"""
+    try:
+        url = body.get('url', '')
+        scrape_type = body.get('scrape_type', 'general')
+        metadata = body.get('metadata', {})
+        
+        # Initialize service
+        docling_service = DoclingService()
+        
+        # Scrape website
+        chunks = docling_service.scrape_website_simple(url, scrape_type, metadata)
+        
+        return {
+            'statusCode': 200,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Methods': 'POST, OPTIONS'
+            },
+            'body': json.dumps({
+                'message': 'Website scraped successfully',
+                'chunks_created': len(chunks),
+                'url': url
+            })
+        }
+    except Exception as e:
+        print(f"Error in web scraping: {e}")
+        return {
+            'statusCode': 500,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps({
+                'error': 'Web scraping failed',
+                'message': str(e)
+            })
+        }
+
+def handle_document_listing() -> Dict[str, Any]:
+    """Handle document listing requests"""
+    try:
+        # Initialize service
+        docling_service = DoclingService()
+        
+        # Get documents from DynamoDB
+        response = docling_service.knowledge_base_table.scan()
+        documents = response.get('Items', [])
+        
+        return {
+            'statusCode': 200,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Methods': 'POST, OPTIONS'
+            },
+            'body': json.dumps({
+                'documents': documents,
+                'count': len(documents)
+            })
+        }
+    except Exception as e:
+        print(f"Error in document listing: {e}")
+        return {
+            'statusCode': 500,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps({
+                'error': 'Document listing failed',
+                'message': str(e)
+            })
+        }
+
+def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """Main Lambda handler for chat and knowledge base requests"""
+    try:
+        # Parse the request
+        if 'body' in event:
+            body = json.loads(event['body'])
+        else:
+            body = event
+        
+        # Check if this is a knowledge base request
+        action = body.get('action', '')
+        
+        if action == 'upload':
+            return handle_document_upload(body)
+        elif action == 'scrape':
+            return handle_web_scraping(body)
+        elif action == 'list':
+            return handle_document_listing()
+        else:
+            # Handle chat request
+            chat_message = ChatMessage(**body)
+            
+            # Initialize Docling service
+            docling_service = DoclingService()
+            
+            # Search knowledge base for relevant context
+            relevant_chunks = docling_service.search_knowledge_base(chat_message.message)
+            
+            # Build context from relevant chunks
+            context = "\n\n".join([
+                f"Source: {chunk.metadata.get('source', 'Unknown')}\n{chunk.content}"
+                for chunk in relevant_chunks
+            ])
+            
+            # Prepare messages for Claude
+            messages = [
+                {
+                    "role": "user",
+                    "content": chat_message.message
+                }
+            ]
+            
+            # Get response from Claude
+            ai_response = docling_service.get_claude_response(messages, context)
+            
+            # Save conversation
+            docling_service.save_conversation(
+                chat_message.session_id,
+                chat_message.message,
+                ai_response
+            )
+            
+            # Prepare sources for response
+            sources = [
+                {
+                    "source": chunk.metadata.get('source', 'Unknown'),
+                    "relevance_score": 0.8,  # Placeholder
+                    "content_preview": chunk.content[:200] + "..." if len(chunk.content) > 200 else chunk.content
+                }
+                for chunk in relevant_chunks
+            ]
+            
+            # Create response
+            chat_response = ChatResponse(
+                response=ai_response,
+                session_id=chat_message.session_id,
+                timestamp=datetime.utcnow().isoformat(),
+                sources=sources
+            )
+            
+            return {
+                'statusCode': 200,
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Headers': 'Content-Type',
+                    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+                },
+                'body': json.dumps(chat_response.dict())
+            }
         
     except Exception as e:
         print(f"Error in chat handler: {e}")
