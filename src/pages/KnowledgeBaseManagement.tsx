@@ -1,8 +1,13 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Edit, Trash2, Filter, FileText, Database as DatabaseIcon } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Progress } from "@/components/ui/progress";
+import { Search, Plus, Edit, Trash2, Filter, FileText, Database as DatabaseIcon, Upload, X, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -11,51 +16,116 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-const knowledgeBaseData = [
-  {
-    id: 1,
-    name: "Getting Started Guide",
-    category: "Documentation",
-    lastUpdated: "2024-01-15",
-    status: "Active",
-    author: "Admin"
-  },
-  {
-    id: 2,
-    name: "Troubleshooting FAQ",
-    category: "Support",
-    lastUpdated: "2024-01-10",
-    status: "Active", 
-    author: "Support Team"
-  },
-  {
-    id: 3,
-    name: "API Documentation",
-    category: "Technical",
-    lastUpdated: "2024-01-08",
-    status: "Draft",
-    author: "Dev Team"
-  },
-  {
-    id: 4,
-    name: "User Manual v2.0",
-    category: "Documentation",
-    lastUpdated: "2024-01-05",
-    status: "Active",
-    author: "Product Team"
-  },
-  {
-    id: 5,
-    name: "Security Guidelines",
-    category: "Policy",
-    lastUpdated: "2024-01-03",
-    status: "Active",
-    author: "Security Team"
-  },
-];
+import { KnowledgeBaseManager, Document, DocumentMetadata } from "@/lib/knowledge-base";
+import { AWS_CONFIG } from "@/lib/aws-config";
 
 const KnowledgeBaseManagement = () => {
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadMetadata, setUploadMetadata] = useState<Partial<DocumentMetadata>>({
+    title: '',
+    category: 'general',
+    tags: [],
+    author: ''
+  });
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const knowledgeBaseManager = new KnowledgeBaseManager(AWS_CONFIG.endpoints.apiGateway);
+
+  // Load documents on component mount
+  useEffect(() => {
+    loadDocuments();
+  }, []);
+
+  const loadDocuments = async () => {
+    try {
+      setIsLoading(true);
+      const response = await knowledgeBaseManager.getDocuments();
+      setDocuments(response.documents || []);
+    } catch (err) {
+      console.error('Error loading documents:', err);
+      setError('Failed to load documents');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      setUploadMetadata(prev => ({
+        ...prev,
+        title: file.name.split('.')[0] // Use filename without extension as default title
+      }));
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!selectedFile) return;
+
+    try {
+      setIsUploading(true);
+      setUploadProgress(0);
+      setError(null);
+      setSuccess(null);
+
+      // Simulate progress
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return prev;
+          }
+          return prev + 10;
+        });
+      }, 200);
+
+      const response = await knowledgeBaseManager.uploadDocument(selectedFile, uploadMetadata);
+      
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+      
+      setSuccess(`Document uploaded successfully! Created ${response.chunks_created} chunks.`);
+      
+      // Reset form
+      setSelectedFile(null);
+      setUploadMetadata({
+        title: '',
+        category: 'general',
+        tags: [],
+        author: ''
+      });
+      
+      // Reload documents
+      await loadDocuments();
+      
+      // Close dialog after a delay
+      setTimeout(() => {
+        setIsUploadDialogOpen(false);
+        setSuccess(null);
+        setUploadProgress(0);
+      }, 2000);
+
+    } catch (err) {
+      console.error('Error uploading document:', err);
+      setError('Failed to upload document. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const filteredDocuments = documents.filter(doc =>
+    doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    doc.metadata?.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    doc.metadata?.author?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
   return (
     <div className="min-h-screen bg-gradient-secondary">
       <div className="p-6 max-w-7xl mx-auto space-y-8 animate-fade-in">
@@ -64,10 +134,124 @@ const KnowledgeBaseManagement = () => {
             <h1 className="text-3xl font-bold text-foreground mb-2">Knowledge-base Management</h1>
             <p className="text-muted-foreground">Manage your AI assistant's knowledge and training data</p>
           </div>
-          <Button className="bg-gradient-primary border-0 shadow-glow">
-            <Plus className="h-4 w-4 mr-2" />
-            Add New Entry
-          </Button>
+          <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-gradient-primary border-0 shadow-glow">
+                <Upload className="h-4 w-4 mr-2" />
+                Upload Document
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Upload Document to Knowledge Base</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                {/* File Selection */}
+                <div className="space-y-2">
+                  <Label htmlFor="file">Select Document</Label>
+                  <Input
+                    id="file"
+                    type="file"
+                    accept=".pdf,.docx,.txt,.md"
+                    onChange={handleFileSelect}
+                    className="cursor-pointer"
+                  />
+                  {selectedFile && (
+                    <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                      <FileText className="h-4 w-4" />
+                      <span>{selectedFile.name}</span>
+                      <span className="text-xs">({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Metadata Fields */}
+                <div className="space-y-2">
+                  <Label htmlFor="title">Title</Label>
+                  <Input
+                    id="title"
+                    value={uploadMetadata.title || ''}
+                    onChange={(e) => setUploadMetadata(prev => ({ ...prev, title: e.target.value }))}
+                    placeholder="Document title"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="category">Category</Label>
+                  <Input
+                    id="category"
+                    value={uploadMetadata.category || ''}
+                    onChange={(e) => setUploadMetadata(prev => ({ ...prev, category: e.target.value }))}
+                    placeholder="e.g., Documentation, FAQ, Policy"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="author">Author</Label>
+                  <Input
+                    id="author"
+                    value={uploadMetadata.author || ''}
+                    onChange={(e) => setUploadMetadata(prev => ({ ...prev, author: e.target.value }))}
+                    placeholder="Author name"
+                  />
+                </div>
+
+                {/* Progress Bar */}
+                {isUploading && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span>Uploading...</span>
+                      <span>{uploadProgress}%</span>
+                    </div>
+                    <Progress value={uploadProgress} className="w-full" />
+                  </div>
+                )}
+
+                {/* Success/Error Messages */}
+                {success && (
+                  <div className="flex items-center space-x-2 text-green-600 bg-green-50 p-3 rounded-lg">
+                    <CheckCircle className="h-4 w-4" />
+                    <span className="text-sm">{success}</span>
+                  </div>
+                )}
+
+                {error && (
+                  <div className="flex items-center space-x-2 text-red-600 bg-red-50 p-3 rounded-lg">
+                    <AlertCircle className="h-4 w-4" />
+                    <span className="text-sm">{error}</span>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex justify-end space-x-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsUploadDialogOpen(false)}
+                    disabled={isUploading}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleUpload}
+                    disabled={!selectedFile || isUploading}
+                    className="bg-gradient-primary"
+                  >
+                    {isUploading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Upload
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
 
         {/* Search and Filters */}
@@ -79,11 +263,23 @@ const KnowledgeBaseManagement = () => {
                 <Input 
                   placeholder="Search knowledge base articles..." 
                   className="pl-10 bg-muted/30 border-border/20 focus:border-primary/50"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <Button variant="outline" size="sm" className="backdrop-blur-sm border-border/20">
-                <Filter className="h-4 w-4 mr-2" />
-                Filter
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="backdrop-blur-sm border-border/20"
+                onClick={loadDocuments}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Filter className="h-4 w-4 mr-2" />
+                )}
+                Refresh
               </Button>
             </div>
           </CardContent>
@@ -111,42 +307,71 @@ const KnowledgeBaseManagement = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {knowledgeBaseData.map((item) => (
-                    <TableRow key={item.id} className="hover:bg-muted/20 transition-colors">
-                      <TableCell className="font-medium flex items-center space-x-2">
-                        <FileText className="h-4 w-4 text-primary" />
-                        <span>{item.name}</span>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="border-primary/20 text-primary bg-primary/10">
-                          {item.category}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{item.lastUpdated}</TableCell>
-                      <TableCell className="text-muted-foreground">{item.author}</TableCell>
-                      <TableCell>
-                        <Badge 
-                          variant={item.status === "Active" ? "default" : "secondary"}
-                          className={item.status === "Active" 
-                            ? "bg-green-500/20 text-green-500 border-green-500/20" 
-                            : "bg-yellow-500/20 text-yellow-500 border-yellow-500/20"
-                          }
-                        >
-                          {item.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end space-x-2">
-                          <Button variant="ghost" size="sm" className="hover:bg-primary/10">
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" className="hover:bg-destructive/10 hover:text-destructive">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8">
+                        <div className="flex items-center justify-center space-x-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>Loading documents...</span>
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : filteredDocuments.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8">
+                        <div className="flex flex-col items-center space-y-2">
+                          <FileText className="h-8 w-8 text-muted-foreground" />
+                          <span className="text-muted-foreground">No documents found</span>
+                          <span className="text-sm text-muted-foreground">
+                            {searchTerm ? 'Try adjusting your search terms' : 'Upload your first document to get started'}
+                          </span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredDocuments.map((doc) => (
+                      <TableRow key={doc.id} className="hover:bg-muted/20 transition-colors">
+                        <TableCell className="font-medium flex items-center space-x-2">
+                          <FileText className="h-4 w-4 text-primary" />
+                          <span>{doc.name}</span>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="border-primary/20 text-primary bg-primary/10">
+                            {doc.metadata?.category || 'general'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {new Date(doc.createdAt).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {doc.metadata?.author || 'Unknown'}
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={doc.status === "processed" ? "default" : "secondary"}
+                            className={doc.status === "processed" 
+                              ? "bg-green-500/20 text-green-500 border-green-500/20" 
+                              : doc.status === "processing"
+                              ? "bg-yellow-500/20 text-yellow-500 border-yellow-500/20"
+                              : "bg-red-500/20 text-red-500 border-red-500/20"
+                            }
+                          >
+                            {doc.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end space-x-2">
+                            <Button variant="ghost" size="sm" className="hover:bg-primary/10">
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" className="hover:bg-destructive/10 hover:text-destructive">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </div>
@@ -163,8 +388,8 @@ const KnowledgeBaseManagement = () => {
                   <DatabaseIcon className="h-6 w-6 text-primary" />
                 </div>
               </div>
-              <div className="text-3xl font-bold text-foreground mb-1">25</div>
-              <div className="text-sm text-muted-foreground">Total Articles</div>
+              <div className="text-3xl font-bold text-foreground mb-1">{documents.length}</div>
+              <div className="text-sm text-muted-foreground">Total Documents</div>
             </CardContent>
           </Card>
           
@@ -176,8 +401,10 @@ const KnowledgeBaseManagement = () => {
                   <FileText className="h-6 w-6 text-green-500" />
                 </div>
               </div>
-              <div className="text-3xl font-bold text-foreground mb-1">18</div>
-              <div className="text-sm text-muted-foreground">Active Articles</div>
+              <div className="text-3xl font-bold text-foreground mb-1">
+                {documents.filter(doc => doc.status === 'processed').length}
+              </div>
+              <div className="text-sm text-muted-foreground">Processed Documents</div>
             </CardContent>
           </Card>
           
@@ -189,8 +416,10 @@ const KnowledgeBaseManagement = () => {
                   <Edit className="h-6 w-6 text-yellow-500" />
                 </div>
               </div>
-              <div className="text-3xl font-bold text-foreground mb-1">7</div>
-              <div className="text-sm text-muted-foreground">Draft Articles</div>
+              <div className="text-3xl font-bold text-foreground mb-1">
+                {documents.filter(doc => doc.status === 'processing' || doc.status === 'uploaded').length}
+              </div>
+              <div className="text-sm text-muted-foreground">Processing/Pending</div>
             </CardContent>
           </Card>
         </div>
