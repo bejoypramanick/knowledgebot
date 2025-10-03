@@ -4,7 +4,7 @@ import os
 import sys
 from typing import Dict, Any, List
 from pydantic import BaseModel, Field
-import requests
+from anthropic import Anthropic
 from datetime import datetime
 import uuid
 
@@ -48,44 +48,30 @@ class DoclingService:
         self.knowledge_base_table = self.dynamodb.Table(KNOWLEDGE_BASE_TABLE)
         self.conversations_table = self.dynamodb.Table(CONVERSATIONS_TABLE)
         
-        # Use Claude API key from config
-        self.claude_api_key = CLAUDE_API_KEY
+        # Initialize Anthropic client with API key from config
+        self.anthropic_client = Anthropic(api_key=CLAUDE_API_KEY)
 
     def get_claude_response(self, messages: List[Dict[str, str]], context: str = "") -> str:
-        """Get response from Claude API"""
-        if not self.claude_api_key:
-            return "Sorry, I'm unable to process your request at the moment."
-        
-        headers = {
-            "x-api-key": self.claude_api_key,
-            "Content-Type": "application/json",
-            "anthropic-version": "2023-06-01"
-        }
-        
-        # Prepare the prompt with context
-        system_prompt = f"""You are a helpful AI assistant with access to a knowledge base. 
-        Use the following context to answer questions accurately and helpfully:
-        
-        Context: {context}
-        
-        If the context doesn't contain relevant information, say so and offer to help in other ways."""
-        
-        payload = {
-            "model": "claude-3-5-sonnet-20241022",
-            "max_tokens": 1000,
-            "system": system_prompt,
-            "messages": messages
-        }
-        
+        """Get response from Claude API using Anthropic SDK"""
         try:
-            response = requests.post(
-                "https://api.anthropic.com/v1/messages",
-                headers=headers,
-                json=payload,
-                timeout=30
+            # Prepare the system prompt with context
+            system_prompt = f"""You are a helpful AI assistant with access to a knowledge base. 
+            Use the following context to answer questions accurately and helpfully:
+            
+            Context: {context}
+            
+            If the context doesn't contain relevant information, say so and offer to help in other ways."""
+            
+            # Use the Anthropic SDK
+            response = self.anthropic_client.messages.create(
+                model="claude-3-5-haiku-20241022",
+                max_tokens=1000,
+                system=system_prompt,
+                messages=messages
             )
-            response.raise_for_status()
-            return response.json()['content'][0]['text']
+            
+            return response.content[0].text
+            
         except Exception as e:
             print(f"Error calling Claude API: {e}")
             return "Sorry, I encountered an error while processing your request."
