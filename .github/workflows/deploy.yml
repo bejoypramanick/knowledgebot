@@ -599,6 +599,95 @@ jobs:
         
         echo "🎉 S3 bucket notifications configured successfully!"
 
+  configure-s3-notifications:
+    runs-on: ubuntu-latest
+    environment: chatbot
+    if: always()
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Configure S3 Bucket Notifications
+      run: |
+        echo "🔔 Configuring S3 bucket notifications for document processing..."
+        
+        BUCKET_NAME="chatbot-storage-ap-south-1"
+        RAG_PROCESSOR_LAMBDA="chatbot-rag-processor"
+        
+        # Check if bucket exists
+        if ! aws s3api head-bucket --bucket $BUCKET_NAME --region ${{ env.AWS_REGION }} 2>/dev/null; then
+          echo "❌ Bucket $BUCKET_NAME does not exist. Creating it..."
+          aws s3 mb s3://$BUCKET_NAME --region ${{ env.AWS_REGION }}
+        fi
+        
+        # Check if RAG processor lambda exists
+        if ! aws lambda get-function --function-name $RAG_PROCESSOR_LAMBDA --region ${{ env.AWS_REGION }} >/dev/null 2>&1; then
+          echo "❌ Lambda function $RAG_PROCESSOR_LAMBDA does not exist. Skipping S3 notification setup."
+          exit 0
+        fi
+        
+        # Get the Lambda function ARN
+        LAMBDA_ARN=$(aws lambda get-function --function-name $RAG_PROCESSOR_LAMBDA --region ${{ env.AWS_REGION }} --query 'Configuration.FunctionArn' --output text)
+        echo "📋 Lambda ARN: $LAMBDA_ARN"
+        
+        # Add permission for S3 to invoke the Lambda function
+        echo "🔐 Adding S3 permission to invoke Lambda function..."
+        aws lambda add-permission \
+          --function-name $RAG_PROCESSOR_LAMBDA \
+          --statement-id s3-invoke-$(date +%s) \
+          --action lambda:InvokeFunction \
+          --principal s3.amazonaws.com \
+          --source-arn "arn:aws:s3:::$BUCKET_NAME" \
+          --region ${{ env.AWS_REGION }} || echo "Permission may already exist"
+        
+        # Create S3 bucket notification configuration
+        echo "📝 Creating S3 bucket notification configuration..."
+        cat > s3-notification-config.json << EOF
+        {
+            "LambdaConfigurations": [
+                {
+                    "Id": "DocumentProcessingTrigger",
+                    "LambdaFunctionArn": "$LAMBDA_ARN",
+                    "Events": ["s3:ObjectCreated:Put"],
+                    "Filter": {
+                        "Key": {
+                            "FilterRules": [
+                                {
+                                    "Name": "prefix",
+                                    "Value": "documents/"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+        EOF
+        
+        # Apply the notification configuration
+        echo "🚀 Applying S3 bucket notification configuration..."
+        aws s3api put-bucket-notification-configuration \
+          --bucket $BUCKET_NAME \
+          --notification-configuration file://s3-notification-config.json \
+          --region ${{ env.AWS_REGION }}
+        
+        # Verify the configuration
+        echo "✅ Verifying S3 bucket notification configuration..."
+        aws s3api get-bucket-notification-configuration --bucket $BUCKET_NAME --region ${{ env.AWS_REGION }}
+        
+        # Clean up
+        rm -f s3-notification-config.json
+        
+        echo "🎉 S3 bucket notifications configured successfully!"
+
     - name: Update Frontend Configuration
       run: |
         # Update the frontend configuration with the new API URL
