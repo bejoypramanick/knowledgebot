@@ -44,7 +44,7 @@ jobs:
         # Check for changes in each service
         CHANGED_SERVICES=""
         
-        for service in action-executor chat-handler claude-decision conversation-manager document-content document-management document-metadata embedding-service orchestrator rag-processor rag-search response-enhancement response-formatter source-extractor vector-search; do
+        for service in action-executor chat-handler claude-decision conversation-manager document-content document-management document-metadata embedding-service orchestrator presigned-url rag-processor rag-search response-enhancement response-formatter source-extractor vector-search; do
           if echo "$CHANGED_FILES" | grep -q "backend/lambda/$service/"; then
             CHANGED_SERVICES="$CHANGED_SERVICES $service"
             echo "✅ $service has changes"
