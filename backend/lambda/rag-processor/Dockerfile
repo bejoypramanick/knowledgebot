@@ -1,5 +1,5 @@
 # Use a pre-built Python image with common ML libraries
-FROM public.ecr.aws/lambda/python:3.9
+FROM public.ecr.aws/lambda/python:3.12
 
 # Install system dependencies for document processing
 RUN yum update -y && \
@@ -22,8 +22,8 @@ RUN uv pip install --system --no-cache -r requirements.txt
 
 # Clean up to reduce image size
 RUN pip cache purge && \
-    find /var/lang/lib/python3.9/site-packages -name "*.pyc" -delete && \
-    find /var/lang/lib/python3.9/site-packages -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+    find /var/lang/lib/python3.12/site-packages -name "*.pyc" -delete && \
+    find /var/lang/lib/python3.12/site-packages -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
 # Copy function code
 COPY . ${LAMBDA_TASK_ROOT}
