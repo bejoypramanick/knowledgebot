@@ -151,14 +151,17 @@ export class KnowledgeBaseManager {
       if (signedHeaders.includes('x-amz-meta-document_id')) {
         headers['x-amz-meta-document_id'] = documentId;
       }
-      if (signedHeaders.includes('x-amz-meta-original_filename')) {
-        headers['x-amz-meta-original_filename'] = file.name;
+      if (signedHeaders.includes('x-amz-meta-original-filename')) {
+        headers['x-amz-meta-original-filename'] = file.name;
       }
       if (signedHeaders.includes('x-amz-meta-title')) {
         headers['x-amz-meta-title'] = metadata.title || file.name;
       }
-      if (signedHeaders.includes('x-amz-meta-upload_timestamp')) {
-        headers['x-amz-meta-upload_timestamp'] = timestamp;
+      if (signedHeaders.includes('x-amz-meta-upload-timestamp')) {
+        headers['x-amz-meta-upload-timestamp'] = timestamp;
+      }
+      if (signedHeaders.includes('x-amz-meta-metadata')) {
+        headers['x-amz-meta-metadata'] = JSON.stringify(metadata);
       }
       
       console.log('Including metadata headers:', Object.keys(headers).filter(k => k.startsWith('x-amz-meta-')));
