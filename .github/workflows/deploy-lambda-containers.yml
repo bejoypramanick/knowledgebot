@@ -445,7 +445,7 @@ jobs:
         
         # Verify RAG Processor Lambda
         echo "Checking RAG Processor Lambda function..."
-        RAG_IMAGE_URI=$(aws lambda get-function --function-name $RAG_PROCESSOR_IMAGE --region $AWS_REGION --query 'Configuration.Code.ImageUri' --output text)
+        RAG_IMAGE_URI=$(aws lambda get-function --function-name $RAG_PROCESSOR_IMAGE --region $AWS_REGION --query 'Code.ImageUri' --output text)
         echo "RAG Processor using image: $RAG_IMAGE_URI"
         
         if [[ ! "$RAG_IMAGE_URI" == *"${{ github.sha }}"* ]]; then
@@ -457,7 +457,7 @@ jobs:
         
         # Verify Chat Handler Lambda
         echo "Checking Chat Handler Lambda function..."
-        CHAT_IMAGE_URI=$(aws lambda get-function --function-name $CHAT_HANDLER_IMAGE --region $AWS_REGION --query 'Configuration.Code.ImageUri' --output text)
+        CHAT_IMAGE_URI=$(aws lambda get-function --function-name $CHAT_HANDLER_IMAGE --region $AWS_REGION --query 'Code.ImageUri' --output text)
         echo "Chat Handler using image: $CHAT_IMAGE_URI"
         
         if [[ ! "$CHAT_IMAGE_URI" == *"${{ github.sha }}"* ]]; then
