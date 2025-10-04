@@ -279,6 +279,9 @@ jobs:
           "conversation-manager")
             memory=256; timeout=300; env_vars="CONVERSATIONS_TABLE=chatbot-conversations"
             ;;
+          "presigned-url")
+            memory=512; timeout=300; env_vars="MAIN_BUCKET=chatbot-storage-ap-south-1"
+            ;;
         esac
         
         # Create or update Lambda function
