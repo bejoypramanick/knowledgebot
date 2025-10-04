@@ -46,8 +46,7 @@ class RAGProcessor:
         # Initialize Anthropic client with explicit configuration
         try:
             self.anthropic_client = Anthropic(
-                api_key=CLAUDE_API_KEY,
-                timeout=30.0
+                api_key=CLAUDE_API_KEY
             )
         except Exception as e:
             logger.error(f"Error initializing Anthropic client: {e}")
