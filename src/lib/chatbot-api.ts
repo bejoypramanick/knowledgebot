@@ -56,12 +56,21 @@ export class ChatbotAPI {
 
   async sendMessage(message: string, sessionId: string): Promise<ChatResponse> {
     const payload = { 
+      action: 'chat',
       message, 
-      session_id: sessionId,
-      user_id: 'anonymous' // Default user ID
+      conversation_id: sessionId,
+      use_rag: true
     };
     const response = await axios.post(`${this.apiBaseUrl}/chat`, payload);
-    return response.data;
+    
+    // Map Lambda response to frontend expected format
+    const data = response.data;
+    return {
+      response: data.response,
+      session_id: data.conversation_id,
+      timestamp: data.timestamp,
+      sources: [] // RAG sources would be added here if needed
+    };
   }
 
   async getOrderStatus(orderId: string, customerEmail?: string): Promise<OrderStatus> {
