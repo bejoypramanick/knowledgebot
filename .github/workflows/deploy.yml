@@ -21,8 +21,9 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     environment: chatbot
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
+      max-parallel: 5
       matrix:
         include:
           - service: action-executor
@@ -82,8 +83,8 @@ jobs:
         echo "Build context: backend/lambda"
         echo "Dockerfile: backend/lambda/${{ matrix.service }}/Dockerfile"
         
-        # Build with no cache to avoid layer conflicts
-        docker build --no-cache -t chatbot-${{ matrix.service }} -f backend/lambda/${{ matrix.service }}/Dockerfile backend/lambda || {
+        # Build with optimizations to reduce resource usage
+        docker build --no-cache --memory=2g --memory-swap=2g -t chatbot-${{ matrix.service }} -f backend/lambda/${{ matrix.service }}/Dockerfile backend/lambda || {
           echo "Docker build failed for ${{ matrix.service }}"
           exit 1
         }
@@ -113,6 +114,10 @@ jobs:
         # Clean up local image to save space
         echo "Cleaning up local image for ${{ matrix.service }}..."
         docker rmi chatbot-${{ matrix.service }}:latest ${{ env.ECR_REGISTRY }}/chatbot-${{ matrix.service }}:latest || true
+        
+        # Clean up Docker system resources
+        echo "Cleaning up Docker system resources..."
+        docker system prune -f || true
         
         echo "Successfully completed ${{ matrix.service }}"
 
