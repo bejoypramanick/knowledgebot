@@ -120,7 +120,7 @@ class ChatHandler:
         """Get conversation history from DynamoDB"""
         try:
             response = self.conversations_table.query(
-                KeyConditionExpression='conversation_id = :conv_id',
+                KeyConditionExpression='sessionId = :conv_id',
                 ExpressionAttributeValues={':conv_id': conversation_id},
                 ScanIndexForward=True,  # Sort by timestamp ascending
                 Limit=limit
@@ -145,7 +145,7 @@ class ChatHandler:
         try:
             self.conversations_table.put_item(
                 Item={
-                    'conversation_id': conversation_id,
+                    'sessionId': conversation_id,
                     'message_id': str(uuid.uuid4()),
                     'role': message.role,
                     'content': message.content,
