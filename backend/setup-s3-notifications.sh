@@ -40,7 +40,7 @@ aws lambda add-permission \
 echo "📝 Creating S3 bucket notification configuration..."
 cat > s3-notification-config.json << EOF
 {
-    "LambdaConfigurations": [
+    "LambdaFunctionConfigurations": [
         {
             "Id": "DocumentProcessingTrigger",
             "LambdaFunctionArn": "$LAMBDA_ARN",
