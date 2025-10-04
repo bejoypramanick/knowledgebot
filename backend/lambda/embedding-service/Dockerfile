@@ -1,12 +1,11 @@
-FROM public.ecr.aws/lambda/python:3.11
+FROM public.ecr.aws/lambda/python:3.12
 
 # Install system dependencies for ML libraries
-RUN yum update -y && \
-    yum install -y \
+RUN dnf install -y \
     gcc \
     gcc-c++ \
     gfortran \
-    && yum clean all
+    && dnf clean all
 
 # Copy shared utilities (if available)
 # COPY shared/ /opt/python/

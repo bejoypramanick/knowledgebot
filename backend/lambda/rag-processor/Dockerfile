@@ -2,11 +2,10 @@
 FROM public.ecr.aws/lambda/python:3.12
 
 # Install minimal system dependencies (Docling handles document processing internally)
-RUN yum update -y && \
-    yum install -y \
+RUN dnf install -y \
     gcc \
     gcc-c++ \
-    && yum clean all
+    && dnf clean all
 
 # Install uv for faster pip operations
 RUN pip install uv

@@ -1,11 +1,10 @@
-FROM public.ecr.aws/lambda/python:3.11
+FROM public.ecr.aws/lambda/python:3.12
 
 # Install system dependencies for Docling
-RUN yum update -y && \
-    yum install -y \
+RUN dnf install -y \
     gcc \
     gcc-c++ \
-    && yum clean all
+    && dnf clean all
 
 # Copy requirements and install dependencies
 COPY requirements.txt ${LAMBDA_TASK_ROOT}
