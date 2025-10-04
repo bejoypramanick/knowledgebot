@@ -18,29 +18,68 @@ env:
   ECR_REGISTRY: 090163643302.dkr.ecr.ap-south-1.amazonaws.com
 
 jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.changes.outputs.services }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Detect changed services
+      id: changes
+      run: |
+        # Get list of changed files
+        if [ "${{ github.event_name }}" = "push" ]; then
+          CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
+        else
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+        fi
+        
+        echo "Changed files:"
+        echo "$CHANGED_FILES"
+        
+        # Check for changes in each service
+        CHANGED_SERVICES=""
+        
+        for service in action-executor chat-handler claude-decision conversation-manager document-content document-management document-metadata embedding-service orchestrator rag-processor rag-search response-enhancement response-formatter source-extractor vector-search; do
+          if echo "$CHANGED_FILES" | grep -q "backend/lambda/$service/"; then
+            CHANGED_SERVICES="$CHANGED_SERVICES $service"
+            echo "✅ $service has changes"
+          else
+            echo "⏭️ $service - no changes"
+          fi
+        done
+        
+        # If no specific services changed, but lambda files changed, build all
+        if [ -z "$CHANGED_SERVICES" ] && echo "$CHANGED_FILES" | grep -q "backend/lambda/"; then
+          echo "🔄 No specific service changes detected, building all services"
+          CHANGED_SERVICES="action-executor chat-handler claude-decision conversation-manager document-content document-management document-metadata embedding-service orchestrator rag-processor rag-search response-enhancement response-formatter source-extractor vector-search"
+        fi
+        
+        # If no lambda changes at all, don't build anything
+        if [ -z "$CHANGED_SERVICES" ]; then
+          echo "⏭️ No lambda changes detected, skipping build"
+          echo "services=[]" >> $GITHUB_OUTPUT
+        else
+          echo "📦 Services to build: $CHANGED_SERVICES"
+          # Convert to JSON array
+          SERVICES_JSON=$(echo "$CHANGED_SERVICES" | jq -R -s 'split(" ") | map(select(length > 0))')
+          echo "services=$SERVICES_JSON" >> $GITHUB_OUTPUT
+        fi
+
   build-and-deploy:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.services != '[]'
     runs-on: ubuntu-latest
     environment: chatbot
     timeout-minutes: 45
     strategy:
       max-parallel: 5
       matrix:
-        include:
-          - service: action-executor
-          - service: chat-handler
-          - service: claude-decision
-          - service: conversation-manager
-          - service: document-content
-          - service: document-management
-          - service: document-metadata
-          - service: embedding-service
-          - service: orchestrator
-          - service: rag-processor
-          - service: rag-search
-          - service: response-enhancement
-          - service: response-formatter
-          - service: source-extractor
-          - service: vector-search
+        service: ${{ fromJson(needs.detect-changes.outputs.services) }}
     
     steps:
     - name: Checkout code
