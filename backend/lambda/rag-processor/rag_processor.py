@@ -14,9 +14,20 @@ from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 import logging
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure detailed logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    force=True
+)
 logger = logging.getLogger(__name__)
+
+# Add console handler for better visibility
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
 
 # Trigger workflow - S3 notification permissions added manually
 
@@ -36,32 +47,59 @@ class DocumentChunk(BaseModel):
 
 class RAGProcessor:
     def __init__(self):
-        self.s3_client = boto3.client('s3', region_name='ap-south-1')
-        self.dynamodb = boto3.resource('dynamodb', region_name='ap-south-1')
-        self.main_bucket = MAIN_BUCKET
-        self.knowledge_base_table = self.dynamodb.Table(KNOWLEDGE_BASE_TABLE)
+        logger.info("🚀 Starting RAGProcessor initialization...")
         
-        # Initialize Anthropic client with explicit configuration
         try:
-            self.anthropic_client = Anthropic(
-                api_key=CLAUDE_API_KEY
-            )
-        except Exception as e:
-            logger.error(f"Error initializing Anthropic client: {e}")
-            self.anthropic_client = None
-        
-        # Initialize Docling converter
-        self.converter = DocumentConverter(
-            format_options={
-                InputFormat.PDF: PdfPipelineOptions(
-                    do_ocr=True,
-                    do_table_structure=True,
-                    table_structure_options={"do_cell_matching": True}
+            logger.info(f"📋 Environment variables - MAIN_BUCKET: {MAIN_BUCKET}, KNOWLEDGE_BASE_TABLE: {KNOWLEDGE_BASE_TABLE}")
+            
+            # Initialize S3 client
+            logger.info("🔧 Initializing S3 client...")
+            self.s3_client = boto3.client('s3', region_name='ap-south-1')
+            logger.info("✅ S3 client initialized successfully")
+            
+            # Initialize DynamoDB client
+            logger.info("🔧 Initializing DynamoDB client...")
+            self.dynamodb = boto3.resource('dynamodb', region_name='ap-south-1')
+            self.main_bucket = MAIN_BUCKET
+            self.knowledge_base_table = self.dynamodb.Table(KNOWLEDGE_BASE_TABLE)
+            logger.info("✅ DynamoDB client initialized successfully")
+            
+            # Initialize Anthropic client with explicit configuration
+            logger.info("🔧 Initializing Anthropic client...")
+            try:
+                self.anthropic_client = Anthropic(
+                    api_key=CLAUDE_API_KEY
                 )
-            }
-        )
-        
-        # Docling-focused RAG processor
+                logger.info("✅ Anthropic client initialized successfully")
+            except Exception as e:
+                logger.error(f"❌ Error initializing Anthropic client: {e}")
+                self.anthropic_client = None
+            
+            # Initialize Docling converter
+            logger.info("🔧 Initializing Docling converter...")
+            try:
+                self.converter = DocumentConverter(
+                    format_options={
+                        InputFormat.PDF: PdfPipelineOptions(
+                            do_ocr=True,
+                            do_table_structure=True,
+                            table_structure_options={"do_cell_matching": True}
+                        )
+                    }
+                )
+                logger.info("✅ Docling converter initialized successfully")
+            except Exception as e:
+                logger.error(f"❌ Error initializing Docling converter: {e}")
+                raise e
+            
+            logger.info("🎉 RAGProcessor initialization completed successfully!")
+            
+        except Exception as e:
+            logger.error(f"❌ Critical error during RAGProcessor initialization: {e}")
+            logger.error(f"❌ Error type: {type(e).__name__}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+            raise e
 
     def get_docling_embedding(self, text: str) -> List[float]:
         """Get embedding using HuggingFace sentence-transformers model"""
@@ -120,45 +158,61 @@ class RAGProcessor:
 
     def process_document_with_docling(self, s3_bucket: str, s3_key: str) -> List[DocumentChunk]:
         """Process document using Docling and create hierarchical chunks"""
+        logger.info(f"🔧 Starting document processing: {s3_bucket}/{s3_key}")
+        
         try:
-            logger.info(f"Processing document: {s3_bucket}/{s3_key}")
-            
             # Download document from S3
+            logger.info(f"📥 Downloading document from S3...")
             response = self.s3_client.get_object(Bucket=s3_bucket, Key=s3_key)
             document_content = response['Body'].read()
+            logger.info(f"✅ Document downloaded - Size: {len(document_content)} bytes")
             
             # Get metadata from S3 object
+            logger.info(f"📋 Retrieving S3 object metadata...")
             metadata_response = self.s3_client.head_object(Bucket=s3_bucket, Key=s3_key)
             s3_metadata = metadata_response.get('Metadata', {})
+            logger.info(f"✅ Metadata retrieved: {s3_metadata}")
             
             # Save to temporary file for Docling processing
-            with tempfile.NamedTemporaryFile(suffix=f".{s3_key.split('.')[-1]}", delete=False) as temp_file:
+            logger.info(f"💾 Creating temporary file for Docling processing...")
+            file_extension = s3_key.split('.')[-1] if '.' in s3_key else 'txt'
+            with tempfile.NamedTemporaryFile(suffix=f".{file_extension}", delete=False) as temp_file:
                 temp_file.write(document_content)
                 temp_file_path = temp_file.name
+            logger.info(f"✅ Temporary file created: {temp_file_path}")
             
             try:
                 # Process with Docling
+                logger.info(f"🔧 Processing document with Docling converter...")
                 doc = self.converter.convert(temp_file_path)
+                logger.info(f"✅ Docling conversion completed successfully")
                 
                 # Save markdown to S3
+                logger.info(f"💾 Saving markdown to S3...")
                 markdown_key = self.save_markdown_to_s3(doc, s3_key, s3_metadata)
                 if markdown_key:
-                    logger.info(f"Markdown saved successfully: {markdown_key}")
+                    logger.info(f"✅ Markdown saved successfully: {markdown_key}")
                 else:
-                    logger.warning("Failed to save markdown to S3")
+                    logger.warning("⚠️ Failed to save markdown to S3")
                 
                 # Extract hierarchical chunks
+                logger.info(f"🔧 Extracting hierarchical chunks...")
                 chunks = self._extract_hierarchical_chunks(doc, s3_key, s3_metadata, markdown_key)
+                logger.info(f"✅ Created {len(chunks)} hierarchical chunks")
                 
-                logger.info(f"Created {len(chunks)} hierarchical chunks")
                 return chunks
                 
             finally:
                 # Clean up temporary file
+                logger.info(f"🧹 Cleaning up temporary file: {temp_file_path}")
                 os.unlink(temp_file_path)
+                logger.info(f"✅ Temporary file cleaned up")
                 
         except Exception as e:
-            logger.error(f"Error processing document with Docling: {e}")
+            logger.error(f"❌ Error processing document with Docling: {e}")
+            logger.error(f"❌ Error type: {type(e).__name__}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
             return []
 
     def _extract_hierarchical_chunks(self, doc, s3_key: str, s3_metadata: Dict[str, Any], markdown_key: str = "") -> List[DocumentChunk]:
@@ -430,30 +484,56 @@ class RAGProcessor:
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Lambda handler for RAG processing and direct Docling search"""
+    logger.info("🚀 Lambda handler started")
+    logger.info(f"📋 Event received: {json.dumps(event, indent=2)}")
+    logger.info(f"📋 Context: {context}")
+    
     try:
-        logger.info(f"RAG Processor event: {json.dumps(event)}")
-        
+        logger.info("🔧 Initializing RAGProcessor...")
         processor = RAGProcessor()
+        logger.info("✅ RAGProcessor initialized successfully")
         
         # Handle S3 event
         if 'Records' in event:
+            logger.info(f"📦 Processing S3 event with {len(event.get('Records', []))} records")
+            
             # Process S3 upload events
-            for record in event.get('Records', []):
+            for i, record in enumerate(event.get('Records', [])):
+                logger.info(f"📄 Processing record {i+1}: {json.dumps(record, indent=2)}")
+                
                 if record.get('eventName') == 's3:ObjectCreated:Put':
                     bucket = record['s3']['bucket']['name']
                     key = record['s3']['object']['key']
                     
+                    logger.info(f"📁 S3 ObjectCreated:Put event - Bucket: {bucket}, Key: {key}")
+                    
                     # Only process documents in the documents folder
                     if key.startswith('documents/'):
-                        logger.info(f"Processing new document: {bucket}/{key}")
+                        logger.info(f"✅ Document matches filter - Processing: {bucket}/{key}")
                         
-                        # Process the document
-                        chunks = processor.process_document_with_docling(bucket, key)
-                        
-                        # Save to knowledge base
-                        processor.save_chunks_to_knowledge_base(chunks)
-                        
-                        logger.info(f"Created {len(chunks)} chunks for document {key}")
+                        try:
+                            # Process the document
+                            logger.info(f"🔧 Starting document processing with Docling...")
+                            chunks = processor.process_document_with_docling(bucket, key)
+                            logger.info(f"✅ Document processing completed - Created {len(chunks)} chunks")
+                            
+                            # Save to knowledge base
+                            logger.info(f"💾 Saving {len(chunks)} chunks to knowledge base...")
+                            processor.save_chunks_to_knowledge_base(chunks)
+                            logger.info(f"✅ Successfully saved {len(chunks)} chunks for document {key}")
+                            
+                        except Exception as e:
+                            logger.error(f"❌ Error processing document {bucket}/{key}: {e}")
+                            logger.error(f"❌ Error type: {type(e).__name__}")
+                            import traceback
+                            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+                            raise e
+                    else:
+                        logger.info(f"⏭️ Skipping document - Key does not start with 'documents/': {key}")
+                else:
+                    logger.info(f"⏭️ Skipping record - Not an ObjectCreated:Put event: {record.get('eventName')}")
+        else:
+            logger.info("📝 No S3 Records found in event")
         
         # Handle direct API calls from API Gateway
         elif 'body' in event:
