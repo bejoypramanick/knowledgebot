@@ -63,7 +63,11 @@ class Orchestrator:
         
         # Initialize Anthropic client
         try:
-            self.anthropic_client = Anthropic(api_key=CLAUDE_API_KEY)
+            # Initialize with explicit parameters to avoid proxy issues
+            self.anthropic_client = Anthropic(
+                api_key=CLAUDE_API_KEY,
+                timeout=30.0
+            )
         except Exception as e:
             logger.error(f"Error initializing Anthropic client: {e}")
             self.anthropic_client = None
