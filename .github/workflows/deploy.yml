@@ -235,7 +235,7 @@ jobs:
         # Service configurations
         case "${{ matrix.service }}" in
           "rag-processor")
-            memory=2048; timeout=300; env_vars="MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"
+            memory=2048; timeout=900; env_vars="MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"
             ;;
           "chat-handler")
             memory=1024; timeout=300; env_vars="CLAUDE_API_KEY=${{ secrets.CLAUDE_API_KEY }},MAIN_BUCKET=chatbot-storage-ap-south-1,CONVERSATIONS_TABLE=chatbot-conversations,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"
@@ -526,83 +526,11 @@ jobs:
         echo "API Gateway URL: $API_URL"
         echo "API_GATEWAY_URL=$API_URL" >> $GITHUB_ENV
 
-    - name: Configure S3 Bucket Notifications
-      run: |
-        echo "🔔 Configuring S3 bucket notifications for document processing..."
-        
-        BUCKET_NAME="chatbot-storage-ap-south-1"
-        RAG_PROCESSOR_LAMBDA="chatbot-rag-processor"
-        
-        # Check if bucket exists
-        if ! aws s3api head-bucket --bucket $BUCKET_NAME --region ${{ env.AWS_REGION }} 2>/dev/null; then
-          echo "❌ Bucket $BUCKET_NAME does not exist. Creating it..."
-          aws s3 mb s3://$BUCKET_NAME --region ${{ env.AWS_REGION }}
-        fi
-        
-        # Check if RAG processor lambda exists
-        if ! aws lambda get-function --function-name $RAG_PROCESSOR_LAMBDA --region ${{ env.AWS_REGION }} >/dev/null 2>&1; then
-          echo "❌ Lambda function $RAG_PROCESSOR_LAMBDA does not exist. Skipping S3 notification setup."
-          exit 0
-        fi
-        
-        # Get the Lambda function ARN
-        LAMBDA_ARN=$(aws lambda get-function --function-name $RAG_PROCESSOR_LAMBDA --region ${{ env.AWS_REGION }} --query 'Configuration.FunctionArn' --output text)
-        echo "📋 Lambda ARN: $LAMBDA_ARN"
-        
-        # Add permission for S3 to invoke the Lambda function
-        echo "🔐 Adding S3 permission to invoke Lambda function..."
-        aws lambda add-permission \
-          --function-name $RAG_PROCESSOR_LAMBDA \
-          --statement-id s3-invoke-$(date +%s) \
-          --action lambda:InvokeFunction \
-          --principal s3.amazonaws.com \
-          --source-arn "arn:aws:s3:::$BUCKET_NAME" \
-          --region ${{ env.AWS_REGION }} || echo "Permission may already exist"
-        
-        # Create S3 bucket notification configuration
-        echo "📝 Creating S3 bucket notification configuration..."
-        cat > s3-notification-config.json << EOF
-        {
-            "LambdaFunctionConfigurations": [
-                {
-                    "Id": "DocumentProcessingTrigger",
-                    "LambdaFunctionArn": "$LAMBDA_ARN",
-                    "Events": ["s3:ObjectCreated:Put"],
-                    "Filter": {
-                        "Key": {
-                            "FilterRules": [
-                                {
-                                    "Name": "prefix",
-                                    "Value": "documents/"
-                                }
-                            ]
-                        }
-                    }
-                }
-            ]
-        }
-        EOF
-        
-        # Apply the notification configuration
-        echo "🚀 Applying S3 bucket notification configuration..."
-        aws s3api put-bucket-notification-configuration \
-          --bucket $BUCKET_NAME \
-          --notification-configuration file://s3-notification-config.json \
-          --region ${{ env.AWS_REGION }}
-        
-        # Verify the configuration
-        echo "✅ Verifying S3 bucket notification configuration..."
-        aws s3api get-bucket-notification-configuration --bucket $BUCKET_NAME --region ${{ env.AWS_REGION }}
-        
-        # Clean up
-        rm -f s3-notification-config.json
-        
-        echo "🎉 S3 bucket notifications configured successfully!"
-
   configure-s3-notifications:
     runs-on: ubuntu-latest
     environment: chatbot
     if: always()
+    needs: []
     
     steps:
     - name: Checkout code
