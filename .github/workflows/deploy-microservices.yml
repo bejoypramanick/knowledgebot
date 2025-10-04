@@ -1,0 +1,329 @@
+name: Deploy Microservices Architecture
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'backend/lambda/orchestrator/**'
+      - 'backend/lambda/rag-search/**'
+      - 'backend/lambda/document-management/**'
+      - 'backend/lambda/response-enhancement/**'
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ap-south-1
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Create ECR repositories
+      run: |
+        # Create ECR repositories for each microservice
+        for service in orchestrator rag-search document-management response-enhancement; do
+          aws ecr describe-repositories --repository-names "chatbot-${service}" --region ${{ env.AWS_REGION }} > /dev/null 2>&1 || \
+          aws ecr create-repository --repository-name "chatbot-${service}" --region ${{ env.AWS_REGION }}
+        done
+
+    - name: Build and push Orchestrator Lambda
+      run: |
+        cd backend/lambda/orchestrator
+        docker build -t chatbot-orchestrator .
+        docker tag chatbot-orchestrator:latest ${{ env.ECR_REGISTRY }}/chatbot-orchestrator:latest
+        docker push ${{ env.ECR_REGISTRY }}/chatbot-orchestrator:latest
+
+    - name: Build and push RAG Search Lambda
+      run: |
+        cd backend/lambda/rag-search
+        docker build -t chatbot-rag-search .
+        docker tag chatbot-rag-search:latest ${{ env.ECR_REGISTRY }}/chatbot-rag-search:latest
+        docker push ${{ env.ECR_REGISTRY }}/chatbot-rag-search:latest
+
+    - name: Build and push Document Management Lambda
+      run: |
+        cd backend/lambda/document-management
+        docker build -t chatbot-document-management .
+        docker tag chatbot-document-management:latest ${{ env.ECR_REGISTRY }}/chatbot-document-management:latest
+        docker push ${{ env.ECR_REGISTRY }}/chatbot-document-management:latest
+
+    - name: Build and push Response Enhancement Lambda
+      run: |
+        cd backend/lambda/response-enhancement
+        docker build -t chatbot-response-enhancement .
+        docker tag chatbot-response-enhancement:latest ${{ env.ECR_REGISTRY }}/chatbot-response-enhancement:latest
+        docker push ${{ env.ECR_REGISTRY }}/chatbot-response-enhancement:latest
+
+    - name: Create IAM Role for Lambda functions
+      run: |
+        # Create IAM role for microservices
+        aws iam create-role \
+          --role-name chatbot-microservices-lambda-role \
+          --assume-role-policy-document '{
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Principal": {
+                  "Service": "lambda.amazonaws.com"
+                },
+                "Action": "sts:AssumeRole"
+              }
+            ]
+          }' || echo "Role already exists"
+
+        # Attach policies
+        aws iam attach-role-policy \
+          --role-name chatbot-microservices-lambda-role \
+          --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+        # Create custom policy for microservices
+        aws iam put-role-policy \
+          --role-name chatbot-microservices-lambda-role \
+          --policy-name ChatbotMicroservicesPolicy \
+          --policy-document '{
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "dynamodb:Query",
+                  "dynamodb:Scan",
+                  "dynamodb:GetItem",
+                  "dynamodb:PutItem",
+                  "dynamodb:UpdateItem"
+                ],
+                "Resource": [
+                  "arn:aws:dynamodb:ap-south-1:*:table/chatbot-knowledge-base",
+                  "arn:aws:dynamodb:ap-south-1:*:table/chatbot-knowledge-base/index/*",
+                  "arn:aws:dynamodb:ap-south-1:*:table/chatbot-conversations",
+                  "arn:aws:dynamodb:ap-south-1:*:table/chatbot-conversations/index/*"
+                ]
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "s3:GetObject",
+                  "s3:PutObject",
+                  "s3:DeleteObject",
+                  "s3:ListBucket"
+                ],
+                "Resource": [
+                  "arn:aws:s3:::chatbot-storage-ap-south-1",
+                  "arn:aws:s3:::chatbot-storage-ap-south-1/*"
+                ]
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "lambda:InvokeFunction"
+                ],
+                "Resource": [
+                  "arn:aws:lambda:ap-south-1:*:function:chatbot-*"
+                ]
+              }
+            ]
+          }'
+
+    - name: Deploy Orchestrator Lambda
+      run: |
+        aws lambda create-function \
+          --function-name chatbot-orchestrator \
+          --package-type Image \
+          --code ImageUri=${{ env.ECR_REGISTRY }}/chatbot-orchestrator:latest \
+          --role arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/chatbot-microservices-lambda-role \
+          --timeout 300 \
+          --memory-size 1024 \
+          --environment Variables='{
+            "CLAUDE_API_KEY":"${{ secrets.CLAUDE_API_KEY }}",
+            "RAG_SEARCH_LAMBDA":"chatbot-rag-search",
+            "DOCUMENT_MANAGEMENT_LAMBDA":"chatbot-document-management",
+            "RESPONSE_ENHANCEMENT_LAMBDA":"chatbot-response-enhancement",
+            "CONVERSATIONS_TABLE":"chatbot-conversations"
+          }' \
+          --tags Environment=production,Service=Orchestrator || \
+        aws lambda update-function-code \
+          --function-name chatbot-orchestrator \
+          --image-uri ${{ env.ECR_REGISTRY }}/chatbot-orchestrator:latest
+
+    - name: Deploy RAG Search Lambda
+      run: |
+        aws lambda create-function \
+          --function-name chatbot-rag-search \
+          --package-type Image \
+          --code ImageUri=${{ env.ECR_REGISTRY }}/chatbot-rag-search:latest \
+          --role arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/chatbot-microservices-lambda-role \
+          --timeout 300 \
+          --memory-size 2048 \
+          --environment Variables='{
+            "MAIN_BUCKET":"chatbot-storage-ap-south-1",
+            "KNOWLEDGE_BASE_TABLE":"chatbot-knowledge-base"
+          }' \
+          --tags Environment=production,Service=RAGSearch || \
+        aws lambda update-function-code \
+          --function-name chatbot-rag-search \
+          --image-uri ${{ env.ECR_REGISTRY }}/chatbot-rag-search:latest
+
+    - name: Deploy Document Management Lambda
+      run: |
+        aws lambda create-function \
+          --function-name chatbot-document-management \
+          --package-type Image \
+          --code ImageUri=${{ env.ECR_REGISTRY }}/chatbot-document-management:latest \
+          --role arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/chatbot-microservices-lambda-role \
+          --timeout 300 \
+          --memory-size 512 \
+          --environment Variables='{
+            "MAIN_BUCKET":"chatbot-storage-ap-south-1",
+            "KNOWLEDGE_BASE_TABLE":"chatbot-knowledge-base"
+          }' \
+          --tags Environment=production,Service=DocumentManagement || \
+        aws lambda update-function-code \
+          --function-name chatbot-document-management \
+          --image-uri ${{ env.ECR_REGISTRY }}/chatbot-document-management:latest
+
+    - name: Deploy Response Enhancement Lambda
+      run: |
+        aws lambda create-function \
+          --function-name chatbot-response-enhancement \
+          --package-type Image \
+          --code ImageUri=${{ env.ECR_REGISTRY }}/chatbot-response-enhancement:latest \
+          --role arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/chatbot-microservices-lambda-role \
+          --timeout 300 \
+          --memory-size 1024 \
+          --environment Variables='{
+            "CLAUDE_API_KEY":"${{ secrets.CLAUDE_API_KEY }}",
+            "CONVERSATIONS_TABLE":"chatbot-conversations"
+          }' \
+          --tags Environment=production,Service=ResponseEnhancement || \
+        aws lambda update-function-code \
+          --function-name chatbot-response-enhancement \
+          --image-uri ${{ env.ECR_REGISTRY }}/chatbot-response-enhancement:latest
+
+    - name: Create API Gateway
+      run: |
+        # Create API Gateway
+        API_ID=$(aws apigateway create-rest-api \
+          --name chatbot-microservices-api \
+          --description "API Gateway for Chatbot Microservices" \
+          --endpoint-configuration types=REGIONAL \
+          --query 'id' --output text) || \
+        API_ID=$(aws apigateway get-rest-apis \
+          --query 'items[?name==`chatbot-microservices-api`].id' --output text)
+
+        echo "API_ID=$API_ID" >> $GITHUB_ENV
+
+        # Get root resource ID
+        ROOT_RESOURCE_ID=$(aws apigateway get-resources \
+          --rest-api-id $API_ID \
+          --query 'items[?path==`/`].id' --output text)
+
+        # Create /chat resource
+        CHAT_RESOURCE_ID=$(aws apigateway create-resource \
+          --rest-api-id $API_ID \
+          --parent-id $ROOT_RESOURCE_ID \
+          --path-part chat \
+          --query 'id' --output text) || \
+        CHAT_RESOURCE_ID=$(aws apigateway get-resources \
+          --rest-api-id $API_ID \
+          --query 'items[?pathPart==`chat`].id' --output text)
+
+        echo "CHAT_RESOURCE_ID=$CHAT_RESOURCE_ID" >> $GITHUB_ENV
+
+    - name: Configure API Gateway Methods
+      run: |
+        # Create POST method
+        aws apigateway put-method \
+          --rest-api-id ${{ env.API_ID }} \
+          --resource-id ${{ env.CHAT_RESOURCE_ID }} \
+          --http-method POST \
+          --authorization-type NONE
+
+        # Create OPTIONS method for CORS
+        aws apigateway put-method \
+          --rest-api-id ${{ env.API_ID }} \
+          --resource-id ${{ env.CHAT_RESOURCE_ID }} \
+          --http-method OPTIONS \
+          --authorization-type NONE
+
+        # Configure POST method integration
+        aws apigateway put-integration \
+          --rest-api-id ${{ env.API_ID }} \
+          --resource-id ${{ env.CHAT_RESOURCE_ID }} \
+          --http-method POST \
+          --type AWS_PROXY \
+          --integration-http-method POST \
+          --uri arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:${{ secrets.AWS_ACCOUNT_ID }}:function:chatbot-orchestrator/invocations
+
+        # Configure OPTIONS method integration for CORS
+        aws apigateway put-integration \
+          --rest-api-id ${{ env.API_ID }} \
+          --resource-id ${{ env.CHAT_RESOURCE_ID }} \
+          --http-method OPTIONS \
+          --type MOCK \
+          --request-templates '{"application/json": "{\"statusCode\": 200}"}'
+
+        # Configure OPTIONS method responses for CORS
+        aws apigateway put-method-response \
+          --rest-api-id ${{ env.API_ID }} \
+          --resource-id ${{ env.CHAT_RESOURCE_ID }} \
+          --http-method OPTIONS \
+          --status-code 200 \
+          --response-parameters method.response.header.Access-Control-Allow-Headers=true,method.response.header.Access-Control-Allow-Methods=true,method.response.header.Access-Control-Allow-Origin=true
+
+        # Configure OPTIONS integration responses for CORS
+        aws apigateway put-integration-response \
+          --rest-api-id ${{ env.API_ID }} \
+          --resource-id ${{ env.CHAT_RESOURCE_ID }} \
+          --http-method OPTIONS \
+          --status-code 200 \
+          --response-parameters '{"method.response.header.Access-Control-Allow-Headers": "'"'"'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"'"'","method.response.header.Access-Control-Allow-Methods": "'"'"'POST,OPTIONS'"'"'","method.response.header.Access-Control-Allow-Origin": "'"'"'*'"'"'"}'
+
+    - name: Deploy API Gateway
+      run: |
+        # Deploy API Gateway
+        aws apigateway create-deployment \
+          --rest-api-id ${{ env.API_ID }} \
+          --stage-name prod
+
+        # Add Lambda permission for API Gateway
+        aws lambda add-permission \
+          --function-name chatbot-orchestrator \
+          --statement-id apigateway-invoke \
+          --action lambda:InvokeFunction \
+          --principal apigateway.amazonaws.com \
+          --source-arn arn:aws:execute-api:ap-south-1:${{ secrets.AWS_ACCOUNT_ID }}:${{ env.API_ID }}/*/* || echo "Permission already exists"
+
+    - name: Output API Gateway URL
+      run: |
+        API_URL="https://${{ env.API_ID }}.execute-api.ap-south-1.amazonaws.com/prod"
+        echo "API Gateway URL: $API_URL"
+        echo "API_GATEWAY_URL=$API_URL" >> $GITHUB_ENV
+
+    - name: Update Frontend Configuration
+      run: |
+        # Update the frontend configuration with the new API URL
+        sed -i "s|https://your-microservices-api-gateway-url.execute-api.ap-south-1.amazonaws.com/dev|${{ env.API_GATEWAY_URL }}|g" src/lib/aws-config.ts
+
+    - name: Commit updated configuration
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add src/lib/aws-config.ts
+        git commit -m "Update API Gateway URL for microservices" || echo "No changes to commit"
+        git push || echo "Nothing to push"
