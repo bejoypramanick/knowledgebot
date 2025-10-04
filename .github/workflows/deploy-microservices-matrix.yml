@@ -1,0 +1,239 @@
+name: Deploy Microservices Architecture (Matrix-based)
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'backend/lambda/**'
+      - '.github/workflows/deploy-microservices-matrix.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'backend/lambda/**'
+      - '.github/workflows/deploy-microservices-matrix.yml'
+  workflow_dispatch:
+    inputs:
+      services:
+        description: 'Comma-separated list of services to build (leave empty for auto-detect)'
+        required: false
+        default: ''
+      force_rebuild:
+        description: 'Force rebuild all services'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  AWS_REGION: ap-south-1
+  ECR_REGISTRY: 090163643302.dkr.ecr.ap-south-1.amazonaws.com
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.changes.outputs.services }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Detect changed services
+      id: changes
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event.inputs.force_rebuild }}" = "true" ]; then
+            echo "services=rag-processor,chat-handler,orchestrator,rag-search,document-management,response-enhancement,claude-decision,action-executor,embedding-service,vector-search,document-metadata,document-content,source-extractor,response-formatter,conversation-manager" >> $GITHUB_OUTPUT
+          elif [ -n "${{ github.event.inputs.services }}" ]; then
+            echo "services=${{ github.event.inputs.services }}" >> $GITHUB_OUTPUT
+          else
+            echo "services=rag-processor,chat-handler,orchestrator" >> $GITHUB_OUTPUT
+          fi
+        else
+          # Auto-detect changed services
+          changed_services=()
+          
+          # Check each service directory
+          for service in rag-processor chat-handler orchestrator rag-search document-management response-enhancement claude-decision action-executor embedding-service vector-search document-metadata document-content source-extractor response-formatter conversation-manager; do
+            if git diff --name-only HEAD~1 HEAD | grep -q "^backend/lambda/$service/"; then
+              changed_services+=("$service")
+            fi
+          done
+          
+          # Always include core services if no changes detected
+          if [ ${#changed_services[@]} -eq 0 ]; then
+            changed_services=("rag-processor" "chat-handler" "orchestrator")
+          fi
+          
+          # Convert array to comma-separated string
+          services_list=$(IFS=','; echo "${changed_services[*]}")
+          echo "services=$services_list" >> $GITHUB_OUTPUT
+          echo "Changed services: $services_list"
+        fi
+
+  build-and-deploy:
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    environment: chatbot
+    strategy:
+      matrix:
+        service: ${{ fromJson(format('["{0}"]', join(split(needs.detect-changes.outputs.services, ','), '","'))) }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Create ECR repository
+      run: |
+        aws ecr create-repository --repository-name "chatbot-${{ matrix.service }}" --region ${{ env.AWS_REGION }} || echo "Repository already exists"
+
+    - name: Build and push Docker image
+      run: |
+        echo "Building ${{ matrix.service }}..."
+        cd backend/lambda/${{ matrix.service }}
+        
+        # Build with cache
+        docker build -t chatbot-${{ matrix.service }} .
+        docker tag chatbot-${{ matrix.service }}:latest ${{ env.ECR_REGISTRY }}/chatbot-${{ matrix.service }}:latest
+        docker push ${{ env.ECR_REGISTRY }}/chatbot-${{ matrix.service }}:latest
+
+    - name: Deploy Lambda function
+      run: |
+        # Service configurations
+        case "${{ matrix.service }}" in
+          "rag-processor")
+            memory=2048
+            timeout=300
+            env_vars="MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"
+            ;;
+          "chat-handler")
+            memory=1024
+            timeout=300
+            env_vars="CLAUDE_API_KEY=${{ secrets.CLAUDE_API_KEY }},MAIN_BUCKET=chatbot-storage-ap-south-1,CONVERSATIONS_TABLE=chatbot-conversations,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"
+            ;;
+          "orchestrator")
+            memory=1024
+            timeout=300
+            env_vars="CLAUDE_API_KEY=${{ secrets.CLAUDE_API_KEY }},RAG_SEARCH_LAMBDA=chatbot-rag-search,DOCUMENT_MANAGEMENT_LAMBDA=chatbot-document-management,RESPONSE_ENHANCEMENT_LAMBDA=chatbot-response-enhancement,CONVERSATIONS_TABLE=chatbot-conversations"
+            ;;
+          "rag-search")
+            memory=2048
+            timeout=300
+            env_vars="MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"
+            ;;
+          "document-management")
+            memory=512
+            timeout=300
+            env_vars="MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"
+            ;;
+          "response-enhancement")
+            memory=1024
+            timeout=300
+            env_vars="CLAUDE_API_KEY=${{ secrets.CLAUDE_API_KEY }},CONVERSATIONS_TABLE=chatbot-conversations"
+            ;;
+          "claude-decision")
+            memory=1024
+            timeout=300
+            env_vars="CLAUDE_API_KEY=${{ secrets.CLAUDE_API_KEY }},CONVERSATIONS_TABLE=chatbot-conversations"
+            ;;
+          "action-executor")
+            memory=512
+            timeout=300
+            env_vars="RAG_SEARCH_LAMBDA=chatbot-rag-search,DOCUMENT_METADATA_LAMBDA=chatbot-document-metadata,DOCUMENT_CONTENT_LAMBDA=chatbot-document-content,EMBEDDING_SERVICE_LAMBDA=chatbot-embedding-service,VECTOR_SEARCH_LAMBDA=chatbot-vector-search"
+            ;;
+          "embedding-service")
+            memory=2048
+            timeout=300
+            env_vars="MAIN_BUCKET=chatbot-storage-ap-south-1"
+            ;;
+          "vector-search")
+            memory=1024
+            timeout=300
+            env_vars="MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"
+            ;;
+          "document-metadata")
+            memory=256
+            timeout=300
+            env_vars="MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"
+            ;;
+          "document-content")
+            memory=256
+            timeout=300
+            env_vars="MAIN_BUCKET=chatbot-storage-ap-south-1"
+            ;;
+          "source-extractor")
+            memory=256
+            timeout=300
+            env_vars=""
+            ;;
+          "response-formatter")
+            memory=256
+            timeout=300
+            env_vars=""
+            ;;
+          "conversation-manager")
+            memory=256
+            timeout=300
+            env_vars="CONVERSATIONS_TABLE=chatbot-conversations"
+            ;;
+        esac
+        
+        # Create or update Lambda function
+        aws lambda create-function \
+          --function-name "chatbot-${{ matrix.service }}" \
+          --package-type Image \
+          --code ImageUri="${{ env.ECR_REGISTRY }}/chatbot-${{ matrix.service }}:latest" \
+          --role "arn:aws:iam::090163643302:role/chatbot-microservices-lambda-role" \
+          --timeout $timeout \
+          --memory-size $memory \
+          --environment Variables="{$env_vars}" \
+          --tags Environment=production,Service=${{ matrix.service }} || \
+        aws lambda update-function-code \
+          --function-name "chatbot-${{ matrix.service }}" \
+          --image-uri "${{ env.ECR_REGISTRY }}/chatbot-${{ matrix.service }}:latest"
+
+  create-api-gateway:
+    needs: [detect-changes, build-and-deploy]
+    runs-on: ubuntu-latest
+    environment: chatbot
+    if: always()
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Setup API Gateway
+      run: |
+        # Check if API Gateway exists
+        API_ID=$(aws apigateway get-rest-apis --query 'items[?name==`chatbot-microservices-api`].id' --output text)
+        
+        if [ -z "$API_ID" ] || [ "$API_ID" = "None" ]; then
+          echo "Creating API Gateway..."
+          API_ID=$(aws apigateway create-rest-api --name chatbot-microservices-api --query 'id' --output text)
+        fi
+        
+        echo "API_ID=$API_ID" >> $GITHUB_ENV
+        echo "API_URL=https://$API_ID.execute-api.${{ env.AWS_REGION }}.amazonaws.com/prod" >> $GITHUB_ENV
+        
+        # Deploy API Gateway
+        aws apigateway create-deployment --rest-api-id $API_ID --stage-name prod || echo "Deployment already exists"
+        
+        echo "API Gateway URL: https://$API_ID.execute-api.${{ env.AWS_REGION }}.amazonaws.com/prod"

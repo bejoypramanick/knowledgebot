@@ -1,0 +1,192 @@
+name: Deploy Microservices Architecture (Smart Path-based)
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'backend/lambda/rag-processor/**'
+      - 'backend/lambda/chat-handler/**'
+      - 'backend/lambda/orchestrator/**'
+      - 'backend/lambda/rag-search/**'
+      - 'backend/lambda/document-management/**'
+      - 'backend/lambda/response-enhancement/**'
+      - 'backend/lambda/claude-decision/**'
+      - 'backend/lambda/action-executor/**'
+      - 'backend/lambda/embedding-service/**'
+      - 'backend/lambda/vector-search/**'
+      - 'backend/lambda/document-metadata/**'
+      - 'backend/lambda/document-content/**'
+      - 'backend/lambda/source-extractor/**'
+      - 'backend/lambda/response-formatter/**'
+      - 'backend/lambda/conversation-manager/**'
+      - '.github/workflows/deploy-microservices-smart.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'backend/lambda/**'
+      - '.github/workflows/deploy-microservices-smart.yml'
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Specific service to build (or "all" for all services)'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - rag-processor
+          - chat-handler
+          - orchestrator
+          - rag-search
+          - document-management
+          - response-enhancement
+          - claude-decision
+          - action-executor
+          - embedding-service
+          - vector-search
+          - document-metadata
+          - document-content
+          - source-extractor
+          - response-formatter
+          - conversation-manager
+
+env:
+  AWS_REGION: ap-south-1
+  ECR_REGISTRY: 090163643302.dkr.ecr.ap-south-1.amazonaws.com
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: chatbot
+    strategy:
+      matrix:
+        service: ${{ fromJson(format('["{0}"]', join(split(github.event.inputs.service == 'all' && 'rag-processor,chat-handler,orchestrator,rag-search,document-management,response-enhancement,claude-decision,action-executor,embedding-service,vector-search,document-metadata,document-content,source-extractor,response-formatter,conversation-manager' || github.event.inputs.service, ','), '","'))) }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Create ECR repository
+      run: |
+        aws ecr create-repository --repository-name "chatbot-${{ matrix.service }}" --region ${{ env.AWS_REGION }} || echo "Repository already exists"
+
+    - name: Build and push Docker image
+      run: |
+        echo "Building ${{ matrix.service }}..."
+        cd backend/lambda/${{ matrix.service }}
+        
+        # Build with cache
+        docker build -t chatbot-${{ matrix.service }} .
+        docker tag chatbot-${{ matrix.service }}:latest ${{ env.ECR_REGISTRY }}/chatbot-${{ matrix.service }}:latest
+        docker push ${{ env.ECR_REGISTRY }}/chatbot-${{ matrix.service }}:latest
+
+    - name: Deploy Lambda function
+      run: |
+        # Service configurations
+        case "${{ matrix.service }}" in
+          "rag-processor")
+            memory=2048; timeout=300; env_vars="MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"
+            ;;
+          "chat-handler")
+            memory=1024; timeout=300; env_vars="CLAUDE_API_KEY=${{ secrets.CLAUDE_API_KEY }},MAIN_BUCKET=chatbot-storage-ap-south-1,CONVERSATIONS_TABLE=chatbot-conversations,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"
+            ;;
+          "orchestrator")
+            memory=1024; timeout=300; env_vars="CLAUDE_API_KEY=${{ secrets.CLAUDE_API_KEY }},RAG_SEARCH_LAMBDA=chatbot-rag-search,DOCUMENT_MANAGEMENT_LAMBDA=chatbot-document-management,RESPONSE_ENHANCEMENT_LAMBDA=chatbot-response-enhancement,CONVERSATIONS_TABLE=chatbot-conversations"
+            ;;
+          "rag-search")
+            memory=2048; timeout=300; env_vars="MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"
+            ;;
+          "document-management")
+            memory=512; timeout=300; env_vars="MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"
+            ;;
+          "response-enhancement")
+            memory=1024; timeout=300; env_vars="CLAUDE_API_KEY=${{ secrets.CLAUDE_API_KEY }},CONVERSATIONS_TABLE=chatbot-conversations"
+            ;;
+          "claude-decision")
+            memory=1024; timeout=300; env_vars="CLAUDE_API_KEY=${{ secrets.CLAUDE_API_KEY }},CONVERSATIONS_TABLE=chatbot-conversations"
+            ;;
+          "action-executor")
+            memory=512; timeout=300; env_vars="RAG_SEARCH_LAMBDA=chatbot-rag-search,DOCUMENT_METADATA_LAMBDA=chatbot-document-metadata,DOCUMENT_CONTENT_LAMBDA=chatbot-document-content,EMBEDDING_SERVICE_LAMBDA=chatbot-embedding-service,VECTOR_SEARCH_LAMBDA=chatbot-vector-search"
+            ;;
+          "embedding-service")
+            memory=2048; timeout=300; env_vars="MAIN_BUCKET=chatbot-storage-ap-south-1"
+            ;;
+          "vector-search")
+            memory=1024; timeout=300; env_vars="MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"
+            ;;
+          "document-metadata")
+            memory=256; timeout=300; env_vars="MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"
+            ;;
+          "document-content")
+            memory=256; timeout=300; env_vars="MAIN_BUCKET=chatbot-storage-ap-south-1"
+            ;;
+          "source-extractor")
+            memory=256; timeout=300; env_vars=""
+            ;;
+          "response-formatter")
+            memory=256; timeout=300; env_vars=""
+            ;;
+          "conversation-manager")
+            memory=256; timeout=300; env_vars="CONVERSATIONS_TABLE=chatbot-conversations"
+            ;;
+        esac
+        
+        # Create or update Lambda function
+        aws lambda create-function \
+          --function-name "chatbot-${{ matrix.service }}" \
+          --package-type Image \
+          --code ImageUri="${{ env.ECR_REGISTRY }}/chatbot-${{ matrix.service }}:latest" \
+          --role "arn:aws:iam::090163643302:role/chatbot-microservices-lambda-role" \
+          --timeout $timeout \
+          --memory-size $memory \
+          --environment Variables="{$env_vars}" \
+          --tags Environment=production,Service=${{ matrix.service }} || \
+        aws lambda update-function-code \
+          --function-name "chatbot-${{ matrix.service }}" \
+          --image-uri "${{ env.ECR_REGISTRY }}/chatbot-${{ matrix.service }}:latest"
+
+  create-api-gateway:
+    needs: build-and-deploy
+    runs-on: ubuntu-latest
+    environment: chatbot
+    if: always()
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Setup API Gateway
+      run: |
+        # Check if API Gateway exists
+        API_ID=$(aws apigateway get-rest-apis --query 'items[?name==`chatbot-microservices-api`].id' --output text)
+        
+        if [ -z "$API_ID" ] || [ "$API_ID" = "None" ]; then
+          echo "Creating API Gateway..."
+          API_ID=$(aws apigateway create-rest-api --name chatbot-microservices-api --query 'id' --output text)
+        fi
+        
+        echo "API_ID=$API_ID" >> $GITHUB_ENV
+        echo "API_URL=https://$API_ID.execute-api.${{ env.AWS_REGION }}.amazonaws.com/prod" >> $GITHUB_ENV
+        
+        # Deploy API Gateway
+        aws apigateway create-deployment --rest-api-id $API_ID --stage-name prod || echo "Deployment already exists"
+        
+        echo "API Gateway URL: https://$API_ID.execute-api.${{ env.AWS_REGION }}.amazonaws.com/prod"
