@@ -1,25 +1,20 @@
-name: Deploy Microservices Architecture (Optimized)
+name: Deploy Microservices
 
 on:
   push:
     branches: [ main ]
     paths:
       - 'backend/lambda/**'
-      - '.github/workflows/deploy-microservices-optimized.yml'
+      - '.github/workflows/deploy.yml'
   pull_request:
     branches: [ main ]
     paths:
       - 'backend/lambda/**'
-      - '.github/workflows/deploy-microservices-optimized.yml'
+      - '.github/workflows/deploy.yml'
   workflow_dispatch:
     inputs:
-      force_cleanup:
-        description: 'Force cleanup of all ECR images (except latest and cache)'
-        required: false
-        default: 'false'
-        type: boolean
       force_rebuild:
-        description: 'Force rebuild all services (ignore file changes)'
+        description: 'Force rebuild all services'
         required: false
         default: 'false'
         type: boolean
@@ -37,12 +32,11 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # Fetch full history for better change detection
+        fetch-depth: 0
 
-    - name: Detect changes
+    - name: Detect changed services
       id: changes
       run: |
-        # Get list of changed files
         if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.force_rebuild }}" = "true" ]; then
           echo "Force rebuild enabled - building all services"
           echo "matrix={\"include\":[{\"service\":\"rag-processor\"},{\"service\":\"chat-handler\"},{\"service\":\"orchestrator\"},{\"service\":\"rag-search\"},{\"service\":\"document-management\"},{\"service\":\"response-enhancement\"},{\"service\":\"claude-decision\"},{\"service\":\"action-executor\"},{\"service\":\"embedding-service\"},{\"service\":\"vector-search\"},{\"service\":\"document-metadata\"},{\"service\":\"document-content\"},{\"service\":\"source-extractor\"},{\"service\":\"response-formatter\"},{\"service\":\"conversation-manager\"}]}" >> $GITHUB_OUTPUT
@@ -50,41 +44,34 @@ jobs:
           # Check for changes in each service directory
           services_to_build=()
           
-          # Define services and their paths
-          declare -A service_paths=(
-            ["rag-processor"]="backend/lambda/rag-processor/"
-            ["chat-handler"]="backend/lambda/chat-handler/"
-            ["orchestrator"]="backend/lambda/orchestrator/"
-            ["rag-search"]="backend/lambda/rag-search/"
-            ["document-management"]="backend/lambda/document-management/"
-            ["response-enhancement"]="backend/lambda/response-enhancement/"
-            ["claude-decision"]="backend/lambda/claude-decision/"
-            ["action-executor"]="backend/lambda/action-executor/"
-            ["embedding-service"]="backend/lambda/embedding-service/"
-            ["vector-search"]="backend/lambda/vector-search/"
-            ["document-metadata"]="backend/lambda/document-metadata/"
-            ["document-content"]="backend/lambda/document-content/"
-            ["source-extractor"]="backend/lambda/source-extractor/"
-            ["response-formatter"]="backend/lambda/response-formatter/"
-            ["conversation-manager"]="backend/lambda/conversation-manager/"
+          # Define all services
+          services=(
+            "rag-processor"
+            "chat-handler"
+            "orchestrator"
+            "rag-search"
+            "document-management"
+            "response-enhancement"
+            "claude-decision"
+            "action-executor"
+            "embedding-service"
+            "vector-search"
+            "document-metadata"
+            "document-content"
+            "source-extractor"
+            "response-formatter"
+            "conversation-manager"
           )
           
           # Check each service for changes
-          for service in "${!service_paths[@]}"; do
-            path="${service_paths[$service]}"
-            if git diff --name-only HEAD~1 HEAD | grep -q "^$path"; then
+          for service in "${services[@]}"; do
+            if git diff --name-only HEAD~1 HEAD | grep -q "^backend/lambda/$service/"; then
               echo "Changes detected in $service"
               services_to_build+=("$service")
             fi
           done
           
-          # Always build if workflow file changed
-          if git diff --name-only HEAD~1 HEAD | grep -q "^\.github/workflows/"; then
-            echo "Workflow file changed - building all services"
-            services_to_build=("rag-processor" "chat-handler" "orchestrator" "rag-search" "document-management" "response-enhancement" "claude-decision" "action-executor" "embedding-service" "vector-search" "document-metadata" "document-content" "source-extractor" "response-formatter" "conversation-manager")
-          fi
-          
-          # If no services to build, still build core services
+          # Always build core services if no changes detected
           if [ ${#services_to_build[@]} -eq 0 ]; then
             echo "No specific changes detected - building core services only"
             services_to_build=("rag-processor" "chat-handler" "orchestrator")
@@ -126,10 +113,10 @@ jobs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
 
-    - name: Create ECR repository (if needed)
+    - name: Create ECR repository
       run: |
         echo "Ensuring ECR repository exists for ${{ matrix.service }}..."
-        aws ecr create-repository --repository-name "chatbot-${{ matrix.service }}" --region ${{ env.AWS_REGION }} || echo "Repository already exists or created"
+        aws ecr create-repository --repository-name "chatbot-${{ matrix.service }}" --region ${{ env.AWS_REGION }} || echo "Repository already exists"
 
     - name: Build and push Docker image
       run: |
@@ -151,31 +138,56 @@ jobs:
       run: |
         echo "Deploying Lambda function for ${{ matrix.service }}..."
         
-        # Define service configurations
-        declare -A LAMBDA_CONFIGS
-        LAMBDA_CONFIGS[rag-processor]='{"memory":2048,"timeout":300,"env":"MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"}'
-        LAMBDA_CONFIGS[chat-handler]='{"memory":1024,"timeout":300,"env":"CLAUDE_API_KEY=${{ secrets.CLAUDE_API_KEY }},MAIN_BUCKET=chatbot-storage-ap-south-1,CONVERSATIONS_TABLE=chatbot-conversations,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"}'
-        LAMBDA_CONFIGS[orchestrator]='{"memory":1024,"timeout":300,"env":"CLAUDE_API_KEY=${{ secrets.CLAUDE_API_KEY }},RAG_SEARCH_LAMBDA=chatbot-rag-search,DOCUMENT_MANAGEMENT_LAMBDA=chatbot-document-management,RESPONSE_ENHANCEMENT_LAMBDA=chatbot-response-enhancement,CONVERSATIONS_TABLE=chatbot-conversations"}'
-        LAMBDA_CONFIGS[rag-search]='{"memory":2048,"timeout":300,"env":"MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"}'
-        LAMBDA_CONFIGS[document-management]='{"memory":512,"timeout":300,"env":"MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"}'
-        LAMBDA_CONFIGS[response-enhancement]='{"memory":1024,"timeout":300,"env":"CLAUDE_API_KEY=${{ secrets.CLAUDE_API_KEY }},CONVERSATIONS_TABLE=chatbot-conversations"}'
-        LAMBDA_CONFIGS[claude-decision]='{"memory":1024,"timeout":300,"env":"CLAUDE_API_KEY=${{ secrets.CLAUDE_API_KEY }},CONVERSATIONS_TABLE=chatbot-conversations"}'
-        LAMBDA_CONFIGS[action-executor]='{"memory":512,"timeout":300,"env":"RAG_SEARCH_LAMBDA=chatbot-rag-search,DOCUMENT_METADATA_LAMBDA=chatbot-document-metadata,DOCUMENT_CONTENT_LAMBDA=chatbot-document-content,EMBEDDING_SERVICE_LAMBDA=chatbot-embedding-service,VECTOR_SEARCH_LAMBDA=chatbot-vector-search"}'
-        LAMBDA_CONFIGS[embedding-service]='{"memory":2048,"timeout":300,"env":"MAIN_BUCKET=chatbot-storage-ap-south-1"}'
-        LAMBDA_CONFIGS[vector-search]='{"memory":1024,"timeout":300,"env":"MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"}'
-        LAMBDA_CONFIGS[document-metadata]='{"memory":256,"timeout":300,"env":"MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"}'
-        LAMBDA_CONFIGS[document-content]='{"memory":256,"timeout":300,"env":"MAIN_BUCKET=chatbot-storage-ap-south-1"}'
-        LAMBDA_CONFIGS[source-extractor]='{"memory":256,"timeout":300,"env":""}'
-        LAMBDA_CONFIGS[response-formatter]='{"memory":256,"timeout":300,"env":""}'
-        LAMBDA_CONFIGS[conversation-manager]='{"memory":256,"timeout":300,"env":"CONVERSATIONS_TABLE=chatbot-conversations"}'
+        # Service configurations
+        case "${{ matrix.service }}" in
+          "rag-processor")
+            memory=2048; timeout=300; env_vars="MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"
+            ;;
+          "chat-handler")
+            memory=1024; timeout=300; env_vars="CLAUDE_API_KEY=${{ secrets.CLAUDE_API_KEY }},MAIN_BUCKET=chatbot-storage-ap-south-1,CONVERSATIONS_TABLE=chatbot-conversations,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"
+            ;;
+          "orchestrator")
+            memory=1024; timeout=300; env_vars="CLAUDE_API_KEY=${{ secrets.CLAUDE_API_KEY }},RAG_SEARCH_LAMBDA=chatbot-rag-search,DOCUMENT_MANAGEMENT_LAMBDA=chatbot-document-management,RESPONSE_ENHANCEMENT_LAMBDA=chatbot-response-enhancement,CONVERSATIONS_TABLE=chatbot-conversations"
+            ;;
+          "rag-search")
+            memory=2048; timeout=300; env_vars="MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"
+            ;;
+          "document-management")
+            memory=512; timeout=300; env_vars="MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"
+            ;;
+          "response-enhancement")
+            memory=1024; timeout=300; env_vars="CLAUDE_API_KEY=${{ secrets.CLAUDE_API_KEY }},CONVERSATIONS_TABLE=chatbot-conversations"
+            ;;
+          "claude-decision")
+            memory=1024; timeout=300; env_vars="CLAUDE_API_KEY=${{ secrets.CLAUDE_API_KEY }},CONVERSATIONS_TABLE=chatbot-conversations"
+            ;;
+          "action-executor")
+            memory=512; timeout=300; env_vars="RAG_SEARCH_LAMBDA=chatbot-rag-search,DOCUMENT_METADATA_LAMBDA=chatbot-document-metadata,DOCUMENT_CONTENT_LAMBDA=chatbot-document-content,EMBEDDING_SERVICE_LAMBDA=chatbot-embedding-service,VECTOR_SEARCH_LAMBDA=chatbot-vector-search"
+            ;;
+          "embedding-service")
+            memory=2048; timeout=300; env_vars="MAIN_BUCKET=chatbot-storage-ap-south-1"
+            ;;
+          "vector-search")
+            memory=1024; timeout=300; env_vars="MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"
+            ;;
+          "document-metadata")
+            memory=256; timeout=300; env_vars="MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"
+            ;;
+          "document-content")
+            memory=256; timeout=300; env_vars="MAIN_BUCKET=chatbot-storage-ap-south-1"
+            ;;
+          "source-extractor")
+            memory=256; timeout=300; env_vars=""
+            ;;
+          "response-formatter")
+            memory=256; timeout=300; env_vars=""
+            ;;
+          "conversation-manager")
+            memory=256; timeout=300; env_vars="CONVERSATIONS_TABLE=chatbot-conversations"
+            ;;
+        esac
         
-        # Get configuration for this service
-        config=${LAMBDA_CONFIGS[${{ matrix.service }}]}
-        memory=$(echo $config | jq -r '.memory')
-        timeout=$(echo $config | jq -r '.timeout')
-        env_vars=$(echo $config | jq -r '.env')
-        
-        # Create or update function
+        # Create or update Lambda function
         aws lambda create-function \
           --function-name "chatbot-${{ matrix.service }}" \
           --package-type Image \
@@ -188,14 +200,12 @@ jobs:
         aws lambda update-function-code \
           --function-name "chatbot-${{ matrix.service }}" \
           --image-uri "${{ env.ECR_REGISTRY }}/chatbot-${{ matrix.service }}:latest"
-        
-        echo "Deployed ${{ matrix.service }}"
 
   create-api-gateway:
     needs: [detect-changes, build-and-deploy]
     runs-on: ubuntu-latest
     environment: chatbot
-    if: always()  # Run even if some builds fail
+    if: always()
     
     steps:
     - name: Checkout code
@@ -210,7 +220,7 @@ jobs:
 
     - name: Create or update API Gateway
       run: |
-        echo "Creating/updating API Gateway..."
+        echo "Setting up API Gateway..."
         
         # Check if API Gateway exists
         API_ID=$(aws apigateway get-rest-apis --query 'items[?name==`chatbot-microservices-api`].id' --output text)
@@ -221,11 +231,11 @@ jobs:
             --name chatbot-microservices-api \
             --description "API Gateway for chatbot microservices" \
             --query 'id' --output text)
-          echo "API_ID=$API_ID" >> $GITHUB_ENV
         else
           echo "Using existing API Gateway: $API_ID"
-          echo "API_ID=$API_ID" >> $GITHUB_ENV
         fi
+        
+        echo "API_ID=$API_ID" >> $GITHUB_ENV
         
         # Get root resource ID
         ROOT_RESOURCE_ID=$(aws apigateway get-resources --rest-api-id $API_ID --query 'items[?path==`/`].id' --output text)
@@ -298,22 +308,3 @@ jobs:
         git add src/lib/aws-config.ts
         git commit -m "Update API Gateway URL for microservices" || echo "No changes to commit"
         git push || echo "Nothing to push"
-
-  cleanup:
-    needs: [detect-changes, build-and-deploy, create-api-gateway]
-    runs-on: ubuntu-latest
-    if: always() && (github.event.inputs.force_cleanup == 'true' || github.event_name == 'workflow_dispatch')
-    
-    steps:
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
-
-    - name: Cleanup old ECR images
-      run: |
-        echo "Cleaning up old ECR images..."
-        # Add cleanup logic here if needed
-        echo "Cleanup completed"
