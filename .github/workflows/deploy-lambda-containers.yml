@@ -147,10 +147,21 @@ jobs:
         ECR_REPOSITORY: ${{ env.RAG_PROCESSOR_IMAGE }}
         IMAGE_TAG: ${{ github.sha }}
       run: |
-        # Pull existing latest image and retag it
-        docker pull $ECR_REGISTRY/$ECR_REPOSITORY:latest
-        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:latest $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        # Try to pull existing latest image and retag it, or build if it doesn't exist
+        if docker pull $ECR_REGISTRY/$ECR_REPOSITORY:latest 2>/dev/null; then
+          echo "✅ Found existing image, retagging..."
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:latest $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        else
+          echo "❌ No existing image found, building new one..."
+          # Build the image
+          cd backend/lambda/rag-processor
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          # Also tag as latest for future use
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        fi
 
     - name: Check for Chat Handler changes
       id: chat-changes
@@ -214,10 +225,21 @@ jobs:
         ECR_REPOSITORY: ${{ env.CHAT_HANDLER_IMAGE }}
         IMAGE_TAG: ${{ github.sha }}
       run: |
-        # Pull existing latest image and retag it
-        docker pull $ECR_REGISTRY/$ECR_REPOSITORY:latest
-        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:latest $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        # Try to pull existing latest image and retag it, or build if it doesn't exist
+        if docker pull $ECR_REGISTRY/$ECR_REPOSITORY:latest 2>/dev/null; then
+          echo "✅ Found existing image, retagging..."
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:latest $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        else
+          echo "❌ No existing image found, building new one..."
+          # Build the image
+          cd backend/lambda/chat-handler
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          # Also tag as latest for future use
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        fi
 
     - name: Deploy RAG Processor Lambda
       env:
