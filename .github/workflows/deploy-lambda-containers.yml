@@ -187,12 +187,23 @@ jobs:
           --progress=plain \
           ./backend/lambda/rag-processor
         
-        # Push images to ECR
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        # Push images to ECR with strict error handling
+        echo "🚀 Pushing RAG Processor image to ECR..."
+        if ! docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG; then
+          echo "❌ CRITICAL ERROR: Failed to push RAG Processor image with tag $IMAGE_TAG"
+          echo "This indicates ECR permissions or connectivity issues"
+          exit 1
+        fi
         
-        # Push cache layers to ECR for future builds
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:cache || true
+        if ! docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest; then
+          echo "❌ CRITICAL ERROR: Failed to push RAG Processor latest image"
+          echo "This indicates ECR permissions or connectivity issues"
+          exit 1
+        fi
+        
+        # Push cache layers to ECR for future builds (non-critical)
+        echo "📦 Pushing cache layers..."
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:cache || echo "⚠️ Cache push failed (non-critical)"
         
         # Show build timing
         end_time=$(date +%s)
@@ -209,16 +220,28 @@ jobs:
         if docker pull $ECR_REGISTRY/$ECR_REPOSITORY:latest 2>/dev/null; then
           echo "✅ Found existing image, retagging..."
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:latest $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          if ! docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG; then
+            echo "❌ CRITICAL ERROR: Failed to push retagged RAG Processor image"
+            echo "This indicates ECR permissions or connectivity issues"
+            exit 1
+          fi
         else
           echo "❌ No existing image found, building new one..."
           # Build the image
           cd backend/lambda/rag-processor
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          if ! docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG; then
+            echo "❌ CRITICAL ERROR: Failed to push newly built RAG Processor image"
+            echo "This indicates ECR permissions or connectivity issues"
+            exit 1
+          fi
           # Also tag as latest for future use
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          if ! docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest; then
+            echo "❌ CRITICAL ERROR: Failed to push RAG Processor latest image"
+            echo "This indicates ECR permissions or connectivity issues"
+            exit 1
+          fi
         fi
 
     - name: Check for Chat Handler changes
@@ -265,12 +288,23 @@ jobs:
           --progress=plain \
           ./backend/lambda/chat-handler
         
-        # Push images to ECR
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        # Push images to ECR with strict error handling
+        echo "🚀 Pushing Chat Handler image to ECR..."
+        if ! docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG; then
+          echo "❌ CRITICAL ERROR: Failed to push Chat Handler image with tag $IMAGE_TAG"
+          echo "This indicates ECR permissions or connectivity issues"
+          exit 1
+        fi
         
-        # Push cache layers to ECR for future builds
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:cache || true
+        if ! docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest; then
+          echo "❌ CRITICAL ERROR: Failed to push Chat Handler latest image"
+          echo "This indicates ECR permissions or connectivity issues"
+          exit 1
+        fi
+        
+        # Push cache layers to ECR for future builds (non-critical)
+        echo "📦 Pushing cache layers..."
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:cache || echo "⚠️ Cache push failed (non-critical)"
         
         # Show build timing
         end_time=$(date +%s)
@@ -287,17 +321,75 @@ jobs:
         if docker pull $ECR_REGISTRY/$ECR_REPOSITORY:latest 2>/dev/null; then
           echo "✅ Found existing image, retagging..."
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:latest $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          if ! docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG; then
+            echo "❌ CRITICAL ERROR: Failed to push retagged Chat Handler image"
+            echo "This indicates ECR permissions or connectivity issues"
+            exit 1
+          fi
         else
           echo "❌ No existing image found, building new one..."
           # Build the image
           cd backend/lambda/chat-handler
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          if ! docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG; then
+            echo "❌ CRITICAL ERROR: Failed to push newly built Chat Handler image"
+            echo "This indicates ECR permissions or connectivity issues"
+            exit 1
+          fi
           # Also tag as latest for future use
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          if ! docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest; then
+            echo "❌ CRITICAL ERROR: Failed to push Chat Handler latest image"
+            echo "This indicates ECR permissions or connectivity issues"
+            exit 1
+          fi
         fi
+
+    - name: Verify ECR Images Uploaded
+      run: |
+        echo "🔍 Verifying that images were successfully uploaded to ECR..."
+        
+        # Verify RAG Processor image
+        echo "Checking RAG Processor image..."
+        if ! aws ecr describe-images --repository-name $RAG_PROCESSOR_IMAGE --region $AWS_REGION --image-ids imageTag=${{ github.sha }} > /dev/null 2>&1; then
+          echo "❌ CRITICAL ERROR: RAG Processor image with tag ${{ github.sha }} not found in ECR"
+          echo "This indicates the image push failed silently"
+          exit 1
+        fi
+        
+        if ! aws ecr describe-images --repository-name $RAG_PROCESSOR_IMAGE --region $AWS_REGION --image-ids imageTag=latest > /dev/null 2>&1; then
+          echo "❌ CRITICAL ERROR: RAG Processor latest image not found in ECR"
+          echo "This indicates the latest tag push failed silently"
+          exit 1
+        fi
+        
+        echo "✅ RAG Processor images verified in ECR"
+        
+        # Verify Chat Handler image
+        echo "Checking Chat Handler image..."
+        if ! aws ecr describe-images --repository-name $CHAT_HANDLER_IMAGE --region $AWS_REGION --image-ids imageTag=${{ github.sha }} > /dev/null 2>&1; then
+          echo "❌ CRITICAL ERROR: Chat Handler image with tag ${{ github.sha }} not found in ECR"
+          echo "This indicates the image push failed silently"
+          exit 1
+        fi
+        
+        if ! aws ecr describe-images --repository-name $CHAT_HANDLER_IMAGE --region $AWS_REGION --image-ids imageTag=latest > /dev/null 2>&1; then
+          echo "❌ CRITICAL ERROR: Chat Handler latest image not found in ECR"
+          echo "This indicates the latest tag push failed silently"
+          exit 1
+        fi
+        
+        echo "✅ Chat Handler images verified in ECR"
+        
+        # Show image details for confirmation
+        echo "📋 Image Details:"
+        echo "RAG Processor:"
+        aws ecr describe-images --repository-name $RAG_PROCESSOR_IMAGE --region $AWS_REGION --query 'imageDetails[?contains(imageTags, `'${{ github.sha }}'`) || contains(imageTags, `latest`)].{Tags:imageTags,PushedAt:imagePushedAt}' --output table
+        
+        echo "Chat Handler:"
+        aws ecr describe-images --repository-name $CHAT_HANDLER_IMAGE --region $AWS_REGION --query 'imageDetails[?contains(imageTags, `'${{ github.sha }}'`) || contains(imageTags, `latest`)].{Tags:imageTags,PushedAt:imagePushedAt}' --output table
+        
+        echo "🎉 All images successfully verified in ECR!"
 
     - name: Deploy RAG Processor Lambda
       env:
@@ -346,6 +438,37 @@ jobs:
             --memory-size 1024 \
             --region $AWS_REGION
         fi
+
+    - name: Verify Lambda Functions Updated
+      run: |
+        echo "🔍 Verifying that Lambda functions are using the correct images..."
+        
+        # Verify RAG Processor Lambda
+        echo "Checking RAG Processor Lambda function..."
+        RAG_IMAGE_URI=$(aws lambda get-function --function-name $RAG_PROCESSOR_IMAGE --region $AWS_REGION --query 'Configuration.Code.ImageUri' --output text)
+        echo "RAG Processor using image: $RAG_IMAGE_URI"
+        
+        if [[ ! "$RAG_IMAGE_URI" == *"${{ github.sha }}"* ]]; then
+          echo "❌ CRITICAL ERROR: RAG Processor Lambda is not using the correct image"
+          echo "Expected to contain: ${{ github.sha }}"
+          echo "Actual image URI: $RAG_IMAGE_URI"
+          exit 1
+        fi
+        
+        # Verify Chat Handler Lambda
+        echo "Checking Chat Handler Lambda function..."
+        CHAT_IMAGE_URI=$(aws lambda get-function --function-name $CHAT_HANDLER_IMAGE --region $AWS_REGION --query 'Configuration.Code.ImageUri' --output text)
+        echo "Chat Handler using image: $CHAT_IMAGE_URI"
+        
+        if [[ ! "$CHAT_IMAGE_URI" == *"${{ github.sha }}"* ]]; then
+          echo "❌ CRITICAL ERROR: Chat Handler Lambda is not using the correct image"
+          echo "Expected to contain: ${{ github.sha }}"
+          echo "Actual image URI: $CHAT_IMAGE_URI"
+          exit 1
+        fi
+        
+        echo "✅ Both Lambda functions are using the correct images"
+        echo "🎉 Deployment verification completed successfully!"
 
     - name: Configure S3 Event Trigger
       run: |
