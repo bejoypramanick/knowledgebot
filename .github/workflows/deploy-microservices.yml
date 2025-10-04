@@ -33,9 +33,9 @@ jobs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
 
-    - name: Create ECR repositories
+    - name: Create ECR repositories (if needed)
       run: |
-        # Create ECR repositories for all microservices
+        # Create ECR repositories for all microservices (will create if not exists)
         SERVICES=(
           "orchestrator"
           "rag-search" 
@@ -53,9 +53,8 @@ jobs:
         )
         
         for service in "${SERVICES[@]}"; do
-          echo "Creating ECR repository for $service..."
-          aws ecr describe-repositories --repository-names "chatbot-${service}" --region ${{ env.AWS_REGION }} > /dev/null 2>&1 || \
-          aws ecr create-repository --repository-name "chatbot-${service}" --region ${{ env.AWS_REGION }}
+          echo "Ensuring ECR repository exists for $service..."
+          aws ecr create-repository --repository-name "chatbot-${service}" --region ${{ env.AWS_REGION }} || echo "Repository already exists or created"
         done
 
     - name: Build and push all Lambda services
@@ -159,80 +158,49 @@ jobs:
             ]
           }'
 
-    - name: Deploy Orchestrator Lambda
+    - name: Deploy all Lambda functions
       run: |
-        aws lambda create-function \
-          --function-name chatbot-orchestrator \
-          --package-type Image \
-          --code ImageUri=${{ env.ECR_REGISTRY }}/chatbot-orchestrator:latest \
-          --role arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/chatbot-microservices-lambda-role \
-          --timeout 300 \
-          --memory-size 1024 \
-          --environment Variables='{
-            "CLAUDE_API_KEY":"${{ secrets.CLAUDE_API_KEY }}",
-            "RAG_SEARCH_LAMBDA":"chatbot-rag-search",
-            "DOCUMENT_MANAGEMENT_LAMBDA":"chatbot-document-management",
-            "RESPONSE_ENHANCEMENT_LAMBDA":"chatbot-response-enhancement",
-            "CONVERSATIONS_TABLE":"chatbot-conversations"
-          }' \
-          --tags Environment=production,Service=Orchestrator || \
-        aws lambda update-function-code \
-          --function-name chatbot-orchestrator \
-          --image-uri ${{ env.ECR_REGISTRY }}/chatbot-orchestrator:latest
+        # Define all services with their configurations
+        declare -A LAMBDA_CONFIGS
+        LAMBDA_CONFIGS[orchestrator]='{"memory":1024,"timeout":300,"env":"CLAUDE_API_KEY=${{ secrets.CLAUDE_API_KEY }},RAG_SEARCH_LAMBDA=chatbot-rag-search,DOCUMENT_MANAGEMENT_LAMBDA=chatbot-document-management,RESPONSE_ENHANCEMENT_LAMBDA=chatbot-response-enhancement,CONVERSATIONS_TABLE=chatbot-conversations"}'
+        LAMBDA_CONFIGS[rag-search]='{"memory":2048,"timeout":300,"env":"MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"}'
+        LAMBDA_CONFIGS[document-management]='{"memory":512,"timeout":300,"env":"MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"}'
+        LAMBDA_CONFIGS[response-enhancement]='{"memory":1024,"timeout":300,"env":"CLAUDE_API_KEY=${{ secrets.CLAUDE_API_KEY }},CONVERSATIONS_TABLE=chatbot-conversations"}'
+        LAMBDA_CONFIGS[claude-decision]='{"memory":1024,"timeout":300,"env":"CLAUDE_API_KEY=${{ secrets.CLAUDE_API_KEY }},CONVERSATIONS_TABLE=chatbot-conversations"}'
+        LAMBDA_CONFIGS[action-executor]='{"memory":512,"timeout":300,"env":"RAG_SEARCH_LAMBDA=chatbot-rag-search,DOCUMENT_METADATA_LAMBDA=chatbot-document-metadata,DOCUMENT_CONTENT_LAMBDA=chatbot-document-content,EMBEDDING_SERVICE_LAMBDA=chatbot-embedding-service,VECTOR_SEARCH_LAMBDA=chatbot-vector-search"}'
+        LAMBDA_CONFIGS[embedding-service]='{"memory":2048,"timeout":300,"env":"MAIN_BUCKET=chatbot-storage-ap-south-1"}'
+        LAMBDA_CONFIGS[vector-search]='{"memory":1024,"timeout":300,"env":"MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"}'
+        LAMBDA_CONFIGS[document-metadata]='{"memory":256,"timeout":300,"env":"MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"}'
+        LAMBDA_CONFIGS[document-content]='{"memory":256,"timeout":300,"env":"MAIN_BUCKET=chatbot-storage-ap-south-1"}'
+        LAMBDA_CONFIGS[source-extractor]='{"memory":256,"timeout":300,"env":""}'
+        LAMBDA_CONFIGS[response-formatter]='{"memory":256,"timeout":300,"env":""}'
+        LAMBDA_CONFIGS[conversation-manager]='{"memory":256,"timeout":300,"env":"CONVERSATIONS_TABLE=chatbot-conversations"}'
+        
+        # Deploy each Lambda function
+        for service in "${!LAMBDA_CONFIGS[@]}"; do
+          echo "Deploying $service..."
+          config=${LAMBDA_CONFIGS[$service]}
+          memory=$(echo $config | jq -r '.memory')
+          timeout=$(echo $config | jq -r '.timeout')
+          env_vars=$(echo $config | jq -r '.env')
+          
+          # Create or update function
+          aws lambda create-function \
+            --function-name "chatbot-$service" \
+            --package-type Image \
+            --code ImageUri="${{ env.ECR_REGISTRY }}/chatbot-$service:latest" \
+            --role "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/chatbot-microservices-lambda-role" \
+            --timeout $timeout \
+            --memory-size $memory \
+            --environment Variables="{$env_vars}" \
+            --tags Environment=production,Service=$service || \
+          aws lambda update-function-code \
+            --function-name "chatbot-$service" \
+            --image-uri "${{ env.ECR_REGISTRY }}/chatbot-$service:latest"
+          
+          echo "Completed $service"
+        done
 
-    - name: Deploy RAG Search Lambda
-      run: |
-        aws lambda create-function \
-          --function-name chatbot-rag-search \
-          --package-type Image \
-          --code ImageUri=${{ env.ECR_REGISTRY }}/chatbot-rag-search:latest \
-          --role arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/chatbot-microservices-lambda-role \
-          --timeout 300 \
-          --memory-size 2048 \
-          --environment Variables='{
-            "MAIN_BUCKET":"chatbot-storage-ap-south-1",
-            "KNOWLEDGE_BASE_TABLE":"chatbot-knowledge-base"
-          }' \
-          --tags Environment=production,Service=RAGSearch || \
-        aws lambda update-function-code \
-          --function-name chatbot-rag-search \
-          --image-uri ${{ env.ECR_REGISTRY }}/chatbot-rag-search:latest
-
-    - name: Deploy Document Management Lambda
-      run: |
-        aws lambda create-function \
-          --function-name chatbot-document-management \
-          --package-type Image \
-          --code ImageUri=${{ env.ECR_REGISTRY }}/chatbot-document-management:latest \
-          --role arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/chatbot-microservices-lambda-role \
-          --timeout 300 \
-          --memory-size 512 \
-          --environment Variables='{
-            "MAIN_BUCKET":"chatbot-storage-ap-south-1",
-            "KNOWLEDGE_BASE_TABLE":"chatbot-knowledge-base"
-          }' \
-          --tags Environment=production,Service=DocumentManagement || \
-        aws lambda update-function-code \
-          --function-name chatbot-document-management \
-          --image-uri ${{ env.ECR_REGISTRY }}/chatbot-document-management:latest
-
-    - name: Deploy Response Enhancement Lambda
-      run: |
-        aws lambda create-function \
-          --function-name chatbot-response-enhancement \
-          --package-type Image \
-          --code ImageUri=${{ env.ECR_REGISTRY }}/chatbot-response-enhancement:latest \
-          --role arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/chatbot-microservices-lambda-role \
-          --timeout 300 \
-          --memory-size 1024 \
-          --environment Variables='{
-            "CLAUDE_API_KEY":"${{ secrets.CLAUDE_API_KEY }}",
-            "CONVERSATIONS_TABLE":"chatbot-conversations"
-          }' \
-          --tags Environment=production,Service=ResponseEnhancement || \
-        aws lambda update-function-code \
-          --function-name chatbot-response-enhancement \
-          --image-uri ${{ env.ECR_REGISTRY }}/chatbot-response-enhancement:latest
 
     - name: Create API Gateway
       run: |
