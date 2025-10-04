@@ -35,39 +35,58 @@ jobs:
 
     - name: Create ECR repositories
       run: |
-        # Create ECR repositories for each microservice
-        for service in orchestrator rag-search document-management response-enhancement; do
+        # Create ECR repositories for all microservices
+        SERVICES=(
+          "orchestrator"
+          "rag-search" 
+          "document-management"
+          "response-enhancement"
+          "claude-decision"
+          "action-executor"
+          "embedding-service"
+          "vector-search"
+          "document-metadata"
+          "document-content"
+          "source-extractor"
+          "response-formatter"
+          "conversation-manager"
+        )
+        
+        for service in "${SERVICES[@]}"; do
+          echo "Creating ECR repository for $service..."
           aws ecr describe-repositories --repository-names "chatbot-${service}" --region ${{ env.AWS_REGION }} > /dev/null 2>&1 || \
           aws ecr create-repository --repository-name "chatbot-${service}" --region ${{ env.AWS_REGION }}
         done
 
-    - name: Build and push Orchestrator Lambda
+    - name: Build and push all Lambda services
       run: |
-        cd backend/lambda/orchestrator
-        docker build -t chatbot-orchestrator .
-        docker tag chatbot-orchestrator:latest ${{ env.ECR_REGISTRY }}/chatbot-orchestrator:latest
-        docker push ${{ env.ECR_REGISTRY }}/chatbot-orchestrator:latest
-
-    - name: Build and push RAG Search Lambda
-      run: |
-        cd backend/lambda/rag-search
-        docker build -t chatbot-rag-search .
-        docker tag chatbot-rag-search:latest ${{ env.ECR_REGISTRY }}/chatbot-rag-search:latest
-        docker push ${{ env.ECR_REGISTRY }}/chatbot-rag-search:latest
-
-    - name: Build and push Document Management Lambda
-      run: |
-        cd backend/lambda/document-management
-        docker build -t chatbot-document-management .
-        docker tag chatbot-document-management:latest ${{ env.ECR_REGISTRY }}/chatbot-document-management:latest
-        docker push ${{ env.ECR_REGISTRY }}/chatbot-document-management:latest
-
-    - name: Build and push Response Enhancement Lambda
-      run: |
-        cd backend/lambda/response-enhancement
-        docker build -t chatbot-response-enhancement .
-        docker tag chatbot-response-enhancement:latest ${{ env.ECR_REGISTRY }}/chatbot-response-enhancement:latest
-        docker push ${{ env.ECR_REGISTRY }}/chatbot-response-enhancement:latest
+        # Define all services
+        SERVICES=(
+          "orchestrator"
+          "rag-search" 
+          "document-management"
+          "response-enhancement"
+          "claude-decision"
+          "action-executor"
+          "embedding-service"
+          "vector-search"
+          "document-metadata"
+          "document-content"
+          "source-extractor"
+          "response-formatter"
+          "conversation-manager"
+        )
+        
+        # Build and push each service
+        for service in "${SERVICES[@]}"; do
+          echo "Building and pushing $service..."
+          cd backend/lambda/$service
+          docker build -t chatbot-$service .
+          docker tag chatbot-$service:latest ${{ env.ECR_REGISTRY }}/chatbot-$service:latest
+          docker push ${{ env.ECR_REGISTRY }}/chatbot-$service:latest
+          cd ../../..
+          echo "Completed $service"
+        done
 
     - name: Create IAM Role for Lambda functions
       run: |
