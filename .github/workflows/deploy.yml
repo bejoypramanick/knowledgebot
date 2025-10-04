@@ -65,9 +65,14 @@ jobs:
           echo "services=[]" >> $GITHUB_OUTPUT
         else
           echo "📦 Services to build: $CHANGED_SERVICES"
-          # Convert to JSON array - remove leading space and split properly
-          SERVICES_CLEAN=$(echo "$CHANGED_SERVICES" | sed 's/^ *//' | tr ' ' '\n' | grep -v '^$')
-          SERVICES_JSON=$(echo "$SERVICES_CLEAN" | jq -R . | jq -s .)
+          # Convert to JSON array - more robust approach
+          SERVICES_ARRAY=()
+          for service in $CHANGED_SERVICES; do
+            if [ -n "$service" ]; then
+              SERVICES_ARRAY+=("\"$service\"")
+            fi
+          done
+          SERVICES_JSON="[$(IFS=,; echo "${SERVICES_ARRAY[*]}")]"
           echo "services=$SERVICES_JSON" >> $GITHUB_OUTPUT
         fi
 
