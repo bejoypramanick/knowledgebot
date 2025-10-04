@@ -63,8 +63,7 @@ class RAGProcessor:
             }
         )
         
-        # Cache for processed documents to avoid re-processing
-        self._document_cache = {}
+        # Docling-focused RAG processor
 
     def get_docling_embedding(self, text: str) -> List[float]:
         """Get embedding using a simple text-based approach"""
@@ -309,23 +308,23 @@ class RAGProcessor:
             logger.error(f"Error saving chunks to knowledge base: {e}")
 
     def search_similar_chunks(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
-        """Search for similar chunks using stored embeddings"""
+        """Search for similar chunks using Docling embeddings"""
         try:
-            # Use embedding-based search for better performance
-            return self._search_embeddings(query, limit)
+            # Use Docling embedding-based search
+            return self._search_docling_embeddings(query, limit)
             
         except Exception as e:
-            logger.error(f"Error searching similar chunks: {e}")
+            logger.error(f"Error searching similar chunks with Docling: {e}")
             return []
 
-    def _search_embeddings(self, query: str, limit: int) -> List[Dict[str, Any]]:
-        """Search using stored embeddings for vector similarity"""
+    def _search_docling_embeddings(self, query: str, limit: int) -> List[Dict[str, Any]]:
+        """Search using Docling embeddings for vector similarity"""
         try:
             # Get query embedding using Docling
             query_embedding = self.get_docling_embedding(query)
             if not query_embedding:
-                logger.warning("Could not generate query embedding, falling back to text search")
-                return self._search_docling_rag(query, limit)
+                logger.error("Docling could not generate query embedding")
+                return []
             
             # Get all chunk IDs from DynamoDB
             response = self.knowledge_base_table.scan()
@@ -376,18 +375,17 @@ class RAGProcessor:
                     similar_chunks.append(chunk_data)
                     
                 except Exception as e:
-                    logger.warning(f"Could not retrieve embedding for chunk {chunk_id}: {e}")
+                    logger.warning(f"Could not retrieve Docling embedding for chunk {chunk_id}: {e}")
                     continue
             
             # Sort by similarity score and return top results
             similar_chunks.sort(key=lambda x: x['similarity_score'], reverse=True)
-            logger.info(f"Found {len(similar_chunks)} chunks, returning top {limit}")
+            logger.info(f"Docling found {len(similar_chunks)} chunks, returning top {limit}")
             return similar_chunks[:limit]
             
         except Exception as e:
-            logger.error(f"Error in embedding search: {e}")
-            # Fallback to document processing search
-            return self._search_docling_rag(query, limit)
+            logger.error(f"Error in Docling embedding search: {e}")
+            return []
 
     def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
         """Calculate cosine similarity between two vectors"""
@@ -412,139 +410,6 @@ class RAGProcessor:
         except Exception as e:
             logger.error(f"Error calculating cosine similarity: {e}")
             return 0.0
-
-    def _search_docling_rag(self, query: str, limit: int) -> List[Dict[str, Any]]:
-        """Search using document processing and text similarity"""
-        try:
-            # Get all processed documents from S3
-            response = self.s3_client.list_objects_v2(
-                Bucket=self.documents_bucket,
-                Prefix='documents/'
-            )
-            
-            if 'Contents' not in response:
-                return []
-            
-            # Process documents and search for relevant content
-            similar_chunks = []
-            
-            for obj in response['Contents']:
-                if not obj['Key'].endswith('/'):  # Skip folder objects
-                    try:
-                        # Check cache first
-                        cache_key = obj['Key']
-                        if cache_key in self._document_cache:
-                            doc = self._document_cache[cache_key]
-                        else:
-                            # Download and process document
-                            doc_response = self.s3_client.get_object(
-                                Bucket=self.documents_bucket, 
-                                Key=obj['Key']
-                            )
-                            document_content = doc_response['Body'].read()
-                            
-                            # Save to temporary file for Docling processing
-                            with tempfile.NamedTemporaryFile(suffix=f".{obj['Key'].split('.')[-1]}", delete=False) as temp_file:
-                                temp_file.write(document_content)
-                                temp_file_path = temp_file.name
-                            
-                            try:
-                                # Process with Docling
-                                doc = self.converter.convert(temp_file_path)
-                                # Cache the processed document
-                                self._document_cache[cache_key] = doc
-                            finally:
-                                # Clean up temporary file
-                                os.unlink(temp_file_path)
-                        
-                        # Extract text content from document and search
-                        search_results = self._search_document_content(doc, query, obj['Key'])
-                        
-                        # Convert results to our format
-                        for result in search_results:
-                            chunk_data = {
-                                'chunk_id': str(uuid.uuid4()),
-                                'content': result.get('content', ''),
-                                'metadata': {
-                                    'source': obj['Key'].split('/')[-1],
-                                    's3_key': obj['Key'],
-                                    's3_bucket': self.documents_bucket,
-                                    'page_number': result.get('page_number', 0),
-                                    'element_type': result.get('element_type', 'text')
-                                },
-                                'hierarchy_level': result.get('hierarchy_level', 3),
-                                'similarity_score': result.get('similarity_score', 0.0)
-                            }
-                            similar_chunks.append(chunk_data)
-                            
-                    except Exception as e:
-                        logger.error(f"Error processing document {obj['Key']} for search: {e}")
-                        continue
-            
-            # Sort by similarity score and return top results
-            similar_chunks.sort(key=lambda x: x['similarity_score'], reverse=True)
-            return similar_chunks[:limit]
-            
-        except Exception as e:
-            logger.error(f"Error searching documents: {e}")
-            return []
-
-    def _search_document_content(self, doc, query: str, s3_key: str) -> List[Dict[str, Any]]:
-        """Search for relevant content within a document"""
-        try:
-            results = []
-            query_lower = query.lower()
-            query_words = set(query_lower.split())
-            
-            # Process document structure
-            for page_idx, page in enumerate(doc.pages):
-                for element in page.elements:
-                    if hasattr(element, 'text') and element.text:
-                        content = element.text.strip()
-                        if len(content) < 10:  # Skip very short content
-                            continue
-                        
-                        # Calculate similarity score based on word overlap
-                        content_lower = content.lower()
-                        content_words = set(content_lower.split())
-                        
-                        # Calculate Jaccard similarity
-                        intersection = len(query_words.intersection(content_words))
-                        union = len(query_words.union(content_words))
-                        similarity_score = intersection / union if union > 0 else 0
-                        
-                        # Also check for exact phrase matches
-                        if query_lower in content_lower:
-                            similarity_score += 0.5
-                        
-                        # Only include results with some similarity
-                        if similarity_score > 0.1:
-                            results.append({
-                                'content': content,
-                                'page_number': page_idx + 1,
-                                'element_type': type(element).__name__,
-                                'hierarchy_level': self._determine_hierarchy_level_from_content(content),
-                                'similarity_score': similarity_score
-                            })
-            
-            return results
-            
-        except Exception as e:
-            logger.error(f"Error searching document content: {e}")
-            return []
-
-    def _determine_hierarchy_level_from_content(self, content: str) -> int:
-        """Determine hierarchy level from content analysis"""
-        content_lower = content.lower().strip()
-        
-        if len(content) < 100 and (content_lower.startswith('#') or content.isupper()):
-            return 1
-        elif 'section' in content_lower or 'chapter' in content_lower:
-            return 2
-        elif len(content) < 200:
-            return 3
-        else:
-            return 4
 
     def _determine_hierarchy_level_from_docling(self, docling_result: Dict[str, Any]) -> int:
         """Determine hierarchy level from Docling search result"""
@@ -598,9 +463,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 query = body.get('query', '') or body.get('message', '')
                 limit = body.get('limit', 5)
                 
-                logger.info(f"Docling RAG search for query: {query}")
+                logger.info(f"Docling embedding search for query: {query}")
                 
-                # Use Docling RAG search directly
+                # Use Docling embedding search
                 results = processor.search_similar_chunks(query, limit)
                 
                 return {
@@ -615,7 +480,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         'results': results,
                         'query': query,
                         'count': len(results),
-                        'search_method': 'docling_rag'
+                        'search_method': 'docling_embeddings'
                     })
                 }
         
