@@ -1,3 +1,4 @@
+# Vector Search Service - Build triggered
 FROM public.ecr.aws/lambda/python:3.12
 
 # Install system dependencies for numerical computing

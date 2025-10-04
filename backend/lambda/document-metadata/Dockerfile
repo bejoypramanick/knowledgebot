@@ -1,3 +1,4 @@
+# Document Metadata Service - Build triggered
 FROM public.ecr.aws/lambda/python:3.12
 
 # Copy shared utilities
