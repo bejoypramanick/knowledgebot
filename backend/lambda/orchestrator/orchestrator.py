@@ -528,6 +528,7 @@ If clarification is needed, return:
                 FunctionName=RESPONSE_ENHANCEMENT_LAMBDA,
                 InvocationType='RequestResponse',
                 Payload=json.dumps({
+                    'action': 'enhance_response',
                     'user_message': user_message,
                     'action_results': action_results,
                     'conversation_id': conversation_id,
