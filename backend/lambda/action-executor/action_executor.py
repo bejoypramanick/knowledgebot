@@ -14,9 +14,25 @@ import sys
 import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
 
-# Add shared utilities to path
-sys.path.append('/opt/python')
-from error_handler import error_handler, ErrorHandler, ErrorType, ErrorSeverity, ExternalServiceError, ValidationError, retry_with_backoff, claude_circuit_breaker, dynamodb_circuit_breaker, s3_circuit_breaker
+# Note: Shared utilities not available in this deployment
+# from error_handler import error_handler, ErrorHandler, ErrorType, ErrorSeverity, ExternalServiceError, ValidationError, retry_with_backoff, claude_circuit_breaker, dynamodb_circuit_breaker, s3_circuit_breaker
+
+# Simple retry decorator
+def retry_with_backoff(max_retries: int = 3, base_delay: float = 1.0, max_delay: float = 10.0):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        raise e
+                    delay = min(base_delay * (2 ** attempt), max_delay)
+                    logger.warning(f"Attempt {attempt + 1} failed: {e}. Retrying in {delay}s...")
+                    time.sleep(delay)
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -62,17 +78,13 @@ class ActionExecutorService:
             result = json.loads(response['Payload'].read())
             
             if result.get('statusCode') != 200:
-                raise ExternalServiceError(
-                    f"Lambda {function_name} returned error: {result.get('body', 'Unknown error')}",
-                    ErrorHandler.classify_error(Exception("Lambda error"), "action-executor", "call_lambda_service")
-                )
+                raise Exception(f"Lambda {function_name} returned error: {result.get('body', 'Unknown error')}")
             
             return result
             
         except Exception as e:
-            error_context = ErrorHandler.classify_error(e, "action-executor", "call_lambda_service")
-            ErrorHandler.log_error(error_context, e, {'function_name': function_name, 'payload': payload})
-            raise ExternalServiceError(f"Failed to call {function_name}: {str(e)}", error_context)
+            logger.error(f"Error calling {function_name}: {e}")
+            raise Exception(f"Failed to call {function_name}: {str(e)}")
 
     def execute_search_rag_action(self, action: LambdaAction) -> ActionResult:
         """Execute RAG search action"""
