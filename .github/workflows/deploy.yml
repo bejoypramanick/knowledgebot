@@ -390,6 +390,19 @@ jobs:
           --integration-http-method POST \
           --uri "arn:aws:apigateway:${{ env.AWS_REGION }}:lambda:path/2015-03-31/functions/arn:aws:lambda:${{ env.AWS_REGION }}:090163643302:function:chatbot-orchestrator/invocations" || echo "POST integration may already exist"
         
+        # Set up OPTIONS method response for CORS (must be before integration response)
+        echo "Setting up OPTIONS method response..."
+        aws apigateway put-method-response \
+          --rest-api-id $API_ID \
+          --resource-id $CHAT_RESOURCE_ID \
+          --http-method OPTIONS \
+          --status-code 200 \
+          --response-parameters '{
+            "method.response.header.Access-Control-Allow-Headers": true,
+            "method.response.header.Access-Control-Allow-Methods": true,
+            "method.response.header.Access-Control-Allow-Origin": true
+          }' || echo "OPTIONS method response may already exist"
+        
         # Set up OPTIONS integration for CORS
         echo "Setting up OPTIONS integration..."
         aws apigateway put-integration \
@@ -411,19 +424,6 @@ jobs:
             "method.response.header.Access-Control-Allow-Methods": "'"'"'POST,OPTIONS'"'"'",
             "method.response.header.Access-Control-Allow-Origin": "'"'"'*'"'"'"
           }' || echo "OPTIONS integration response may already exist"
-        
-        # Set up OPTIONS method response for CORS
-        echo "Setting up OPTIONS method response..."
-        aws apigateway put-method-response \
-          --rest-api-id $API_ID \
-          --resource-id $CHAT_RESOURCE_ID \
-          --http-method OPTIONS \
-          --status-code 200 \
-          --response-parameters '{
-            "method.response.header.Access-Control-Allow-Headers": true,
-            "method.response.header.Access-Control-Allow-Methods": true,
-            "method.response.header.Access-Control-Allow-Origin": true
-          }' || echo "OPTIONS method response may already exist"
         
         # Deploy API Gateway
         echo "Deploying API Gateway..."
