@@ -99,7 +99,6 @@ jobs:
 
     - name: Build and push RAG Processor image
       if: steps.rag-changes.outputs.rag-changed == 'true'
-      timeout-minutes: 15
       env:
         ECR_REPOSITORY: ${{ env.RAG_PROCESSOR_IMAGE }}
         IMAGE_TAG: ${{ github.sha }}
@@ -167,7 +166,6 @@ jobs:
 
     - name: Build and push Chat Handler image
       if: steps.chat-changes.outputs.chat-changed == 'true'
-      timeout-minutes: 15
       env:
         ECR_REPOSITORY: ${{ env.CHAT_HANDLER_IMAGE }}
         IMAGE_TAG: ${{ github.sha }}
