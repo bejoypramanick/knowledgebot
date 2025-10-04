@@ -1,11 +1,14 @@
 FROM public.ecr.aws/lambda/python:3.11
 
+# Copy shared utilities
+COPY ../shared/ /opt/python/
+
 # Copy requirements and install dependencies
 COPY requirements.txt ${LAMBDA_TASK_ROOT}
 RUN pip install -r requirements.txt
 
 # Copy function code
-COPY claude_decision.py ${LAMBDA_TASK_ROOT}
+COPY action_executor.py ${LAMBDA_TASK_ROOT}
 
 # Set the CMD to your handler
-CMD [ "claude_decision.lambda_handler" ]
+CMD [ "action_executor.lambda_handler" ]
