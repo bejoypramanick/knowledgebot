@@ -298,10 +298,17 @@ If clarification is needed, return:
                 
         except Exception as e:
             logger.error(f"Error in Claude decision making: {e}")
-            return ActionPlan(
+            fallback_group = ActionGroup(
+                group_id="error_fallback_group",
                 actions=[LambdaAction(action_type="simple_response", parameters={"response_text": "I'm having trouble processing your request right now."})],
+                execution_type="sequential",
+                group_priority=1
+            )
+            return ActionPlan(
+                action_groups=[fallback_group],
                 reasoning="Error in decision making",
-                requires_rag=False
+                requires_rag=False,
+                total_actions=1
             )
 
     def execute_single_action(self, action: LambdaAction) -> Dict[str, Any]:
