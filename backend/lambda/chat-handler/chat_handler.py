@@ -51,15 +51,27 @@ class ChatHandler:
         
         # Initialize Anthropic client with explicit configuration
         try:
+            logger.info(f"Initializing Anthropic client...")
+            logger.info(f"API Key present: {bool(CLAUDE_API_KEY)}")
+            logger.info(f"API Key length: {len(CLAUDE_API_KEY) if CLAUDE_API_KEY else 0}")
+            logger.info(f"API Key starts with: {CLAUDE_API_KEY[:10] if CLAUDE_API_KEY else 'None'}...")
+            logger.info(f"API Key ends with: ...{CLAUDE_API_KEY[-10:] if CLAUDE_API_KEY else 'None'}")
+            
             if CLAUDE_API_KEY and CLAUDE_API_KEY != "sk-ant-api03-your-actual-claude-api-key-here":
+                logger.info("Creating Anthropic client with API key...")
                 self.anthropic_client = Anthropic(
                     api_key=CLAUDE_API_KEY
                 )
+                logger.info("Anthropic client created successfully!")
             else:
                 logger.warning("Claude API key not properly configured")
                 self.anthropic_client = None
         except Exception as e:
             logger.error(f"Error initializing Anthropic client: {e}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            logger.error(f"Exception args: {e.args}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             self.anthropic_client = None
 
     def get_presigned_upload_url(self, request: PresignedUrlRequest) -> Dict[str, Any]:
@@ -280,6 +292,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Main Lambda handler for chat operations"""
     try:
         logger.info(f"Chat handler event: {json.dumps(event)}")
+        logger.info(f"Lambda context: {context}")
+        logger.info(f"Environment variables: {dict(os.environ)}")
         
         # Parse the request
         if 'body' in event:
@@ -288,7 +302,12 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             body = event
         
         action = body.get('action', '')
+        logger.info(f"Action: {action}")
+        logger.info(f"Request body: {body}")
+        
+        logger.info("Creating ChatHandler instance...")
         handler = ChatHandler()
+        logger.info("ChatHandler created successfully!")
         
         if action == 'chat':
             # Handle chat request
@@ -371,6 +390,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
     except Exception as e:
         logger.error(f"Error in chat handler: {e}")
+        logger.error(f"Exception type: {type(e).__name__}")
+        logger.error(f"Exception args: {e.args}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
         return {
             'statusCode': 500,
             'headers': {
@@ -381,6 +404,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             },
             'body': json.dumps({
                 'error': 'Internal server error',
-                'message': str(e)
+                'message': str(e),
+                'exception_type': type(e).__name__,
+                'traceback': traceback.format_exc()
             })
         }
