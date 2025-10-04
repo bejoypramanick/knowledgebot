@@ -224,7 +224,7 @@ class ChatHandler:
             # Generate response using Claude with error handling
             try:
                 response = self.anthropic_client.messages.create(
-                    model="claude-3-sonnet-20240229",
+                    model="claude-sonnet-4-5-20250929",
                     max_tokens=1000,
                     messages=messages
                 )

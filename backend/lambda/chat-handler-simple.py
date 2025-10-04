@@ -80,7 +80,7 @@ class DoclingService:
         If the context doesn't contain relevant information, say so and offer to help in other ways."""
         
         payload = {
-            "model": "claude-3-5-sonnet-20241022",
+            "model": "claude-sonnet-4-5-20250929",
             "max_tokens": 1000,
             "system": system_prompt,
             "messages": messages
