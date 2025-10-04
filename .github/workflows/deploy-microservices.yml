@@ -4,11 +4,20 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'backend/lambda/orchestrator/**'
-      - 'backend/lambda/rag-search/**'
-      - 'backend/lambda/document-management/**'
-      - 'backend/lambda/response-enhancement/**'
+      - 'backend/lambda/**'
+      - '.github/workflows/deploy-microservices.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'backend/lambda/**'
+      - '.github/workflows/deploy-microservices.yml'
   workflow_dispatch:
+    inputs:
+      force_cleanup:
+        description: 'Force cleanup of all ECR images (except latest and cache)'
+        required: false
+        default: 'false'
+        type: boolean
 
 env:
   AWS_REGION: ap-south-1
@@ -17,6 +26,7 @@ env:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    environment: chatbot
     
     steps:
     - name: Checkout code
@@ -37,6 +47,8 @@ jobs:
       run: |
         # Create ECR repositories for all microservices (will create if not exists)
         SERVICES=(
+          "rag-processor"
+          "chat-handler"
           "orchestrator"
           "rag-search" 
           "document-management"
@@ -61,6 +73,8 @@ jobs:
       run: |
         # Define all services
         SERVICES=(
+          "rag-processor"
+          "chat-handler"
           "orchestrator"
           "rag-search" 
           "document-management"
@@ -162,6 +176,8 @@ jobs:
       run: |
         # Define all services with their configurations
         declare -A LAMBDA_CONFIGS
+        LAMBDA_CONFIGS[rag-processor]='{"memory":2048,"timeout":300,"env":"MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"}'
+        LAMBDA_CONFIGS[chat-handler]='{"memory":1024,"timeout":300,"env":"CLAUDE_API_KEY=${{ secrets.CLAUDE_API_KEY }},MAIN_BUCKET=chatbot-storage-ap-south-1,CONVERSATIONS_TABLE=chatbot-conversations,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"}'
         LAMBDA_CONFIGS[orchestrator]='{"memory":1024,"timeout":300,"env":"CLAUDE_API_KEY=${{ secrets.CLAUDE_API_KEY }},RAG_SEARCH_LAMBDA=chatbot-rag-search,DOCUMENT_MANAGEMENT_LAMBDA=chatbot-document-management,RESPONSE_ENHANCEMENT_LAMBDA=chatbot-response-enhancement,CONVERSATIONS_TABLE=chatbot-conversations"}'
         LAMBDA_CONFIGS[rag-search]='{"memory":2048,"timeout":300,"env":"MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"}'
         LAMBDA_CONFIGS[document-management]='{"memory":512,"timeout":300,"env":"MAIN_BUCKET=chatbot-storage-ap-south-1,KNOWLEDGE_BASE_TABLE=chatbot-knowledge-base"}'
