@@ -501,7 +501,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             for i, record in enumerate(event.get('Records', [])):
                 logger.info(f"📄 Processing record {i+1}: {json.dumps(record, indent=2)}")
                 
-                if record.get('eventName') == 's3:ObjectCreated:Put':
+                if record.get('eventName') == 'ObjectCreated:Put':
                     bucket = record['s3']['bucket']['name']
                     key = record['s3']['object']['key']
                     
