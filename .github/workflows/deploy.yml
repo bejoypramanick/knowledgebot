@@ -74,7 +74,7 @@ jobs:
           # Always build core services if no changes detected
           if [ ${#services_to_build[@]} -eq 0 ]; then
             echo "No specific changes detected - building core services only"
-            services_to_build=("rag-processor" "chat-handler" "orchestrator")
+            services_to_build=("rag-processor" "chat-handler" "orchestrator" "rag-search" "document-management" "response-enhancement")
           fi
           
           # Create matrix JSON
