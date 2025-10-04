@@ -9,7 +9,23 @@ AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 
 # Lambda services
-SERVICES=("orchestrator" "rag-search" "document-management" "response-enhancement")
+SERVICES=(
+    "action-executor"
+    "chat-handler" 
+    "claude-decision"
+    "conversation-manager"
+    "document-content"
+    "document-management"
+    "document-metadata"
+    "embedding-service"
+    "orchestrator"
+    "rag-processor"
+    "rag-search"
+    "response-enhancement"
+    "response-formatter"
+    "source-extractor"
+    "vector-search"
+)
 
 echo "Building and pushing microservices to ECR..."
 
