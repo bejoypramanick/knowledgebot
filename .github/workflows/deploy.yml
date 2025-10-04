@@ -128,16 +128,36 @@ jobs:
         echo "Building and pushing ${{ matrix.service }}..."
         cd backend/lambda/${{ matrix.service }}
         
-        # Build Docker image
-        docker build -t chatbot-${{ matrix.service }} .
+        # Verify we're in the correct directory
+        echo "Current directory: $(pwd)"
+        echo "Contents: $(ls -la)"
+        
+        # Verify shared directory exists
+        if [ -d "../shared" ]; then
+          echo "Shared directory found"
+        else
+          echo "Warning: Shared directory not found, but continuing with build"
+        fi
+        
+        # Build Docker image with verbose output
+        echo "Starting Docker build for ${{ matrix.service }}..."
+        docker build -t chatbot-${{ matrix.service }} . || {
+          echo "Docker build failed for ${{ matrix.service }}"
+          exit 1
+        }
         
         # Tag for ECR
+        echo "Tagging image for ECR..."
         docker tag chatbot-${{ matrix.service }}:latest ${{ env.ECR_REGISTRY }}/chatbot-${{ matrix.service }}:latest
         
         # Push to ECR
-        docker push ${{ env.ECR_REGISTRY }}/chatbot-${{ matrix.service }}:latest
+        echo "Pushing image to ECR..."
+        docker push ${{ env.ECR_REGISTRY }}/chatbot-${{ matrix.service }}:latest || {
+          echo "Docker push failed for ${{ matrix.service }}"
+          exit 1
+        }
         
-        echo "Completed ${{ matrix.service }}"
+        echo "Successfully completed ${{ matrix.service }}"
 
     - name: Deploy Lambda function
       run: |
@@ -197,7 +217,11 @@ jobs:
           echo "Lambda function chatbot-${{ matrix.service }} already exists, updating code..."
           aws lambda update-function-code \
             --function-name "chatbot-${{ matrix.service }}" \
-            --image-uri "${{ env.ECR_REGISTRY }}/chatbot-${{ matrix.service }}:latest"
+            --image-uri "${{ env.ECR_REGISTRY }}/chatbot-${{ matrix.service }}:latest" || {
+              echo "Failed to update Lambda function ${{ matrix.service }}"
+              exit 1
+            }
+          echo "Successfully updated Lambda function ${{ matrix.service }}"
         else
           echo "Creating Lambda function chatbot-${{ matrix.service }}..."
           aws lambda create-function \
@@ -208,7 +232,11 @@ jobs:
             --timeout $timeout \
             --memory-size $memory \
             --environment Variables="{$env_vars}" \
-            --tags Environment=production,Service=${{ matrix.service }}
+            --tags Environment=production,Service=${{ matrix.service }} || {
+              echo "Failed to create Lambda function ${{ matrix.service }}"
+              exit 1
+            }
+          echo "Successfully created Lambda function ${{ matrix.service }}"
         fi
 
   create-api-gateway:
