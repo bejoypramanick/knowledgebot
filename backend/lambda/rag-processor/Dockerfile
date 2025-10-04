@@ -2,14 +2,14 @@
 FROM public.ecr.aws/lambda/python:3.12
 
 # Install system dependencies for document processing
-RUN yum update -y && \
-    yum install -y \
+RUN dnf update -y && \
+    dnf install -y \
     poppler-utils \
     tesseract \
     tesseract-langpack-eng \
     libreoffice \
     ImageMagick \
-    && yum clean all
+    && dnf clean all
 
 # Install uv for faster pip operations
 RUN pip install uv

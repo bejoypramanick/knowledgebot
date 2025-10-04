@@ -1,11 +1,11 @@
 FROM public.ecr.aws/lambda/python:3.12
 
 # Install system dependencies
-RUN yum update -y && \
-    yum install -y \
+RUN dnf update -y && \
+    dnf install -y \
     gcc \
     gcc-c++ \
-    && yum clean all
+    && dnf clean all
 
 # Install uv for faster pip operations
 RUN pip install uv
