@@ -18,13 +18,7 @@ RUN pip install uv
 COPY requirements.txt ${LAMBDA_TASK_ROOT}
 
 # Install dependencies using uv for faster builds
-RUN uv pip install --system --no-cache \
-    boto3==1.34.0 \
-    pydantic>=2.0.0,<3.0.0 \
-    anthropic==0.34.2 \
-    requests>=2.32.2,<3.0.0 \
-    numpy>=1.21.0,<2.0.0 \
-    docling>=1.0.0
+RUN uv pip install --system --no-cache -r requirements.txt
 
 # Clean up to reduce image size
 RUN pip cache purge && \
