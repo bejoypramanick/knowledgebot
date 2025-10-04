@@ -51,9 +51,13 @@ class ChatHandler:
         
         # Initialize Anthropic client with explicit configuration
         try:
-            self.anthropic_client = Anthropic(
-                api_key=CLAUDE_API_KEY
-            )
+            if CLAUDE_API_KEY and CLAUDE_API_KEY != "sk-ant-api03-your-actual-claude-api-key-here":
+                self.anthropic_client = Anthropic(
+                    api_key=CLAUDE_API_KEY
+                )
+            else:
+                logger.warning("Claude API key not properly configured")
+                self.anthropic_client = None
         except Exception as e:
             logger.error(f"Error initializing Anthropic client: {e}")
             self.anthropic_client = None
@@ -205,14 +209,17 @@ class ChatHandler:
             # Prepare messages for Claude
             messages = [{"role": "user", "content": f"{system_prompt}\n\nUser: {user_message}"}]
             
-            # Generate response using Claude
-            response = self.anthropic_client.messages.create(
-                model="claude-3-sonnet-20240229",
-                max_tokens=1000,
-                messages=messages
-            )
-            
-            assistant_message = response.content[0].text
+            # Generate response using Claude with error handling
+            try:
+                response = self.anthropic_client.messages.create(
+                    model="claude-3-sonnet-20240229",
+                    max_tokens=1000,
+                    messages=messages
+                )
+                assistant_message = response.content[0].text
+            except Exception as claude_error:
+                logger.error(f"Claude API error: {claude_error}")
+                assistant_message = "I'm sorry, I'm having trouble processing your request right now. Please try again later."
             
             # Save both user and assistant messages
             self.save_message(conversation_id, ChatMessage(role="user", content=user_message))
