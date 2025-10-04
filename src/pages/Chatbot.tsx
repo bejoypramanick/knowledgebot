@@ -2,9 +2,28 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { MessageCircle, Send, MoreHorizontal, Bot, Loader2 } from "lucide-react";
+import { MessageCircle, Send, MoreHorizontal, Bot, Loader2, FileText, Layers } from "lucide-react";
 import { ChatbotAPI, ChatMessage, ChatResponse } from "@/lib/chatbot-api";
 import { AWS_CONFIG } from "@/lib/aws-config";
+import EnhancedChatMessage from "@/components/EnhancedChatMessage";
+import DocumentViewer from "@/components/DocumentViewer";
+import DocumentContextPanel from "@/components/DocumentContextPanel";
+import DocumentPreview from "@/components/DocumentPreview";
+import SourceHighlighter from "@/components/SourceHighlighter";
+
+interface DocumentSource {
+  chunk_id?: string;
+  document_id: string;
+  source: string;
+  s3_key: string;
+  original_filename: string;
+  page_number: number;
+  element_type: string;
+  hierarchy_level: number;
+  similarity_score: number;
+  content: string;
+  metadata: any;
+}
 
 interface Message {
   id: string;
@@ -12,7 +31,7 @@ interface Message {
   sender: 'user' | 'bot';
   timestamp: string;
   metadata?: {
-    sources?: any[];
+    sources?: DocumentSource[];
     orderStatus?: any;
   };
 }
@@ -24,6 +43,13 @@ const Chatbot = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [apiClient] = useState(new ChatbotAPI(AWS_CONFIG.endpoints.apiGateway));
   const [error, setError] = useState<string | null>(null);
+  
+  // Document visualization state
+  const [showDocumentViewer, setShowDocumentViewer] = useState(false);
+  const [showContextPanel, setShowContextPanel] = useState(false);
+  const [showDocumentPreview, setShowDocumentPreview] = useState(false);
+  const [selectedSource, setSelectedSource] = useState<DocumentSource | null>(null);
+  const [allSources, setAllSources] = useState<DocumentSource[]>([]);
 
   // Initialize session on component mount
   useEffect(() => {
@@ -90,6 +116,11 @@ const Chatbot = () => {
       };
 
       setMessages(prev => [...prev, botMessage]);
+      
+      // Update all sources for document visualization
+      if (response.sources && response.sources.length > 0) {
+        setAllSources(prev => [...prev, ...response.sources]);
+      }
     } catch (err: any) {
       console.error('Error sending message:', err);
       setError(err.response?.data?.message || 'Failed to send message. Please try again.');
@@ -122,11 +153,36 @@ const Chatbot = () => {
       <div className="max-w-4xl mx-auto h-screen flex flex-col">
         {/* Header */}
         <div className="bg-gradient-primary border-b border-border/20 backdrop-blur-sm px-6 py-4">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center">
-              <MessageCircle className="h-4 w-4 text-primary-foreground" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center">
+                <MessageCircle className="h-4 w-4 text-primary-foreground" />
+              </div>
+              <h1 className="text-xl font-bold text-primary-foreground">Chat with Mr. Helpful</h1>
             </div>
-            <h1 className="text-xl font-bold text-primary-foreground">Chat with Mr. Helpful</h1>
+            {/* Document Visualization Controls */}
+            {allSources.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowDocumentViewer(true)}
+                  className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                >
+                  <FileText className="h-4 w-4 mr-1" />
+                  View Sources
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowContextPanel(true)}
+                  className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                >
+                  <Layers className="h-4 w-4 mr-1" />
+                  Structure
+                </Button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -142,39 +198,18 @@ const Chatbot = () => {
         {/* Chat History */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {messages.map((message, index) => (
-            <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`flex items-start space-x-2 max-w-xs lg:max-w-md ${message.sender === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                {message.sender === 'bot' && (
-                  <div className="w-6 h-6 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0">
-                    <Bot className="h-3 w-3 text-primary" />
-                  </div>
-                )}
-                <div className={`px-4 py-3 rounded-2xl ${
-                  message.sender === 'user' 
-                    ? 'bg-primary text-primary-foreground' 
-                    : 'bg-card/80 backdrop-blur-sm border border-border/20 text-foreground'
-                }`}>
-                  <p className="text-sm">{message.text}</p>
-                  {message.metadata?.sources && message.metadata.sources.length > 0 && (
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      <p>Sources:</p>
-                      <ul className="list-disc list-inside">
-                        {message.metadata.sources.map((source: any, idx: number) => (
-                          <li key={idx}>{source.title || source.source || 'Unknown'}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  <p className={`text-xs mt-1 ${
-                    message.sender === 'user' 
-                      ? 'text-primary-foreground/70' 
-                      : 'text-muted-foreground'
-                  }`}>
-                    {message.timestamp}
-                  </p>
-                </div>
-              </div>
-            </div>
+            <EnhancedChatMessage
+              key={message.id}
+              id={message.id}
+              text={message.text}
+              sender={message.sender}
+              timestamp={message.timestamp}
+              sources={message.metadata?.sources}
+              onSourceClick={(source) => {
+                setSelectedSource(source);
+                setShowDocumentPreview(true);
+              }}
+            />
           ))}
 
           {/* Loading Indicator */}
@@ -228,6 +263,33 @@ const Chatbot = () => {
           </div>
         </div>
       </div>
+
+      {/* Document Visualization Components */}
+      <DocumentViewer
+        sources={allSources}
+        isOpen={showDocumentViewer}
+        onClose={() => setShowDocumentViewer(false)}
+        highlightedChunkId={selectedSource?.chunk_id}
+      />
+
+      <DocumentContextPanel
+        sources={allSources}
+        selectedSource={selectedSource}
+        onSourceSelect={(source) => {
+          setSelectedSource(source);
+          setShowDocumentPreview(true);
+        }}
+        isOpen={showContextPanel}
+        onClose={() => setShowContextPanel(false)}
+      />
+
+      <DocumentPreview
+        sources={allSources}
+        selectedSource={selectedSource}
+        onSourceSelect={setSelectedSource}
+        isOpen={showDocumentPreview}
+        onClose={() => setShowDocumentPreview(false)}
+      />
     </div>
   );
 };

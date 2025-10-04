@@ -17,11 +17,25 @@ export interface ChatSession {
   updatedAt: string;
 }
 
+export interface DocumentSource {
+  chunk_id?: string;
+  document_id: string;
+  source: string;
+  s3_key: string;
+  original_filename: string;
+  page_number: number;
+  element_type: string;
+  hierarchy_level: number;
+  similarity_score: number;
+  content: string;
+  metadata: any;
+}
+
 export interface ChatResponse {
   response: string;
   session_id: string;
   timestamp: string;
-  sources: any[];
+  sources: DocumentSource[];
 }
 
 export interface OrderStatus {
@@ -69,7 +83,7 @@ export class ChatbotAPI {
       response: data.response,
       session_id: data.conversation_id,
       timestamp: data.timestamp,
-      sources: [] // RAG sources would be added here if needed
+      sources: data.sources || []
     };
   }
 

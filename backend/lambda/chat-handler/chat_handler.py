@@ -555,12 +555,15 @@ If clarification is needed, return:
             logger.error(f"Error executing Lambda actions: {e}")
             return {"error": str(e)}
 
-    def claude_response_enhancement(self, user_message: str, action_results: Dict[str, Any], conversation_id: str, action_plan: ActionPlan = None) -> str:
-        """Stage 2: Claude takes Lambda results and creates polished response"""
+    def claude_response_enhancement(self, user_message: str, action_results: Dict[str, Any], conversation_id: str, action_plan: ActionPlan = None) -> Dict[str, Any]:
+        """Stage 2: Claude takes Lambda results and creates polished response with sources"""
         try:
             if not self.anthropic_client:
                 logger.error("Anthropic client not initialized")
-                return "I'm sorry, I'm unable to process your request at the moment."
+                return {
+                    "response": "I'm sorry, I'm unable to process your request at the moment.",
+                    "sources": []
+                }
             
             # Get conversation history
             history = self.get_conversation_history(conversation_id)
@@ -570,13 +573,34 @@ If clarification is needed, return:
                 for msg in history[-3:]:
                     conversation_context += f"{msg.role}: {msg.content}\n"
             
-            # Build context from action results
+            # Build context from action results and extract sources
             results_context = ""
+            sources = []
             if action_results:
                 results_context = "\n\nBackend Action Results:\n"
                 for action_type, result in action_results.items():
                     results_context += f"\n{action_type.upper()}:\n"
                     results_context += f"{json.dumps(result, indent=2)}\n"
+                    
+                    # Extract sources from RAG search results
+                    if action_type == "search_rag" and isinstance(result, dict):
+                        rag_results = result.get("results", [])
+                        for rag_result in rag_results:
+                            if isinstance(rag_result, dict):
+                                source = {
+                                    "chunk_id": rag_result.get("chunk_id", ""),
+                                    "document_id": rag_result.get("metadata", {}).get("document_id", ""),
+                                    "source": rag_result.get("metadata", {}).get("source", ""),
+                                    "s3_key": rag_result.get("metadata", {}).get("s3_key", ""),
+                                    "original_filename": rag_result.get("metadata", {}).get("original_filename", ""),
+                                    "page_number": rag_result.get("metadata", {}).get("page_number", 0),
+                                    "element_type": rag_result.get("metadata", {}).get("element_type", "text"),
+                                    "hierarchy_level": rag_result.get("hierarchy_level", 0),
+                                    "similarity_score": rag_result.get("similarity_score", 0.0),
+                                    "content": rag_result.get("content", ""),
+                                    "metadata": rag_result.get("metadata", {})
+                                }
+                                sources.append(source)
             
             # Build context about questions and action plan
             questions_context = ""
@@ -616,15 +640,21 @@ Provide only the final response text, no additional formatting or explanations."
                 )
             
             enhanced_response = response.content[0].text.strip()
-            logger.info(f"Claude enhanced response generated")
+            logger.info(f"Claude enhanced response generated with {len(sources)} sources")
             
-            return enhanced_response
+            return {
+                "response": enhanced_response,
+                "sources": sources
+            }
             
         except Exception as e:
             logger.error(f"Error in Claude response enhancement: {e}")
-            return f"I apologize, but I encountered an error while processing your request: {str(e)}"
+            return {
+                "response": f"I apologize, but I encountered an error while processing your request: {str(e)}",
+                "sources": []
+            }
 
-    def generate_response(self, user_message: str, conversation_id: str, use_rag: bool = True) -> str:
+    def generate_response(self, user_message: str, conversation_id: str, use_rag: bool = True) -> Dict[str, Any]:
         """Generate AI response using two-stage Claude architecture with clarification support"""
         try:
             logger.info(f"Starting two-stage Claude response generation for: {user_message}")
@@ -643,7 +673,10 @@ Provide only the final response text, no additional formatting or explanations."
                 self.save_message(conversation_id, ChatMessage(role="user", content=user_message))
                 self.save_message(conversation_id, ChatMessage(role="assistant", content=clarification_response))
                 
-                return clarification_response
+                return {
+                    "response": clarification_response,
+                    "sources": []
+                }
             
             # Stage 2: Execute Lambda Actions (only if we can proceed)
             if action_plan.can_proceed and action_plan.total_actions > 0:
@@ -656,18 +689,21 @@ Provide only the final response text, no additional formatting or explanations."
             
             # Stage 3: Claude Response Enhancement
             logger.info("Stage 3: Claude response enhancement...")
-            final_response = self.claude_response_enhancement(user_message, action_results, conversation_id, action_plan)
+            response_data = self.claude_response_enhancement(user_message, action_results, conversation_id, action_plan)
             
             # Save both user and assistant messages
             self.save_message(conversation_id, ChatMessage(role="user", content=user_message))
-            self.save_message(conversation_id, ChatMessage(role="assistant", content=final_response))
+            self.save_message(conversation_id, ChatMessage(role="assistant", content=response_data["response"]))
             
             logger.info("Two-stage Claude response generation completed")
-            return final_response
+            return response_data
             
         except Exception as e:
             logger.error(f"Error in two-stage response generation: {e}")
-            return f"I apologize, but I encountered an error while processing your request: {str(e)}"
+            return {
+                "response": f"I apologize, but I encountered an error while processing your request: {str(e)}",
+                "sources": []
+            }
 
     def create_clarification_response(self, action_plan: ActionPlan) -> str:
         """Create a clarification response when more details are needed"""
@@ -775,7 +811,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             conversation_id = chat_request.conversation_id or str(uuid.uuid4())
             
             # Generate response
-            response_text = handler.generate_response(
+            response_data = handler.generate_response(
                 chat_request.message, 
                 conversation_id, 
                 chat_request.use_rag
@@ -790,7 +826,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'Access-Control-Allow-Methods': 'POST, OPTIONS'
                 },
                 'body': json.dumps({
-                    'response': response_text,
+                    'response': response_data.get('response', ''),
+                    'sources': response_data.get('sources', []),
                     'conversation_id': conversation_id,
                     'timestamp': datetime.utcnow().isoformat()
                 })
