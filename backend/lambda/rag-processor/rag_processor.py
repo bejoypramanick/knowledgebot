@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 # Configuration
 DOCUMENTS_BUCKET = os.environ.get('DOCUMENTS_BUCKET', 'chatbot-documents-ap-south-1')
 EMBEDDINGS_BUCKET = os.environ.get('EMBEDDINGS_BUCKET', 'chatbot-embeddings-ap-south-1')
+MARKDOWN_BUCKET = os.environ.get('MARKDOWN_BUCKET', 'chatbot-markdown-ap-south-1')
 KNOWLEDGE_BASE_TABLE = os.environ.get('KNOWLEDGE_BASE_TABLE', 'chatbot-knowledge-base')
 CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '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')
 
@@ -41,6 +42,7 @@ class RAGProcessor:
         self.dynamodb = boto3.resource('dynamodb', region_name='ap-south-1')
         self.documents_bucket = DOCUMENTS_BUCKET
         self.embeddings_bucket = EMBEDDINGS_BUCKET
+        self.markdown_bucket = MARKDOWN_BUCKET
         self.knowledge_base_table = self.dynamodb.Table(KNOWLEDGE_BASE_TABLE)
         
         # Initialize Anthropic client with explicit configuration
@@ -87,6 +89,40 @@ class RAGProcessor:
             logger.error(f"Error generating Docling embedding with sentence-transformers: {e}")
             raise Exception(f"Failed to generate embedding with sentence-transformers: {e}")
 
+    def save_markdown_to_s3(self, doc, s3_key: str, s3_metadata: Dict[str, Any]) -> str:
+        """Save Docling-generated markdown to S3 bucket"""
+        try:
+            # Export document to markdown using Docling
+            markdown_content = doc.document.export_to_markdown()
+            
+            # Create markdown key in S3
+            filename = s3_key.split('/')[-1]
+            base_name = filename.rsplit('.', 1)[0] if '.' in filename else filename
+            markdown_key = f"markdown/{base_name}.md"
+            
+            # Upload markdown to S3
+            self.s3_client.put_object(
+                Bucket=self.markdown_bucket,
+                Key=markdown_key,
+                Body=markdown_content.encode('utf-8'),
+                ContentType='text/markdown',
+                Metadata={
+                    'original_s3_key': s3_key,
+                    'original_bucket': self.documents_bucket,
+                    'document_id': s3_metadata.get('document_id', ''),
+                    'original_filename': s3_metadata.get('original_filename', filename),
+                    'processed_at': datetime.utcnow().isoformat(),
+                    'source': 'docling'
+                }
+            )
+            
+            logger.info(f"Markdown saved to S3: {self.markdown_bucket}/{markdown_key}")
+            return markdown_key
+            
+        except Exception as e:
+            logger.error(f"Error saving markdown to S3: {e}")
+            return ""
+
     def process_document_with_docling(self, s3_bucket: str, s3_key: str) -> List[DocumentChunk]:
         """Process document using Docling and create hierarchical chunks"""
         try:
@@ -109,8 +145,15 @@ class RAGProcessor:
                 # Process with Docling
                 doc = self.converter.convert(temp_file_path)
                 
+                # Save markdown to S3
+                markdown_key = self.save_markdown_to_s3(doc, s3_key, s3_metadata)
+                if markdown_key:
+                    logger.info(f"Markdown saved successfully: {markdown_key}")
+                else:
+                    logger.warning("Failed to save markdown to S3")
+                
                 # Extract hierarchical chunks
-                chunks = self._extract_hierarchical_chunks(doc, s3_key, s3_metadata)
+                chunks = self._extract_hierarchical_chunks(doc, s3_key, s3_metadata, markdown_key)
                 
                 logger.info(f"Created {len(chunks)} hierarchical chunks")
                 return chunks
@@ -123,7 +166,7 @@ class RAGProcessor:
             logger.error(f"Error processing document with Docling: {e}")
             return []
 
-    def _extract_hierarchical_chunks(self, doc, s3_key: str, s3_metadata: Dict[str, Any]) -> List[DocumentChunk]:
+    def _extract_hierarchical_chunks(self, doc, s3_key: str, s3_metadata: Dict[str, Any], markdown_key: str = "") -> List[DocumentChunk]:
         """Extract hierarchical chunks from Docling document"""
         chunks = []
         document_id = s3_metadata.get('document_id', str(uuid.uuid4()))
@@ -138,7 +181,8 @@ class RAGProcessor:
                     filename, 
                     s3_key, 
                     s3_metadata,
-                    page_idx
+                    page_idx,
+                    markdown_key
                 )
                 if chunk:
                     chunks.append(chunk)
@@ -148,7 +192,7 @@ class RAGProcessor:
         
         return chunks
 
-    def _create_chunk_from_element(self, element, document_id: str, filename: str, s3_key: str, s3_metadata: Dict[str, Any], page_idx: int) -> Optional[DocumentChunk]:
+    def _create_chunk_from_element(self, element, document_id: str, filename: str, s3_key: str, s3_metadata: Dict[str, Any], page_idx: int, markdown_key: str = "") -> Optional[DocumentChunk]:
         """Create a chunk from a Docling element"""
         try:
             # Extract text content
@@ -171,6 +215,8 @@ class RAGProcessor:
                     'source': filename,
                     's3_key': s3_key,
                     's3_bucket': self.documents_bucket,
+                    'markdown_key': markdown_key,
+                    'markdown_bucket': self.markdown_bucket,
                     'page_number': page_idx + 1,
                     'element_type': type(element).__name__,
                     'processed_at': datetime.utcnow().isoformat(),
