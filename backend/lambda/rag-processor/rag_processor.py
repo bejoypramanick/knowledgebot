@@ -66,15 +66,35 @@ class RAGProcessor:
         # Docling-focused RAG processor
 
     def get_docling_embedding(self, text: str) -> List[float]:
-        """Get embedding using a simple text-based approach"""
+        """Get embedding using HuggingFace sentence-transformers model"""
         try:
-            # For now, use a simple text-based embedding approach
-            # In production, you'd integrate with a proper embedding service like OpenAI or Cohere
+            from sentence_transformers import SentenceTransformer
+            
+            # Use a lightweight, efficient sentence transformer model
+            # This model is optimized for semantic similarity and works well with Docling
+            model_name = "all-MiniLM-L6-v2"  # 384-dimensional embeddings
+            
+            # Initialize the model (it will be cached after first use)
+            if not hasattr(self, '_embedding_model'):
+                self._embedding_model = SentenceTransformer(model_name)
+            
+            # Generate embedding
+            embedding = self._embedding_model.encode(text, convert_to_tensor=False)
+            
+            return embedding.tolist()
+            
+        except Exception as e:
+            logger.error(f"Error generating Docling embedding with sentence-transformers: {e}")
+            # Fallback to a simple hash-based embedding if sentence-transformers fails
+            return self._get_fallback_embedding(text)
+    
+    def _get_fallback_embedding(self, text: str) -> List[float]:
+        """Fallback embedding method using text characteristics"""
+        try:
             import hashlib
             import numpy as np
             
-            # Create a more sophisticated text-based embedding
-            # This is a placeholder - in production, use a real embedding model
+            # Create a simple but consistent embedding based on text features
             text_lower = text.lower()
             
             # Create features based on text characteristics
@@ -122,8 +142,7 @@ class RAGProcessor:
             return embedding
             
         except Exception as e:
-            logger.error(f"Error getting Docling embedding: {e}")
-            # Fallback to zero embedding
+            logger.error(f"Error generating fallback embedding: {e}")
             return [0.0] * 384
 
     def process_document_with_docling(self, s3_bucket: str, s3_key: str) -> List[DocumentChunk]:
