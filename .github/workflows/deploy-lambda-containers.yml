@@ -12,6 +12,12 @@ on:
       - 'backend/lambda/**'
       - '.github/workflows/deploy-lambda-containers.yml'
   workflow_dispatch:
+    inputs:
+      force_cleanup:
+        description: 'Force cleanup of all ECR images (except latest and cache)'
+        required: false
+        default: 'false'
+        type: boolean
 
 env:
   AWS_REGION: ap-south-1
@@ -96,6 +102,58 @@ jobs:
           echo "rag-changed=false" >> $GITHUB_OUTPUT
           echo "No RAG Processor changes - will reuse existing image"
         fi
+
+    - name: Clean up old ECR images
+      run: |
+        echo "🧹 Cleaning up old ECR images..."
+        
+        # Determine cleanup strategy based on input
+        if [ "${{ github.event.inputs.force_cleanup }}" = "true" ]; then
+          echo "🔥 Force cleanup enabled - deleting ALL images except latest and cache"
+          KEEP_COUNT=0
+        else
+          echo "📦 Standard cleanup - keeping last 5 versions"
+          KEEP_COUNT=5
+        fi
+        
+        # Clean up RAG Processor images
+        echo "Cleaning RAG Processor images..."
+        if [ $KEEP_COUNT -eq 0 ]; then
+          # Delete all except latest and cache
+          aws ecr describe-images --repository-name $RAG_PROCESSOR_IMAGE --region $AWS_REGION --query 'imageDetails[?imageTags!=`null` && !contains(imageTags, `latest`) && !contains(imageTags, `cache`)] | [].imageDigest' --output text > rag_old_images.txt || echo "" > rag_old_images.txt
+        else
+          # Keep last N versions
+          aws ecr describe-images --repository-name $RAG_PROCESSOR_IMAGE --region $AWS_REGION --query 'imageDetails[?imageTags!=`null`] | sort_by(@, &imagePushedAt) | reverse(@) | ['$KEEP_COUNT':] | [].imageDigest' --output text > rag_old_images.txt || echo "" > rag_old_images.txt
+        fi
+        
+        if [ -s rag_old_images.txt ]; then
+          echo "Deleting old RAG Processor images..."
+          aws ecr batch-delete-image --repository-name $RAG_PROCESSOR_IMAGE --region $AWS_REGION --image-ids imageDigest=$(cat rag_old_images.txt | tr '\n' ' ') || echo "No old RAG images to delete"
+        else
+          echo "No old RAG Processor images to delete"
+        fi
+        
+        # Clean up Chat Handler images
+        echo "Cleaning Chat Handler images..."
+        if [ $KEEP_COUNT -eq 0 ]; then
+          # Delete all except latest and cache
+          aws ecr describe-images --repository-name $CHAT_HANDLER_IMAGE --region $AWS_REGION --query 'imageDetails[?imageTags!=`null` && !contains(imageTags, `latest`) && !contains(imageTags, `cache`)] | [].imageDigest' --output text > chat_old_images.txt || echo "" > chat_old_images.txt
+        else
+          # Keep last N versions
+          aws ecr describe-images --repository-name $CHAT_HANDLER_IMAGE --region $AWS_REGION --query 'imageDetails[?imageTags!=`null`] | sort_by(@, &imagePushedAt) | reverse(@) | ['$KEEP_COUNT':] | [].imageDigest' --output text > chat_old_images.txt || echo "" > chat_old_images.txt
+        fi
+        
+        if [ -s chat_old_images.txt ]; then
+          echo "Deleting old Chat Handler images..."
+          aws ecr batch-delete-image --repository-name $CHAT_HANDLER_IMAGE --region $AWS_REGION --image-ids imageDigest=$(cat chat_old_images.txt | tr '\n' ' ') || echo "No old Chat images to delete"
+        else
+          echo "No old Chat Handler images to delete"
+        fi
+        
+        # Clean up temporary files
+        rm -f rag_old_images.txt chat_old_images.txt
+        
+        echo "✅ ECR cleanup completed"
 
     - name: Build and push RAG Processor image
       if: steps.rag-changes.outputs.rag-changed == 'true'
