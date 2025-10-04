@@ -12,107 +12,33 @@ on:
       - 'backend/lambda/**'
       - '.github/workflows/deploy.yml'
   workflow_dispatch:
-    inputs:
-      force_rebuild:
-        description: 'Force rebuild all services'
-        required: false
-        default: 'false'
-        type: boolean
 
 env:
   AWS_REGION: ap-south-1
   ECR_REGISTRY: 090163643302.dkr.ecr.ap-south-1.amazonaws.com
 
 jobs:
-  detect-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.changes.outputs.matrix }}
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Detect changed services
-      id: changes
-      run: |
-        if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.force_rebuild }}" = "true" ]; then
-          echo "Force rebuild enabled - building all services"
-          echo "matrix={\"include\":[{\"service\":\"rag-processor\"},{\"service\":\"chat-handler\"},{\"service\":\"orchestrator\"},{\"service\":\"rag-search\"},{\"service\":\"document-management\"},{\"service\":\"response-enhancement\"},{\"service\":\"claude-decision\"},{\"service\":\"action-executor\"},{\"service\":\"embedding-service\"},{\"service\":\"vector-search\"},{\"service\":\"document-metadata\"},{\"service\":\"document-content\"},{\"service\":\"source-extractor\"},{\"service\":\"response-formatter\"},{\"service\":\"conversation-manager\"}]}" >> $GITHUB_OUTPUT
-        else
-          # Check for changes in each service directory
-          services_to_build=()
-          
-          # Define all services
-          services=(
-            "rag-processor"
-            "chat-handler"
-            "orchestrator"
-            "rag-search"
-            "document-management"
-            "response-enhancement"
-            "claude-decision"
-            "action-executor"
-            "embedding-service"
-            "vector-search"
-            "document-metadata"
-            "document-content"
-            "source-extractor"
-            "response-formatter"
-            "conversation-manager"
-          )
-          
-          # Check each service for changes
-          for service in "${services[@]}"; do
-            if git diff --name-only HEAD~1 HEAD | grep -q "^backend/lambda/$service/"; then
-              echo "Changes detected in $service"
-              services_to_build+=("$service")
-            fi
-          done
-          
-          # Always build core services if no changes detected
-          if [ ${#services_to_build[@]} -eq 0 ]; then
-            echo "No specific changes detected - building all services"
-            services_to_build=(
-              "action-executor"
-              "chat-handler" 
-              "claude-decision"
-              "conversation-manager"
-              "document-content"
-              "document-management"
-              "document-metadata"
-              "embedding-service"
-              "orchestrator"
-              "rag-processor"
-              "rag-search"
-              "response-enhancement"
-              "response-formatter"
-              "source-extractor"
-              "vector-search"
-            )
-          fi
-          
-          # Create matrix JSON
-          matrix_json="{\"include\":["
-          for i in "${!services_to_build[@]}"; do
-            if [ $i -gt 0 ]; then
-              matrix_json+=","
-            fi
-            matrix_json+="{\"service\":\"${services_to_build[$i]}\"}"
-          done
-          matrix_json+="]}"
-          
-          echo "matrix=$matrix_json" >> $GITHUB_OUTPUT
-          echo "Services to build: ${services_to_build[*]}"
-        fi
-
   build-and-deploy:
-    needs: detect-changes
     runs-on: ubuntu-latest
     environment: chatbot
     strategy:
-      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+      matrix:
+        include:
+          - service: action-executor
+          - service: chat-handler
+          - service: claude-decision
+          - service: conversation-manager
+          - service: document-content
+          - service: document-management
+          - service: document-metadata
+          - service: embedding-service
+          - service: orchestrator
+          - service: rag-processor
+          - service: rag-search
+          - service: response-enhancement
+          - service: response-formatter
+          - service: source-extractor
+          - service: vector-search
     
     steps:
     - name: Checkout code
@@ -254,7 +180,7 @@ jobs:
         fi
 
   create-api-gateway:
-    needs: [detect-changes, build-and-deploy]
+    needs: [build-and-deploy]
     runs-on: ubuntu-latest
     environment: chatbot
     if: always()
