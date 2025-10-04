@@ -17,9 +17,13 @@ MAIN_BUCKET = os.environ.get('MAIN_BUCKET', 'chatbot-storage-ap-south-1')
 
 class PresignedUrlService:
     def __init__(self):
-        self.s3_client = boto3.client('s3', region_name='ap-south-1')
+        # Configure S3 client to use regional endpoint
+        self.s3_client = boto3.client(
+            's3', 
+            region_name='ap-south-1',
+            endpoint_url='https://s3.ap-south-1.amazonaws.com'
+        )
         self.main_bucket = MAIN_BUCKET
-        self.regional_endpoint = f'https://{MAIN_BUCKET}.s3.ap-south-1.amazonaws.com'
 
     def generate_presigned_upload_url(self, filename: str, content_type: str, metadata: Dict[str, Any] = None) -> Dict[str, Any]:
         """Generate a presigned URL for uploading a file to S3"""
@@ -28,7 +32,7 @@ class PresignedUrlService:
             file_extension = os.path.splitext(filename)[1]
             s3_key = f"documents/{uuid.uuid4()}{file_extension}"
             
-            # Generate presigned URL for PUT operation
+            # Generate presigned URL for PUT operation with regional endpoint
             presigned_url = self.s3_client.generate_presigned_url(
                 'put_object',
                 Params={
@@ -43,9 +47,6 @@ class PresignedUrlService:
                 },
                 ExpiresIn=3600  # 1 hour
             )
-            
-            # Replace global endpoint with regional endpoint for CORS compatibility
-            presigned_url = presigned_url.replace('s3.amazonaws.com', 's3.ap-south-1.amazonaws.com')
             
             return {
                 'presigned_url': presigned_url,
