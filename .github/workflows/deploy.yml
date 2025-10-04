@@ -66,6 +66,28 @@ jobs:
           echo "Creating repository chatbot-${{ matrix.service }}..."
           aws ecr create-repository --repository-name "chatbot-${{ matrix.service }}" --region ${{ env.AWS_REGION }}
         fi
+        
+        # Set ECR repository policy to allow Lambda access
+        echo "Setting ECR repository policy for Lambda access..."
+        aws ecr set-repository-policy \
+          --repository-name "chatbot-${{ matrix.service }}" \
+          --region ${{ env.AWS_REGION }} \
+          --policy-text '{
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Sid": "LambdaECRImageRetrievalPolicy",
+                "Effect": "Allow",
+                "Principal": {
+                  "Service": "lambda.amazonaws.com"
+                },
+                "Action": [
+                  "ecr:BatchGetImage",
+                  "ecr:GetDownloadUrlForLayer"
+                ]
+              }
+            ]
+          }' || echo "Policy already set or failed to set"
 
     - name: Build and push Docker image
       run: |
@@ -152,6 +174,11 @@ jobs:
           aws iam attach-role-policy \
             --role-name chatbot-lambda-role \
             --policy-arn arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+          
+          # Add ECR permissions
+          aws iam attach-role-policy \
+            --role-name chatbot-lambda-role \
+            --policy-arn arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
           
           echo "IAM role created successfully"
         }
