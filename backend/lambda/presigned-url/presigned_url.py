@@ -79,24 +79,36 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Lambda handler for presigned URL operations"""
     try:
         logger.info(f"Presigned URL event: {json.dumps(event)}")
+        logger.info(f"Event type: {type(event)}")
+        logger.info(f"Event keys: {list(event.keys()) if isinstance(event, dict) else 'Not a dict'}")
         
         # Handle direct API calls
         if 'body' in event:
+            logger.info("Processing API Gateway event with body")
             body = json.loads(event['body'])
         else:
+            logger.info("Processing direct Lambda invocation")
             body = event
         
         action = body.get('action', '')
-        logger.info(f"Action: {action}")
+        logger.info(f"Action received: '{action}'")
+        logger.info(f"Body keys: {list(body.keys()) if isinstance(body, dict) else 'Not a dict'}")
+        logger.info(f"Full body: {json.dumps(body)}")
         
         service = PresignedUrlService()
         
         if action == 'get-upload-url' or action == 'get_presigned_url':
+            logger.info(f"Processing {action} request")
             filename = body.get('filename', '')
             content_type = body.get('content_type', 'application/octet-stream')
             metadata = body.get('metadata', {})
             
+            logger.info(f"Filename: '{filename}'")
+            logger.info(f"Content type: '{content_type}'")
+            logger.info(f"Metadata: {json.dumps(metadata)}")
+            
             if not filename:
+                logger.warning("Missing filename in request")
                 return {
                     'statusCode': 400,
                     'headers': {
@@ -111,7 +123,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     })
                 }
             
+            logger.info("Generating presigned upload URL...")
             result = service.generate_presigned_upload_url(filename, content_type, metadata)
+            logger.info(f"Generated presigned URL result: {json.dumps(result)}")
             
             return {
                 'statusCode': 200,
@@ -157,6 +171,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             }
             
         else:
+            logger.warning(f"Unsupported action received: '{action}'")
+            logger.info(f"Supported actions: get-upload-url, get_presigned_url, get-download-url")
             return {
                 'statusCode': 400,
                 'headers': {
@@ -173,6 +189,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
     except Exception as e:
         logger.error(f"Error in presigned URL handler: {e}")
+        logger.error(f"Exception type: {type(e)}")
+        logger.error(f"Exception args: {e.args}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return {
             'statusCode': 500,
             'headers': {
