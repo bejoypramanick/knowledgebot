@@ -99,7 +99,7 @@ const KnowledgeBaseManagement = () => {
       
       // Step 2: Upload to S3
       setUploadProgress(30);
-      await knowledgeBaseManager.uploadToS3(selectedFile, presignedResponse.presigned_url);
+      await knowledgeBaseManager.uploadToS3(selectedFile, presignedResponse.presigned_url, uploadMetadata);
       
       // Step 2.5: Update S3 object metadata (if needed)
       if (presignedResponse.metadata) {
@@ -117,7 +117,7 @@ const KnowledgeBaseManagement = () => {
         });
       }, 500);
 
-      // Wait a bit for S3 event processing
+      // Wait a bit for processing
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       clearInterval(progressInterval);
