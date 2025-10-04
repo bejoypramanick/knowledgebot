@@ -536,7 +536,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             logger.info("📝 No S3 Records found in event")
         
         # Handle direct API calls from API Gateway
-        elif 'body' in event:
+        if 'body' in event:
             body = json.loads(event['body'])
             action = body.get('action', '')
             
