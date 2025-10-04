@@ -303,7 +303,7 @@ jobs:
         fi
 
   create-api-gateway:
-    needs: [build-and-deploy]
+    needs: [detect-changes]
     runs-on: ubuntu-latest
     environment: chatbot
     if: always()
