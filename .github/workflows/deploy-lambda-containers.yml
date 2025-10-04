@@ -88,35 +88,46 @@ jobs:
     - name: Check for RAG Processor changes
       id: rag-changes
       run: |
+        # Check if any files in rag-processor directory changed
         if git diff --name-only HEAD~1 HEAD | grep -E '^backend/lambda/rag-processor/'; then
           echo "rag-changed=true" >> $GITHUB_OUTPUT
+          echo "RAG Processor changes detected - will rebuild"
         else
           echo "rag-changed=false" >> $GITHUB_OUTPUT
+          echo "No RAG Processor changes - will reuse existing image"
         fi
 
     - name: Build and push RAG Processor image
       if: steps.rag-changes.outputs.rag-changed == 'true'
+      timeout-minutes: 15
       env:
         ECR_REPOSITORY: ${{ env.RAG_PROCESSOR_IMAGE }}
         IMAGE_TAG: ${{ github.sha }}
       run: |
+        echo "🚀 Starting RAG Processor build at $(date)"
+        start_time=$(date +%s)
         # Create ECR repository if it doesn't exist
         aws ecr describe-repositories --repository-names $ECR_REPOSITORY --region $AWS_REGION || \
         aws ecr create-repository --repository-name $ECR_REPOSITORY --region $AWS_REGION
         
-        # Pull existing image for cache
+        # Pull existing images for cache (multiple tags for better cache hit rate)
+        echo "Pulling existing images for cache..."
         docker pull $ECR_REGISTRY/$ECR_REPOSITORY:latest || true
+        docker pull $ECR_REGISTRY/$ECR_REPOSITORY:cache || true
         
-        # Build image with ECR layer caching
+        # Build image with aggressive ECR layer caching
+        echo "Building with ECR layer caching..."
         docker buildx build \
           --platform linux/amd64 \
           --cache-from type=registry,ref=$ECR_REGISTRY/$ECR_REPOSITORY:latest \
+          --cache-from type=registry,ref=$ECR_REGISTRY/$ECR_REPOSITORY:cache \
           --cache-from type=gha,scope=rag-processor \
           --cache-to type=registry,ref=$ECR_REGISTRY/$ECR_REPOSITORY:cache,mode=max \
           --cache-to type=gha,scope=rag-processor,mode=max \
           --tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
           --tag $ECR_REGISTRY/$ECR_REPOSITORY:latest \
           --load \
+          --progress=plain \
           ./backend/lambda/rag-processor
         
         # Push images to ECR
@@ -125,6 +136,11 @@ jobs:
         
         # Push cache layers to ECR for future builds
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:cache || true
+        
+        # Show build timing
+        end_time=$(date +%s)
+        duration=$((end_time - start_time))
+        echo "✅ RAG Processor build completed in ${duration} seconds"
 
     - name: Use existing RAG Processor image
       if: steps.rag-changes.outputs.rag-changed == 'false'
@@ -140,35 +156,46 @@ jobs:
     - name: Check for Chat Handler changes
       id: chat-changes
       run: |
+        # Check if any files in chat-handler directory changed
         if git diff --name-only HEAD~1 HEAD | grep -E '^backend/lambda/chat-handler/'; then
           echo "chat-changed=true" >> $GITHUB_OUTPUT
+          echo "Chat Handler changes detected - will rebuild"
         else
           echo "chat-changed=false" >> $GITHUB_OUTPUT
+          echo "No Chat Handler changes - will reuse existing image"
         fi
 
     - name: Build and push Chat Handler image
       if: steps.chat-changes.outputs.chat-changed == 'true'
+      timeout-minutes: 15
       env:
         ECR_REPOSITORY: ${{ env.CHAT_HANDLER_IMAGE }}
         IMAGE_TAG: ${{ github.sha }}
       run: |
+        echo "🚀 Starting Chat Handler build at $(date)"
+        start_time=$(date +%s)
         # Create ECR repository if it doesn't exist
         aws ecr describe-repositories --repository-names $ECR_REPOSITORY --region $AWS_REGION || \
         aws ecr create-repository --repository-name $ECR_REPOSITORY --region $AWS_REGION
         
-        # Pull existing image for cache
+        # Pull existing images for cache (multiple tags for better cache hit rate)
+        echo "Pulling existing images for cache..."
         docker pull $ECR_REGISTRY/$ECR_REPOSITORY:latest || true
+        docker pull $ECR_REGISTRY/$ECR_REPOSITORY:cache || true
         
-        # Build image with ECR layer caching
+        # Build image with aggressive ECR layer caching
+        echo "Building with ECR layer caching..."
         docker buildx build \
           --platform linux/amd64 \
           --cache-from type=registry,ref=$ECR_REGISTRY/$ECR_REPOSITORY:latest \
+          --cache-from type=registry,ref=$ECR_REGISTRY/$ECR_REPOSITORY:cache \
           --cache-from type=gha,scope=chat-handler \
           --cache-to type=registry,ref=$ECR_REGISTRY/$ECR_REPOSITORY:cache,mode=max \
           --cache-to type=gha,scope=chat-handler,mode=max \
           --tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
           --tag $ECR_REGISTRY/$ECR_REPOSITORY:latest \
           --load \
+          --progress=plain \
           ./backend/lambda/chat-handler
         
         # Push images to ECR
@@ -177,6 +204,11 @@ jobs:
         
         # Push cache layers to ECR for future builds
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:cache || true
+        
+        # Show build timing
+        end_time=$(date +%s)
+        duration=$((end_time - start_time))
+        echo "✅ Chat Handler build completed in ${duration} seconds"
 
     - name: Use existing Chat Handler image
       if: steps.chat-changes.outputs.chat-changed == 'false'
