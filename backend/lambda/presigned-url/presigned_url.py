@@ -1,6 +1,5 @@
 import json
 import boto3
-from botocore.config import Config
 import os
 from typing import Dict, Any
 import logging
@@ -29,7 +28,7 @@ class PresignedUrlService:
             file_extension = os.path.splitext(filename)[1]
             s3_key = f"documents/{uuid.uuid4()}{file_extension}"
             
-            # Generate presigned URL for PUT operation using regional endpoint
+            # Generate presigned URL for PUT operation
             presigned_url = self.s3_client.generate_presigned_url(
                 'put_object',
                 Params={
@@ -42,8 +41,7 @@ class PresignedUrlService:
                         'metadata': json.dumps(metadata or {})
                     }
                 },
-                ExpiresIn=3600,  # 1 hour
-                Config=Config(s3={'addressing_style': 'path'})
+                ExpiresIn=3600  # 1 hour
             )
             
             # Replace global endpoint with regional endpoint for CORS compatibility
