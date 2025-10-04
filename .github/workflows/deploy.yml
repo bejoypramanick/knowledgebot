@@ -116,7 +116,12 @@ jobs:
     - name: Create ECR repository
       run: |
         echo "Ensuring ECR repository exists for ${{ matrix.service }}..."
-        aws ecr create-repository --repository-name "chatbot-${{ matrix.service }}" --region ${{ env.AWS_REGION }} || echo "Repository already exists"
+        if aws ecr describe-repositories --repository-names "chatbot-${{ matrix.service }}" --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
+          echo "Repository chatbot-${{ matrix.service }} already exists"
+        else
+          echo "Creating repository chatbot-${{ matrix.service }}..."
+          aws ecr create-repository --repository-name "chatbot-${{ matrix.service }}" --region ${{ env.AWS_REGION }}
+        fi
 
     - name: Build and push Docker image
       run: |
@@ -188,18 +193,23 @@ jobs:
         esac
         
         # Create or update Lambda function
-        aws lambda create-function \
-          --function-name "chatbot-${{ matrix.service }}" \
-          --package-type Image \
-          --code ImageUri="${{ env.ECR_REGISTRY }}/chatbot-${{ matrix.service }}:latest" \
-          --role "arn:aws:iam::090163643302:role/chatbot-microservices-lambda-role" \
-          --timeout $timeout \
-          --memory-size $memory \
-          --environment Variables="{$env_vars}" \
-          --tags Environment=production,Service=${{ matrix.service }} || \
-        aws lambda update-function-code \
-          --function-name "chatbot-${{ matrix.service }}" \
-          --image-uri "${{ env.ECR_REGISTRY }}/chatbot-${{ matrix.service }}:latest"
+        if aws lambda get-function --function-name "chatbot-${{ matrix.service }}" --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
+          echo "Lambda function chatbot-${{ matrix.service }} already exists, updating code..."
+          aws lambda update-function-code \
+            --function-name "chatbot-${{ matrix.service }}" \
+            --image-uri "${{ env.ECR_REGISTRY }}/chatbot-${{ matrix.service }}:latest"
+        else
+          echo "Creating Lambda function chatbot-${{ matrix.service }}..."
+          aws lambda create-function \
+            --function-name "chatbot-${{ matrix.service }}" \
+            --package-type Image \
+            --code ImageUri="${{ env.ECR_REGISTRY }}/chatbot-${{ matrix.service }}:latest" \
+            --role "arn:aws:iam::090163643302:role/chatbot-microservices-lambda-role" \
+            --timeout $timeout \
+            --memory-size $memory \
+            --environment Variables="{$env_vars}" \
+            --tags Environment=production,Service=${{ matrix.service }}
+        fi
 
   create-api-gateway:
     needs: [detect-changes, build-and-deploy]
