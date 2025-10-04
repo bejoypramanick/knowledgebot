@@ -1,14 +1,11 @@
 # Use a pre-built Python image with common ML libraries
 FROM public.ecr.aws/lambda/python:3.12
 
-# Install system dependencies for document processing
+# Install minimal system dependencies (Docling handles document processing internally)
 RUN dnf update -y && \
     dnf install -y \
-    poppler-utils \
-    tesseract \
-    tesseract-langpack-eng \
-    libreoffice \
-    ImageMagick \
+    gcc \
+    gcc-c++ \
     && dnf clean all
 
 # Install uv for faster pip operations
