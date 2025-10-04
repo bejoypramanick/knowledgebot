@@ -341,56 +341,72 @@ jobs:
         # Get root resource ID
         ROOT_RESOURCE_ID=$(aws apigateway get-resources --rest-api-id $API_ID --query 'items[?path==`/`].id' --output text)
         
-        # Create chat resource
-        CHAT_RESOURCE_ID=$(aws apigateway create-resource \
+        # Create or get chat resource
+        echo "Creating or getting chat resource..."
+        CHAT_RESOURCE_ID=$(aws apigateway get-resources \
           --rest-api-id $API_ID \
-          --parent-id $ROOT_RESOURCE_ID \
-          --path-part chat \
-          --query 'id' --output text)
+          --query "items[?pathPart=='chat' && parentId=='$ROOT_RESOURCE_ID'].id" --output text)
         
-        # Create POST method
+        if [ -z "$CHAT_RESOURCE_ID" ] || [ "$CHAT_RESOURCE_ID" = "None" ]; then
+          echo "Creating new chat resource..."
+          CHAT_RESOURCE_ID=$(aws apigateway create-resource \
+            --rest-api-id $API_ID \
+            --parent-id $ROOT_RESOURCE_ID \
+            --path-part chat \
+            --query 'id' --output text)
+        else
+          echo "Using existing chat resource: $CHAT_RESOURCE_ID"
+        fi
+        
+        # Create or update POST method
+        echo "Setting up POST method..."
         aws apigateway put-method \
           --rest-api-id $API_ID \
           --resource-id $CHAT_RESOURCE_ID \
           --http-method POST \
-          --authorization-type NONE
+          --authorization-type NONE || echo "POST method may already exist"
         
-        # Create OPTIONS method for CORS
+        # Create or update OPTIONS method for CORS
+        echo "Setting up OPTIONS method..."
         aws apigateway put-method \
           --rest-api-id $API_ID \
           --resource-id $CHAT_RESOURCE_ID \
           --http-method OPTIONS \
-          --authorization-type NONE
+          --authorization-type NONE || echo "OPTIONS method may already exist"
         
         # Set up POST integration
+        echo "Setting up POST integration..."
         aws apigateway put-integration \
           --rest-api-id $API_ID \
           --resource-id $CHAT_RESOURCE_ID \
           --http-method POST \
           --type AWS_PROXY \
           --integration-http-method POST \
-          --uri "arn:aws:apigateway:${{ env.AWS_REGION }}:lambda:path/2015-03-31/functions/arn:aws:lambda:${{ env.AWS_REGION }}:090163643302:function:chatbot-orchestrator/invocations"
+          --uri "arn:aws:apigateway:${{ env.AWS_REGION }}:lambda:path/2015-03-31/functions/arn:aws:lambda:${{ env.AWS_REGION }}:090163643302:function:chatbot-orchestrator/invocations" || echo "POST integration may already exist"
         
         # Set up OPTIONS integration for CORS
+        echo "Setting up OPTIONS integration..."
         aws apigateway put-integration \
           --rest-api-id $API_ID \
           --resource-id $CHAT_RESOURCE_ID \
           --http-method OPTIONS \
           --type MOCK \
-          --request-templates '{"application/json": "{\"statusCode\": 200}"}'
+          --request-templates '{"application/json": "{\"statusCode\": 200}"}' || echo "OPTIONS integration may already exist"
         
         # Deploy API Gateway
+        echo "Deploying API Gateway..."
         aws apigateway create-deployment \
           --rest-api-id $API_ID \
-          --stage-name prod
+          --stage-name prod || echo "Deployment may already exist"
         
         # Add Lambda permission for API Gateway
+        echo "Adding Lambda permission..."
         aws lambda add-permission \
           --function-name chatbot-orchestrator \
-          --statement-id apigateway-invoke \
+          --statement-id apigateway-invoke-$(date +%s) \
           --action lambda:InvokeFunction \
           --principal apigateway.amazonaws.com \
-          --source-arn "arn:aws:execute-api:${{ env.AWS_REGION }}:090163643302:$API_ID/*/*" || echo "Permission already exists"
+          --source-arn "arn:aws:execute-api:${{ env.AWS_REGION }}:090163643302:$API_ID/*/*" || echo "Permission may already exist"
         
         # Output API URL
         API_URL="https://$API_ID.execute-api.${{ env.AWS_REGION }}.amazonaws.com/prod"
