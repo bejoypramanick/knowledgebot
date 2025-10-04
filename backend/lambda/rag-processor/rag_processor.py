@@ -85,65 +85,7 @@ class RAGProcessor:
             
         except Exception as e:
             logger.error(f"Error generating Docling embedding with sentence-transformers: {e}")
-            # Fallback to a simple hash-based embedding if sentence-transformers fails
-            return self._get_fallback_embedding(text)
-    
-    def _get_fallback_embedding(self, text: str) -> List[float]:
-        """Fallback embedding method using text characteristics"""
-        try:
-            import hashlib
-            import numpy as np
-            
-            # Create a simple but consistent embedding based on text features
-            text_lower = text.lower()
-            
-            # Create features based on text characteristics
-            features = []
-            
-            # Text length features
-            features.append(len(text))
-            features.append(len(text.split()))
-            
-            # Character frequency features
-            char_counts = {}
-            for char in text_lower:
-                char_counts[char] = char_counts.get(char, 0) + 1
-            
-            # Add top character frequencies
-            sorted_chars = sorted(char_counts.items(), key=lambda x: x[1], reverse=True)
-            for i in range(10):
-                if i < len(sorted_chars):
-                    features.append(sorted_chars[i][1])
-                else:
-                    features.append(0)
-            
-            # Word frequency features
-            words = text_lower.split()
-            word_counts = {}
-            for word in words:
-                word_counts[word] = word_counts.get(word, 0) + 1
-            
-            # Add top word frequencies
-            sorted_words = sorted(word_counts.items(), key=lambda x: x[1], reverse=True)
-            for i in range(10):
-                if i < len(sorted_words):
-                    features.append(sorted_words[i][1])
-                else:
-                    features.append(0)
-            
-            # Create a 384-dimensional embedding by repeating and scaling features
-            embedding = []
-            for i in range(384):
-                feature_idx = i % len(features)
-                # Normalize and scale the feature
-                normalized_feature = features[feature_idx] / max(1, len(text))
-                embedding.append(float(normalized_feature * 2 - 1))  # Scale to [-1, 1]
-            
-            return embedding
-            
-        except Exception as e:
-            logger.error(f"Error generating fallback embedding: {e}")
-            return [0.0] * 384
+            raise Exception(f"Failed to generate embedding with sentence-transformers: {e}")
 
     def process_document_with_docling(self, s3_bucket: str, s3_key: str) -> List[DocumentChunk]:
         """Process document using Docling and create hierarchical chunks"""
@@ -327,22 +269,22 @@ class RAGProcessor:
             logger.error(f"Error saving chunks to knowledge base: {e}")
 
     def search_similar_chunks(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
-        """Search for similar chunks using Docling embeddings"""
+        """Search for similar chunks using sentence-transformers embeddings"""
         try:
-            # Use Docling embedding-based search
+            # Use sentence-transformers embedding-based search
             return self._search_docling_embeddings(query, limit)
             
         except Exception as e:
-            logger.error(f"Error searching similar chunks with Docling: {e}")
+            logger.error(f"Error searching similar chunks with sentence-transformers: {e}")
             return []
 
     def _search_docling_embeddings(self, query: str, limit: int) -> List[Dict[str, Any]]:
-        """Search using Docling embeddings for vector similarity"""
+        """Search using Docling sentence-transformers embeddings for vector similarity"""
         try:
-            # Get query embedding using Docling
+            # Get query embedding using sentence-transformers
             query_embedding = self.get_docling_embedding(query)
             if not query_embedding:
-                logger.error("Docling could not generate query embedding")
+                logger.error("Sentence-transformers could not generate query embedding")
                 return []
             
             # Get all chunk IDs from DynamoDB
@@ -394,7 +336,7 @@ class RAGProcessor:
                     similar_chunks.append(chunk_data)
                     
                 except Exception as e:
-                    logger.warning(f"Could not retrieve Docling embedding for chunk {chunk_id}: {e}")
+                    logger.warning(f"Could not retrieve sentence-transformers embedding for chunk {chunk_id}: {e}")
                     continue
             
             # Sort by similarity score and return top results
@@ -403,7 +345,7 @@ class RAGProcessor:
             return similar_chunks[:limit]
             
         except Exception as e:
-            logger.error(f"Error in Docling embedding search: {e}")
+            logger.error(f"Error in sentence-transformers embedding search: {e}")
             return []
 
     def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
@@ -482,9 +424,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 query = body.get('query', '') or body.get('message', '')
                 limit = body.get('limit', 5)
                 
-                logger.info(f"Docling embedding search for query: {query}")
+                logger.info(f"Sentence-transformers embedding search for query: {query}")
                 
-                # Use Docling embedding search
+                # Use sentence-transformers embedding search
                 results = processor.search_similar_chunks(query, limit)
                 
                 return {
@@ -499,7 +441,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         'results': results,
                         'query': query,
                         'count': len(results),
-                        'search_method': 'docling_embeddings'
+                        'search_method': 'sentence_transformers'
                     })
                 }
         
