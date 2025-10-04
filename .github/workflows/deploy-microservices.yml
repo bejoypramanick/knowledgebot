@@ -21,7 +21,7 @@ on:
 
 env:
   AWS_REGION: ap-south-1
-  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com
+  ECR_REGISTRY: 090163643302.dkr.ecr.ap-south-1.amazonaws.com
 
 jobs:
   build-and-deploy:
@@ -141,10 +141,10 @@ jobs:
                   "dynamodb:UpdateItem"
                 ],
                 "Resource": [
-                  "arn:aws:dynamodb:ap-south-1:*:table/chatbot-knowledge-base",
-                  "arn:aws:dynamodb:ap-south-1:*:table/chatbot-knowledge-base/index/*",
-                  "arn:aws:dynamodb:ap-south-1:*:table/chatbot-conversations",
-                  "arn:aws:dynamodb:ap-south-1:*:table/chatbot-conversations/index/*"
+                  "arn:aws:dynamodb:ap-south-1:090163643302:table/chatbot-knowledge-base",
+                  "arn:aws:dynamodb:ap-south-1:090163643302:table/chatbot-knowledge-base/index/*",
+                  "arn:aws:dynamodb:ap-south-1:090163643302:table/chatbot-conversations",
+                  "arn:aws:dynamodb:ap-south-1:090163643302:table/chatbot-conversations/index/*"
                 ]
               },
               {
@@ -166,7 +166,7 @@ jobs:
                   "lambda:InvokeFunction"
                 ],
                 "Resource": [
-                  "arn:aws:lambda:ap-south-1:*:function:chatbot-*"
+                  "arn:aws:lambda:ap-south-1:090163643302:function:chatbot-*"
                 ]
               }
             ]
@@ -205,7 +205,7 @@ jobs:
             --function-name "chatbot-$service" \
             --package-type Image \
             --code ImageUri="${{ env.ECR_REGISTRY }}/chatbot-$service:latest" \
-            --role "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/chatbot-microservices-lambda-role" \
+            --role "arn:aws:iam::090163643302:role/chatbot-microservices-lambda-role" \
             --timeout $timeout \
             --memory-size $memory \
             --environment Variables="{$env_vars}" \
@@ -271,7 +271,7 @@ jobs:
           --http-method POST \
           --type AWS_PROXY \
           --integration-http-method POST \
-          --uri arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:${{ secrets.AWS_ACCOUNT_ID }}:function:chatbot-orchestrator/invocations
+          --uri arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:090163643302:function:chatbot-orchestrator/invocations
 
         # Configure OPTIONS method integration for CORS
         aws apigateway put-integration \
@@ -310,7 +310,7 @@ jobs:
           --statement-id apigateway-invoke \
           --action lambda:InvokeFunction \
           --principal apigateway.amazonaws.com \
-          --source-arn arn:aws:execute-api:ap-south-1:${{ secrets.AWS_ACCOUNT_ID }}:${{ env.API_ID }}/*/* || echo "Permission already exists"
+          --source-arn arn:aws:execute-api:ap-south-1:090163643302:${{ env.API_ID }}/*/* || echo "Permission already exists"
 
     - name: Output API Gateway URL
       run: |
