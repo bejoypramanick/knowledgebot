@@ -6,15 +6,15 @@ RUN dnf install -y \
     gcc-c++ \
     && dnf clean all
 
-# Install uv for faster pip operations
-RUN pip install uv
+# Copy shared utilities
+COPY shared/ /opt/python/
 
-# Copy requirements and install Python dependencies using uv
+# Copy requirements and install dependencies
 COPY requirements.txt ${LAMBDA_TASK_ROOT}
-RUN uv pip install --system --no-cache -r requirements.txt
+RUN pip install -r requirements.txt
 
 # Copy function code
-COPY . ${LAMBDA_TASK_ROOT}
+COPY chat_handler.py ${LAMBDA_TASK_ROOT}
 
 # Set the CMD to your handler
-CMD ["chat_handler.lambda_handler"]
+CMD [ "chat_handler.lambda_handler" ]

@@ -7,8 +7,8 @@ RUN dnf install -y \
     gfortran \
     && dnf clean all
 
-# Copy shared utilities (if available)
-# COPY shared/ /opt/python/
+# Copy shared utilities
+COPY shared/ /opt/python/
 
 # Copy requirements and install dependencies
 COPY requirements.txt ${LAMBDA_TASK_ROOT}
