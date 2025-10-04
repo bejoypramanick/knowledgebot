@@ -15,8 +15,7 @@ logger = logging.getLogger(__name__)
 # Force rebuild to test fixes - updated anthropic client
 
 # Configuration
-DOCUMENTS_BUCKET = os.environ.get('DOCUMENTS_BUCKET', 'chatbot-documents-ap-south-1')
-EMBEDDINGS_BUCKET = os.environ.get('EMBEDDINGS_BUCKET', 'chatbot-embeddings-ap-south-1')
+MAIN_BUCKET = os.environ.get('MAIN_BUCKET', 'chatbot-storage-ap-south-1')
 KNOWLEDGE_BASE_TABLE = os.environ.get('KNOWLEDGE_BASE_TABLE', 'chatbot-knowledge-base')
 CONVERSATIONS_TABLE = os.environ.get('CONVERSATIONS_TABLE', 'chatbot-conversations')
 CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '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')
@@ -44,8 +43,7 @@ class ChatHandler:
         self.dynamodb = boto3.resource('dynamodb', region_name='ap-south-1')
         self.lambda_client = boto3.client('lambda', region_name='ap-south-1')
         
-        self.documents_bucket = DOCUMENTS_BUCKET
-        self.embeddings_bucket = EMBEDDINGS_BUCKET
+        self.main_bucket = MAIN_BUCKET
         self.knowledge_base_table = self.dynamodb.Table(KNOWLEDGE_BASE_TABLE)
         self.conversations_table = self.dynamodb.Table(CONVERSATIONS_TABLE)
         
@@ -86,7 +84,7 @@ class ChatHandler:
             presigned_url = self.s3_client.generate_presigned_url(
                 'put_object',
                 Params={
-                    'Bucket': self.documents_bucket,
+                    'Bucket': self.main_bucket,
                     'Key': s3_key,
                     'ContentType': request.content_type,
                     'Metadata': {

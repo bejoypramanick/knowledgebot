@@ -523,8 +523,7 @@ jobs:
           "FunctionName": "$RAG_PROCESSOR_IMAGE",
           "Environment": {
             "Variables": {
-              "DOCUMENTS_BUCKET": "chatbot-documents-ap-south-1",
-              "EMBEDDINGS_BUCKET": "chatbot-embeddings-ap-south-1",
+              "MAIN_BUCKET": "chatbot-storage-ap-south-1",
               "KNOWLEDGE_BASE_TABLE": "chatbot-knowledge-base",
               "CLAUDE_API_KEY": "${{ secrets.CLAUDE_API_KEY }}"
             }
@@ -538,7 +537,7 @@ jobs:
           "FunctionName": "$CHAT_HANDLER_IMAGE",
           "Environment": {
             "Variables": {
-              "DOCUMENTS_BUCKET": "chatbot-documents-ap-south-1",
+              "MAIN_BUCKET": "chatbot-storage-ap-south-1",
               "KNOWLEDGE_BASE_TABLE": "chatbot-knowledge-base",
               "CONVERSATIONS_TABLE": "chatbot-conversations",
               "CLAUDE_API_KEY": "${{ secrets.CLAUDE_API_KEY }}",

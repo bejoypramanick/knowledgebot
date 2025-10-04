@@ -21,9 +21,7 @@ logger = logging.getLogger(__name__)
 # Trigger workflow - S3 notification permissions added manually
 
 # Configuration
-DOCUMENTS_BUCKET = os.environ.get('DOCUMENTS_BUCKET', 'chatbot-documents-ap-south-1')
-EMBEDDINGS_BUCKET = os.environ.get('EMBEDDINGS_BUCKET', 'chatbot-embeddings-ap-south-1')
-MARKDOWN_BUCKET = os.environ.get('MARKDOWN_BUCKET', 'chatbot-markdown-ap-south-1')
+MAIN_BUCKET = os.environ.get('MAIN_BUCKET', 'chatbot-storage-ap-south-1')
 KNOWLEDGE_BASE_TABLE = os.environ.get('KNOWLEDGE_BASE_TABLE', 'chatbot-knowledge-base')
 CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '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')
 
@@ -40,9 +38,7 @@ class RAGProcessor:
     def __init__(self):
         self.s3_client = boto3.client('s3', region_name='ap-south-1')
         self.dynamodb = boto3.resource('dynamodb', region_name='ap-south-1')
-        self.documents_bucket = DOCUMENTS_BUCKET
-        self.embeddings_bucket = EMBEDDINGS_BUCKET
-        self.markdown_bucket = MARKDOWN_BUCKET
+        self.main_bucket = MAIN_BUCKET
         self.knowledge_base_table = self.dynamodb.Table(KNOWLEDGE_BASE_TABLE)
         
         # Initialize Anthropic client with explicit configuration
@@ -95,20 +91,19 @@ class RAGProcessor:
             # Export document to markdown using Docling
             markdown_content = doc.document.export_to_markdown()
             
-            # Create markdown key in S3
+            # Create markdown key in S3 with prefix
             filename = s3_key.split('/')[-1]
             base_name = filename.rsplit('.', 1)[0] if '.' in filename else filename
             markdown_key = f"markdown/{base_name}.md"
             
             # Upload markdown to S3
             self.s3_client.put_object(
-                Bucket=self.markdown_bucket,
+                Bucket=self.main_bucket,
                 Key=markdown_key,
                 Body=markdown_content.encode('utf-8'),
                 ContentType='text/markdown',
                 Metadata={
                     'original_s3_key': s3_key,
-                    'original_bucket': self.documents_bucket,
                     'document_id': s3_metadata.get('document_id', ''),
                     'original_filename': s3_metadata.get('original_filename', filename),
                     'processed_at': datetime.utcnow().isoformat(),
@@ -116,7 +111,7 @@ class RAGProcessor:
                 }
             )
             
-            logger.info(f"Markdown saved to S3: {self.markdown_bucket}/{markdown_key}")
+            logger.info(f"Markdown saved to S3: {self.main_bucket}/{markdown_key}")
             return markdown_key
             
         except Exception as e:
@@ -214,9 +209,8 @@ class RAGProcessor:
                     'document_id': document_id,
                     'source': filename,
                     's3_key': s3_key,
-                    's3_bucket': self.documents_bucket,
+                    's3_bucket': self.main_bucket,
                     'markdown_key': markdown_key,
-                    'markdown_bucket': self.markdown_bucket,
                     'page_number': page_idx + 1,
                     'element_type': type(element).__name__,
                     'processed_at': datetime.utcnow().isoformat(),
@@ -303,7 +297,7 @@ class RAGProcessor:
                     }
                     
                     self.s3_client.put_object(
-                        Bucket=self.embeddings_bucket,
+                        Bucket=self.main_bucket,
                         Key=embedding_key,
                         Body=json.dumps(embedding_data),
                         ContentType='application/json'
@@ -351,7 +345,7 @@ class RAGProcessor:
                     # Get embedding from S3
                     embedding_key = f"embeddings/{chunk_id}.json"
                     embedding_response = self.s3_client.get_object(
-                        Bucket=self.embeddings_bucket,
+                        Bucket=self.main_bucket,
                         Key=embedding_key
                     )
                     embedding_data = json.loads(embedding_response['Body'].read())
@@ -371,7 +365,7 @@ class RAGProcessor:
                             'source': item.get('metadata', {}).get('source', 'Unknown'),
                             'document_id': item.get('document_id', ''),
                             's3_key': item.get('metadata', {}).get('s3_key', ''),
-                            's3_bucket': self.documents_bucket,
+                            's3_bucket': self.main_bucket,
                             'page_number': item.get('metadata', {}).get('page_number', 0),
                             'element_type': item.get('metadata', {}).get('element_type', 'text')
                         },

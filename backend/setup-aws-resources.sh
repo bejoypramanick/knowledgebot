@@ -14,15 +14,15 @@ if ! command -v aws &> /dev/null; then
     exit 1
 fi
 
-# Create S3 buckets
-echo "📦 Creating S3 buckets..."
+# Create S3 bucket
+echo "📦 Creating S3 bucket..."
 
-# Documents bucket
-aws s3 mb s3://chatbot-documents-ap-south-1 --region $REGION || echo "Bucket already exists"
+# Main storage bucket
+aws s3 mb s3://chatbot-storage-ap-south-1 --region $REGION || echo "Bucket already exists"
 
-# Set CORS policy for documents bucket
+# Set CORS policy for main bucket
 aws s3api put-bucket-cors \
-    --bucket chatbot-documents-ap-south-1 \
+    --bucket chatbot-storage-ap-south-1 \
     --cors-configuration '{
         "CORSRules": [
             {
@@ -47,9 +47,6 @@ aws s3api put-bucket-cors \
         ]
     }' \
     --region $REGION
-
-# Embeddings bucket
-aws s3 mb s3://chatbot-embeddings-ap-south-1 --region $REGION || echo "Bucket already exists"
 
 # Create DynamoDB tables
 echo "🗄️ Creating DynamoDB tables..."

@@ -5,9 +5,7 @@ export const AWS_CONFIG = {
     apiGateway: import.meta.env.VITE_API_GATEWAY_URL || 'https://a1kn0j91k8.execute-api.ap-south-1.amazonaws.com/prod',
   },
   s3: {
-    knowledgeBaseBucket: 'chatbot-knowledge-base',
-    documentsBucket: 'chatbot-documents-ap-south-1',
-    embeddingsBucket: 'chatbot-embeddings-ap-south-1',
+    mainBucket: 'chatbot-storage-ap-south-1',
   },
   dynamodb: {
     conversationsTable: 'chatbot-conversations',
