@@ -121,6 +121,41 @@ jobs:
         
         echo "Successfully completed ${{ matrix.service }}"
 
+    - name: Ensure IAM role exists
+      run: |
+        echo "Ensuring IAM role exists..."
+        aws iam get-role --role-name chatbot-lambda-role || {
+          echo "Creating IAM role chatbot-lambda-role..."
+          aws iam create-role \
+            --role-name chatbot-lambda-role \
+            --assume-role-policy-document '{
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Service": "lambda.amazonaws.com"
+                  },
+                  "Action": "sts:AssumeRole"
+                }
+              ]
+            }'
+          
+          aws iam attach-role-policy \
+            --role-name chatbot-lambda-role \
+            --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+          
+          aws iam attach-role-policy \
+            --role-name chatbot-lambda-role \
+            --policy-arn arn:aws:iam::aws:policy/AmazonS3FullAccess
+          
+          aws iam attach-role-policy \
+            --role-name chatbot-lambda-role \
+            --policy-arn arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+          
+          echo "IAM role created successfully"
+        }
+
     - name: Deploy Lambda function
       run: |
         echo "Deploying Lambda function for ${{ matrix.service }}..."
@@ -190,7 +225,7 @@ jobs:
             --function-name "chatbot-${{ matrix.service }}" \
             --package-type Image \
             --code ImageUri="${{ env.ECR_REGISTRY }}/chatbot-${{ matrix.service }}:latest" \
-            --role "arn:aws:iam::090163643302:role/chatbot-microservices-lambda-role" \
+            --role "arn:aws:iam::090163643302:role/chatbot-lambda-role" \
             --timeout $timeout \
             --memory-size $memory \
             --environment Variables="{$env_vars}" \
