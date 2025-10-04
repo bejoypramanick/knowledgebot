@@ -624,6 +624,62 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 })
             }
         
+        elif action in ['upload', 'scrape', 'list', 'get-upload-url']:
+            # Handle knowledge-base actions
+            logger.info(f"Processing knowledge-base action: {action}")
+            
+            # Call document management Lambda for knowledge-base operations
+            try:
+                response = orchestrator.lambda_client.invoke(
+                    FunctionName=DOCUMENT_MANAGEMENT_LAMBDA,
+                    InvocationType='RequestResponse',
+                    Payload=json.dumps(body)
+                )
+                
+                result = json.loads(response['Payload'].read())
+                
+                if result.get('statusCode') == 200:
+                    return {
+                        'statusCode': 200,
+                        'headers': {
+                            'Content-Type': 'application/json',
+                            'Access-Control-Allow-Origin': '*',
+                            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+                            'Access-Control-Allow-Methods': 'POST, OPTIONS'
+                        },
+                        'body': result.get('body', '{}')
+                    }
+                else:
+                    return {
+                        'statusCode': result.get('statusCode', 500),
+                        'headers': {
+                            'Content-Type': 'application/json',
+                            'Access-Control-Allow-Origin': '*',
+                            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+                            'Access-Control-Allow-Methods': 'POST, OPTIONS'
+                        },
+                        'body': json.dumps({
+                            'error': 'Knowledge-base operation failed',
+                            'message': result.get('body', 'Unknown error')
+                        })
+                    }
+                    
+            except Exception as e:
+                logger.error(f"Error calling document management Lambda: {e}")
+                return {
+                    'statusCode': 500,
+                    'headers': {
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*',
+                        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+                        'Access-Control-Allow-Methods': 'POST, OPTIONS'
+                    },
+                    'body': json.dumps({
+                        'error': 'Internal server error',
+                        'message': str(e)
+                    })
+                }
+        
         else:
             return {
                 'statusCode': 400,

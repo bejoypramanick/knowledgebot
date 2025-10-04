@@ -364,6 +364,23 @@ jobs:
           echo "Using existing chat resource: $CHAT_RESOURCE_ID"
         fi
         
+        # Create or get knowledge-base resource
+        echo "Creating or getting knowledge-base resource..."
+        KNOWLEDGE_BASE_RESOURCE_ID=$(aws apigateway get-resources \
+          --rest-api-id $API_ID \
+          --query "items[?pathPart=='knowledge-base' && parentId=='$ROOT_RESOURCE_ID'].id" --output text)
+        
+        if [ -z "$KNOWLEDGE_BASE_RESOURCE_ID" ] || [ "$KNOWLEDGE_BASE_RESOURCE_ID" = "None" ]; then
+          echo "Creating new knowledge-base resource..."
+          KNOWLEDGE_BASE_RESOURCE_ID=$(aws apigateway create-resource \
+            --rest-api-id $API_ID \
+            --parent-id $ROOT_RESOURCE_ID \
+            --path-part knowledge-base \
+            --query 'id' --output text)
+        else
+          echo "Using existing knowledge-base resource: $KNOWLEDGE_BASE_RESOURCE_ID"
+        fi
+        
         # Create or update POST method
         echo "Setting up POST method..."
         aws apigateway put-method \
@@ -424,6 +441,67 @@ jobs:
             "method.response.header.Access-Control-Allow-Methods": "'"'"'POST,OPTIONS'"'"'",
             "method.response.header.Access-Control-Allow-Origin": "'"'"'*'"'"'"
           }' || echo "OPTIONS integration response may already exist"
+        
+        # Set up knowledge-base POST method
+        echo "Setting up knowledge-base POST method..."
+        aws apigateway put-method \
+          --rest-api-id $API_ID \
+          --resource-id $KNOWLEDGE_BASE_RESOURCE_ID \
+          --http-method POST \
+          --authorization-type NONE || echo "Knowledge-base POST method may already exist"
+        
+        # Set up knowledge-base OPTIONS method for CORS
+        echo "Setting up knowledge-base OPTIONS method..."
+        aws apigateway put-method \
+          --rest-api-id $API_ID \
+          --resource-id $KNOWLEDGE_BASE_RESOURCE_ID \
+          --http-method OPTIONS \
+          --authorization-type NONE || echo "Knowledge-base OPTIONS method may already exist"
+        
+        # Set up knowledge-base POST integration
+        echo "Setting up knowledge-base POST integration..."
+        aws apigateway put-integration \
+          --rest-api-id $API_ID \
+          --resource-id $KNOWLEDGE_BASE_RESOURCE_ID \
+          --http-method POST \
+          --type AWS_PROXY \
+          --integration-http-method POST \
+          --uri "arn:aws:apigateway:${{ env.AWS_REGION }}:lambda:path/2015-03-31/functions/arn:aws:lambda:${{ env.AWS_REGION }}:090163643302:function:chatbot-orchestrator/invocations" || echo "Knowledge-base POST integration may already exist"
+        
+        # Set up knowledge-base OPTIONS method response for CORS
+        echo "Setting up knowledge-base OPTIONS method response..."
+        aws apigateway put-method-response \
+          --rest-api-id $API_ID \
+          --resource-id $KNOWLEDGE_BASE_RESOURCE_ID \
+          --http-method OPTIONS \
+          --status-code 200 \
+          --response-parameters '{
+            "method.response.header.Access-Control-Allow-Headers": true,
+            "method.response.header.Access-Control-Allow-Methods": true,
+            "method.response.header.Access-Control-Allow-Origin": true
+          }' || echo "Knowledge-base OPTIONS method response may already exist"
+        
+        # Set up knowledge-base OPTIONS integration for CORS
+        echo "Setting up knowledge-base OPTIONS integration..."
+        aws apigateway put-integration \
+          --rest-api-id $API_ID \
+          --resource-id $KNOWLEDGE_BASE_RESOURCE_ID \
+          --http-method OPTIONS \
+          --type MOCK \
+          --request-templates '{"application/json": "{\"statusCode\": 200}"}' || echo "Knowledge-base OPTIONS integration may already exist"
+        
+        # Set up knowledge-base OPTIONS integration response for CORS
+        echo "Setting up knowledge-base OPTIONS integration response..."
+        aws apigateway put-integration-response \
+          --rest-api-id $API_ID \
+          --resource-id $KNOWLEDGE_BASE_RESOURCE_ID \
+          --http-method OPTIONS \
+          --status-code 200 \
+          --response-parameters '{
+            "method.response.header.Access-Control-Allow-Headers": "'"'"'Content-Type,Authorization,X-Requested-With'"'"'",
+            "method.response.header.Access-Control-Allow-Methods": "'"'"'POST,OPTIONS'"'"'",
+            "method.response.header.Access-Control-Allow-Origin": "'"'"'*'"'"'"
+          }' || echo "Knowledge-base OPTIONS integration response may already exist"
         
         # Deploy API Gateway
         echo "Deploying API Gateway..."
