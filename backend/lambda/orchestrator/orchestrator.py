@@ -657,3 +657,4 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 # Trigger build
 # Trigger rebuild for Anthropic fix
 # Force refresh
+# Trigger rebuild for action format fix
