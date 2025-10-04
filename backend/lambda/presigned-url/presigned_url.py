@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Force rebuild trigger - presigned-url Lambda deployment
+# Force rebuild trigger - presigned-url Lambda deployment - Updated S3 key prefix
 
 # Configuration
 MAIN_BUCKET = os.environ.get('MAIN_BUCKET', 'chatbot-storage-ap-south-1')
@@ -25,7 +25,7 @@ class PresignedUrlService:
         try:
             # Generate unique S3 key
             file_extension = os.path.splitext(filename)[1]
-            s3_key = f"uploads/{uuid.uuid4()}{file_extension}"
+            s3_key = f"documents/{uuid.uuid4()}{file_extension}"
             
             # Generate presigned URL for PUT operation
             presigned_url = self.s3_client.generate_presigned_url(
