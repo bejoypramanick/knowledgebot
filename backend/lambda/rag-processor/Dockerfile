@@ -11,11 +11,11 @@ RUN dnf install -y \
 COPY shared/ /opt/python/
 
 # Copy requirements and install dependencies
-COPY requirements.txt ${LAMBDA_TASK_ROOT}
+COPY rag-processor/requirements.txt ${LAMBDA_TASK_ROOT}
 RUN pip install -r requirements.txt
 
 # Copy function code
-COPY rag_processor.py ${LAMBDA_TASK_ROOT}
+COPY rag-processor/rag_processor.py ${LAMBDA_TASK_ROOT}
 
 # Set the CMD to your handler
 CMD [ "rag_processor.lambda_handler" ]

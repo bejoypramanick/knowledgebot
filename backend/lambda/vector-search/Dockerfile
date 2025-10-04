@@ -12,11 +12,11 @@ RUN dnf install -y \
 COPY shared/ /opt/python/
 
 # Copy requirements and install dependencies
-COPY requirements.txt ${LAMBDA_TASK_ROOT}
+COPY vector-search/requirements.txt ${LAMBDA_TASK_ROOT}
 RUN pip install -r requirements.txt
 
 # Copy function code
-COPY vector_search.py ${LAMBDA_TASK_ROOT}
+COPY vector-search/vector_search.py ${LAMBDA_TASK_ROOT}
 
 # Set the CMD to your handler
 CMD [ "vector_search.lambda_handler" ]
