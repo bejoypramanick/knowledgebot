@@ -14,10 +14,24 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY')
+CONVERSATIONS_TABLE = os.environ.get('CONVERSATIONS_TABLE', 'chatbot-conversations')
+
+# Lambda function names
 RAG_SEARCH_LAMBDA = os.environ.get('RAG_SEARCH_LAMBDA', 'chatbot-rag-search')
 DOCUMENT_MANAGEMENT_LAMBDA = os.environ.get('DOCUMENT_MANAGEMENT_LAMBDA', 'chatbot-document-management')
 RESPONSE_ENHANCEMENT_LAMBDA = os.environ.get('RESPONSE_ENHANCEMENT_LAMBDA', 'chatbot-response-enhancement')
-CONVERSATIONS_TABLE = os.environ.get('CONVERSATIONS_TABLE', 'chatbot-conversations')
+ACTION_EXECUTOR_LAMBDA = os.environ.get('ACTION_EXECUTOR_LAMBDA', 'chatbot-action-executor')
+RAG_PROCESSOR_LAMBDA = os.environ.get('RAG_PROCESSOR_LAMBDA', 'chatbot-rag-processor')
+CLAUDE_DECISION_LAMBDA = os.environ.get('CLAUDE_DECISION_LAMBDA', 'chatbot-claude-decision')
+RESPONSE_FORMATTER_LAMBDA = os.environ.get('RESPONSE_FORMATTER_LAMBDA', 'chatbot-response-formatter')
+VECTOR_SEARCH_LAMBDA = os.environ.get('VECTOR_SEARCH_LAMBDA', 'chatbot-vector-search')
+PRESIGNED_URL_LAMBDA = os.environ.get('PRESIGNED_URL_LAMBDA', 'chatbot-presigned-url')
+SOURCE_EXTRACTOR_LAMBDA = os.environ.get('SOURCE_EXTRACTOR_LAMBDA', 'chatbot-source-extractor')
+CONVERSATION_MANAGER_LAMBDA = os.environ.get('CONVERSATION_MANAGER_LAMBDA', 'chatbot-conversation-manager')
+EMBEDDING_SERVICE_LAMBDA = os.environ.get('EMBEDDING_SERVICE_LAMBDA', 'chatbot-embedding-service')
+DOCUMENT_METADATA_LAMBDA = os.environ.get('DOCUMENT_METADATA_LAMBDA', 'chatbot-document-metadata')
+CHAT_HANDLER_LAMBDA = os.environ.get('CHAT_HANDLER_LAMBDA', 'chatbot-chat-handler')
+DOCUMENT_CONTENT_LAMBDA = os.environ.get('DOCUMENT_CONTENT_LAMBDA', 'chatbot-document-content')
 
 # Pydantic models
 class ChatMessage(BaseModel):
@@ -60,7 +74,7 @@ class Orchestrator:
         self.dynamodb = boto3.resource('dynamodb', region_name='ap-south-1')
         self.lambda_client = boto3.client('lambda', region_name='ap-south-1')
         self.conversations_table = self.dynamodb.Table(CONVERSATIONS_TABLE)
-        
+
         # Initialize Anthropic client
         try:
             # Initialize with explicit parameters to avoid proxy issues
@@ -71,6 +85,33 @@ class Orchestrator:
         except Exception as e:
             logger.error(f"Error initializing Anthropic client: {e}")
             self.anthropic_client = None
+
+    def delegate_to_lambda(self, lambda_name: str, payload: Dict[str, Any], invocation_type: str = 'RequestResponse') -> Dict[str, Any]:
+        """Generic method to delegate tasks to any Lambda function"""
+        try:
+            logger.info(f"Delegating to {lambda_name} with payload: {json.dumps(payload)}")
+            
+            response = self.lambda_client.invoke(
+                FunctionName=lambda_name,
+                InvocationType=invocation_type,
+                Payload=json.dumps(payload)
+            )
+            
+            if invocation_type == 'RequestResponse':
+                result = json.loads(response['Payload'].read())
+                logger.info(f"Response from {lambda_name}: {json.dumps(result)}")
+                return result
+            else:
+                logger.info(f"Async invocation to {lambda_name} completed")
+                return {'statusCode': 202, 'message': 'Async invocation started'}
+                
+        except Exception as e:
+            logger.error(f"Error delegating to {lambda_name}: {e}")
+            return {
+                'statusCode': 500,
+                'error': f'Error calling {lambda_name}',
+                'message': str(e)
+            }
 
     def get_conversation_history(self, conversation_id: str, limit: int = 10) -> List[ChatMessage]:
         """Get conversation history from DynamoDB"""
@@ -320,91 +361,66 @@ If clarification is needed, return:
         try:
             logger.info(f"Executing action: {action.action_type} with parameters: {action.parameters}")
             
-            if action.action_type == "search_rag":
-                # Call RAG Search Lambda
-                response = self.lambda_client.invoke(
-                    FunctionName=RAG_SEARCH_LAMBDA,
-                    InvocationType='RequestResponse',
-                    Payload=json.dumps({
-                        'action': 'search',
-                        'query': action.parameters.get("query", ""),
-                        'limit': action.parameters.get("limit", 5)
-                    })
-                )
-                result = json.loads(response['Payload'].read())
-                return {
-                    "action_type": "search_rag",
-                    "query": action.parameters.get("query", ""),
-                    "result": result
-                }
-                
-            elif action.action_type == "list_documents":
-                # Call Document Management Lambda
-                response = self.lambda_client.invoke(
-                    FunctionName=DOCUMENT_MANAGEMENT_LAMBDA,
-                    InvocationType='RequestResponse',
-                    Payload=json.dumps({
-                        'action': 'list_documents',
-                        'limit': action.parameters.get("limit", 10)
-                    })
-                )
-                result = json.loads(response['Payload'].read())
-                return {
-                    "action_type": "list_documents",
-                    "result": result
-                }
-                
-            elif action.action_type == "generate_embeddings":
-                # Call RAG Search Lambda for embeddings
-                response = self.lambda_client.invoke(
-                    FunctionName=RAG_SEARCH_LAMBDA,
-                    InvocationType='RequestResponse',
-                    Payload=json.dumps({
-                        'action': 'generate_embeddings',
-                        'text': action.parameters.get("text", "")
-                    })
-                )
-                result = json.loads(response['Payload'].read())
-                return {
-                    "action_type": "generate_embeddings",
-                    "result": result
-                }
-                
-            elif action.action_type == "get_document_content":
-                # Call Document Management Lambda
-                response = self.lambda_client.invoke(
-                    FunctionName=DOCUMENT_MANAGEMENT_LAMBDA,
-                    InvocationType='RequestResponse',
-                    Payload=json.dumps({
-                        'action': 'get_document_content',
-                        'document_id': action.parameters.get("document_id", "")
-                    })
-                )
-                result = json.loads(response['Payload'].read())
-                return {
-                    "action_type": "get_document_content",
-                    "result": result
-                }
-                
-            elif action.action_type == "simple_response":
-                # Direct response without backend actions
+            # Map action types to Lambda functions
+            lambda_mapping = {
+                "search_rag": RAG_SEARCH_LAMBDA,
+                "list_documents": DOCUMENT_MANAGEMENT_LAMBDA,
+                "generate_embeddings": RAG_SEARCH_LAMBDA,
+                "upload_document": DOCUMENT_MANAGEMENT_LAMBDA,
+                "scrape_website": DOCUMENT_MANAGEMENT_LAMBDA,
+                "get_presigned_url": PRESIGNED_URL_LAMBDA,
+                "process_document": RAG_PROCESSOR_LAMBDA,
+                "extract_metadata": DOCUMENT_METADATA_LAMBDA,
+                "extract_content": DOCUMENT_CONTENT_LAMBDA,
+                "extract_sources": SOURCE_EXTRACTOR_LAMBDA,
+                "vector_search": VECTOR_SEARCH_LAMBDA,
+                "embed_text": EMBEDDING_SERVICE_LAMBDA,
+                "format_response": RESPONSE_FORMATTER_LAMBDA,
+                "manage_conversation": CONVERSATION_MANAGER_LAMBDA,
+                "execute_action": ACTION_EXECUTOR_LAMBDA,
+                "claude_decision": CLAUDE_DECISION_LAMBDA,
+                "chat_handler": CHAT_HANDLER_LAMBDA,
+                "get_document_content": DOCUMENT_MANAGEMENT_LAMBDA
+            }
+            
+            # Handle simple responses without Lambda calls
+            if action.action_type == "simple_response":
                 return {
                     "action_type": "simple_response",
                     "response": action.parameters.get("response_text", "")
                 }
-                
-            else:
+            
+            # Get the target Lambda function
+            target_lambda = lambda_mapping.get(action.action_type)
+            if not target_lambda:
                 logger.warning(f"Unknown action type: {action.action_type}")
                 return {
-                    "action_type": f"unknown_{action.action_type}",
-                    "error": f"Unknown action type: {action.action_type}"
+                    "action_type": action.action_type,
+                    "error": f"Unknown action type: {action.action_type}",
+                    "result": None
                 }
+            
+            # Prepare payload for the Lambda function
+            payload = {
+                'action': action.action_type,
+                **action.parameters  # Include all parameters from the action
+            }
+            
+            # Call the Lambda function using generic delegation
+            result = self.delegate_to_lambda(target_lambda, payload)
+            
+            return {
+                "action_type": action.action_type,
+                "lambda_function": target_lambda,
+                "result": result
+            }
                 
         except Exception as e:
             logger.error(f"Error executing action {action.action_type}: {e}")
             return {
                 "action_type": action.action_type,
-                "error": str(e)
+                "error": str(e),
+                "result": None
             }
 
     def execute_lambda_actions(self, action_plan: ActionPlan) -> Dict[str, Any]:
@@ -524,19 +540,16 @@ If clarification is needed, return:
             
             # Stage 3: Call Response Enhancement Lambda
             logger.info("Stage 3: Calling Response Enhancement Lambda...")
-            enhancement_response = self.lambda_client.invoke(
-                FunctionName=RESPONSE_ENHANCEMENT_LAMBDA,
-                InvocationType='RequestResponse',
-                Payload=json.dumps({
+            enhancement_result = self.delegate_to_lambda(
+                RESPONSE_ENHANCEMENT_LAMBDA,
+                {
                     'action': 'enhance_response',
                     'user_message': user_message,
                     'action_results': action_results,
                     'conversation_id': conversation_id,
                     'action_plan': action_plan.dict()
-                })
+                }
             )
-            
-            enhancement_result = json.loads(enhancement_response['Payload'].read())
             
             if enhancement_result.get('statusCode') == 200:
                 body = json.loads(enhancement_result['body'])
@@ -630,13 +643,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Call document management Lambda for knowledge-base operations
             try:
-                response = orchestrator.lambda_client.invoke(
-                    FunctionName=DOCUMENT_MANAGEMENT_LAMBDA,
-                    InvocationType='RequestResponse',
-                    Payload=json.dumps(body)
-                )
-                
-                result = json.loads(response['Payload'].read())
+                result = orchestrator.delegate_to_lambda(DOCUMENT_MANAGEMENT_LAMBDA, body)
                 
                 if result.get('statusCode') == 200:
                     return {
