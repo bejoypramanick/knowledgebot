@@ -86,10 +86,24 @@ class Orchestrator:
             logger.error(f"Error initializing Anthropic client: {e}")
             self.anthropic_client = None
 
-    def delegate_to_lambda(self, lambda_name: str, payload: Dict[str, Any], invocation_type: str = 'RequestResponse') -> Dict[str, Any]:
-        """Generic method to delegate tasks to any Lambda function"""
+    def delegate_to_lambda(self, lambda_name: str, payload: Dict[str, Any], invocation_type: str = 'RequestResponse', timeout_seconds: int = 25) -> Dict[str, Any]:
+        """Generic method to delegate tasks to any Lambda function with timeout handling"""
         try:
             logger.info(f"Delegating to {lambda_name} with payload: {json.dumps(payload)}")
+            
+            # For ML-heavy functions like RAG search, use async invocation to avoid timeouts
+            if lambda_name in [RAG_SEARCH_LAMBDA, RAG_PROCESSOR_LAMBDA] and invocation_type == 'RequestResponse':
+                logger.info(f"Using async invocation for ML-heavy function: {lambda_name}")
+                response = self.lambda_client.invoke(
+                    FunctionName=lambda_name,
+                    InvocationType='Event',  # Async invocation
+                    Payload=json.dumps(payload)
+                )
+                return {
+                    'statusCode': 202,
+                    'message': f'Async processing started for {lambda_name}',
+                    'async': True
+                }
             
             response = self.lambda_client.invoke(
                 FunctionName=lambda_name,
