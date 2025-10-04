@@ -255,15 +255,36 @@ jobs:
         }
         EOF
         
-        # Set environment variables for RAG Processor
-        aws lambda update-function-configuration \
-          --cli-input-json file://rag_env.json \
-          --region $AWS_REGION
+        # Wait for any pending Lambda updates to complete
+        echo "Waiting for any pending Lambda updates to complete..."
+        aws lambda wait function-updated --function-name $RAG_PROCESSOR_IMAGE --region $AWS_REGION || echo "RAG Processor ready"
+        aws lambda wait function-updated --function-name $CHAT_HANDLER_IMAGE --region $AWS_REGION || echo "Chat Handler ready"
         
-        # Set environment variables for Chat Handler
-        aws lambda update-function-configuration \
-          --cli-input-json file://chat_env.json \
-          --region $AWS_REGION
+        # Set environment variables for RAG Processor (with retry)
+        for i in {1..3}; do
+          if aws lambda update-function-configuration \
+            --cli-input-json file://rag_env.json \
+            --region $AWS_REGION; then
+            echo "RAG Processor environment variables set successfully"
+            break
+          else
+            echo "Attempt $i failed, waiting 10 seconds before retry..."
+            sleep 10
+          fi
+        done
+        
+        # Set environment variables for Chat Handler (with retry)
+        for i in {1..3}; do
+          if aws lambda update-function-configuration \
+            --cli-input-json file://chat_env.json \
+            --region $AWS_REGION; then
+            echo "Chat Handler environment variables set successfully"
+            break
+          else
+            echo "Attempt $i failed, waiting 10 seconds before retry..."
+            sleep 10
+          fi
+        done
         
         # Clean up temporary files
         rm -f rag_env.json chat_env.json
