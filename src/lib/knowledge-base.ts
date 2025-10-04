@@ -116,8 +116,8 @@ export class KnowledgeBaseManager {
       }
     };
 
-    // Use the chat endpoint for presigned URL generation
-    const response = await axios.post(`${this.apiBaseUrl}/chat`, payload);
+    // Use the knowledge-base endpoint for presigned URL generation
+    const response = await axios.post(`${this.apiBaseUrl}/knowledge-base`, payload);
     console.log('Presigned URL response:', response.data);
     return response.data;
   }
