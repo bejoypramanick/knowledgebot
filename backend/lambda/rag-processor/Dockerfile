@@ -12,8 +12,9 @@ COPY shared/ /opt/python/
 
 # Copy requirements and install dependencies
 COPY rag-processor/requirements.txt ${LAMBDA_TASK_ROOT}
-RUN pip install --upgrade pip setuptools wheel && \
-    pip install -r requirements.txt
+RUN pip install --upgrade pip && \
+    pip install --upgrade setuptools>=68.0.0 wheel && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy function code
 COPY rag-processor/rag_processor.py ${LAMBDA_TASK_ROOT}
