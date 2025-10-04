@@ -399,6 +399,32 @@ jobs:
           --type MOCK \
           --request-templates '{"application/json": "{\"statusCode\": 200}"}' || echo "OPTIONS integration may already exist"
         
+        # Set up OPTIONS integration response for CORS
+        echo "Setting up OPTIONS integration response..."
+        aws apigateway put-integration-response \
+          --rest-api-id $API_ID \
+          --resource-id $CHAT_RESOURCE_ID \
+          --http-method OPTIONS \
+          --status-code 200 \
+          --response-parameters '{
+            "method.response.header.Access-Control-Allow-Headers": "'"'"'Content-Type,Authorization,X-Requested-With'"'"'",
+            "method.response.header.Access-Control-Allow-Methods": "'"'"'POST,OPTIONS'"'"'",
+            "method.response.header.Access-Control-Allow-Origin": "'"'"'*'"'"'"
+          }' || echo "OPTIONS integration response may already exist"
+        
+        # Set up OPTIONS method response for CORS
+        echo "Setting up OPTIONS method response..."
+        aws apigateway put-method-response \
+          --rest-api-id $API_ID \
+          --resource-id $CHAT_RESOURCE_ID \
+          --http-method OPTIONS \
+          --status-code 200 \
+          --response-parameters '{
+            "method.response.header.Access-Control-Allow-Headers": true,
+            "method.response.header.Access-Control-Allow-Methods": true,
+            "method.response.header.Access-Control-Allow-Origin": true
+          }' || echo "OPTIONS method response may already exist"
+        
         # Deploy API Gateway
         echo "Deploying API Gateway..."
         aws apigateway create-deployment \
