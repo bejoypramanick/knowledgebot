@@ -1,12 +1,12 @@
 FROM public.ecr.aws/lambda/python:3.11
 
 # Install system dependencies for numerical computing
-RUN dnf update -y && \
-    dnf install -y \
+RUN yum update -y && \
+    yum install -y \
     gcc \
     gcc-c++ \
     gfortran \
-    && dnf clean all
+    && yum clean all
 
 # Copy shared utilities (if available)
 # COPY shared/ /opt/python/
