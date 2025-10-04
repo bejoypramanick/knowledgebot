@@ -1,3 +1,4 @@
+# Use a pre-built Python image with common ML libraries
 FROM public.ecr.aws/lambda/python:3.9
 
 # Install system dependencies for document processing
@@ -10,14 +11,23 @@ RUN yum update -y && \
     ImageMagick \
     && yum clean all
 
-# Copy requirements and install Python dependencies with optimizations
+# Install uv for faster pip operations
+RUN pip install uv
+
+# Copy requirements first for better caching
 COPY requirements.txt ${LAMBDA_TASK_ROOT}
 
-# Install dependencies with space optimizations
-RUN pip install --no-cache-dir --no-deps torch==2.0.1+cpu torchvision==0.15.2+cpu --index-url https://download.pytorch.org/whl/cpu && \
-    pip install --no-cache-dir --no-deps -r requirements.txt && \
-    pip install --no-cache-dir docling && \
-    pip cache purge && \
+# Install dependencies using uv for faster builds
+RUN uv pip install --system --no-cache \
+    boto3==1.34.0 \
+    pydantic>=2.0.0,<3.0.0 \
+    anthropic==0.34.2 \
+    requests>=2.32.2,<3.0.0 \
+    numpy>=1.21.0,<2.0.0 \
+    docling>=1.0.0
+
+# Clean up to reduce image size
+RUN pip cache purge && \
     find /var/lang/lib/python3.9/site-packages -name "*.pyc" -delete && \
     find /var/lang/lib/python3.9/site-packages -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 

@@ -9,11 +9,9 @@ from datetime import datetime
 import uuid
 import base64
 from io import BytesIO
-import docling
 from docling.document_converter import DocumentConverter
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
-from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 import logging
 
 # Configure logging
@@ -45,8 +43,15 @@ class RAGProcessor:
         self.embeddings_bucket = EMBEDDINGS_BUCKET
         self.knowledge_base_table = self.dynamodb.Table(KNOWLEDGE_BASE_TABLE)
         
-        # Initialize Anthropic client
-        self.anthropic_client = Anthropic(api_key=CLAUDE_API_KEY)
+        # Initialize Anthropic client with explicit configuration
+        try:
+            self.anthropic_client = Anthropic(
+                api_key=CLAUDE_API_KEY,
+                timeout=30.0
+            )
+        except Exception as e:
+            logger.error(f"Error initializing Anthropic client: {e}")
+            self.anthropic_client = None
         
         # Initialize Docling converter
         self.converter = DocumentConverter(
@@ -63,22 +68,58 @@ class RAGProcessor:
         self._document_cache = {}
 
     def get_docling_embedding(self, text: str) -> List[float]:
-        """Get embedding using Docling's built-in embedding capabilities"""
+        """Get embedding using a simple text-based approach"""
         try:
-            # Use Docling's embedding model directly
-            # Docling has built-in embedding capabilities
+            # For now, use a simple text-based embedding approach
+            # In production, you'd integrate with a proper embedding service like OpenAI or Cohere
             import hashlib
+            import numpy as np
             
-            # For now, use a simple hash-based embedding
-            # In production, you'd use Docling's actual embedding model
-            hash_obj = hashlib.sha256(text.encode())
-            hash_bytes = hash_obj.digest()
+            # Create a more sophisticated text-based embedding
+            # This is a placeholder - in production, use a real embedding model
+            text_lower = text.lower()
             
-            # Create a 384-dimensional embedding (common size)
+            # Create features based on text characteristics
+            features = []
+            
+            # Text length features
+            features.append(len(text))
+            features.append(len(text.split()))
+            
+            # Character frequency features
+            char_counts = {}
+            for char in text_lower:
+                char_counts[char] = char_counts.get(char, 0) + 1
+            
+            # Add top character frequencies
+            sorted_chars = sorted(char_counts.items(), key=lambda x: x[1], reverse=True)
+            for i in range(10):
+                if i < len(sorted_chars):
+                    features.append(sorted_chars[i][1])
+                else:
+                    features.append(0)
+            
+            # Word frequency features
+            words = text_lower.split()
+            word_counts = {}
+            for word in words:
+                word_counts[word] = word_counts.get(word, 0) + 1
+            
+            # Add top word frequencies
+            sorted_words = sorted(word_counts.items(), key=lambda x: x[1], reverse=True)
+            for i in range(10):
+                if i < len(sorted_words):
+                    features.append(sorted_words[i][1])
+                else:
+                    features.append(0)
+            
+            # Create a 384-dimensional embedding by repeating and scaling features
             embedding = []
             for i in range(384):
-                byte_idx = i % len(hash_bytes)
-                embedding.append(float(hash_bytes[byte_idx] % 200 - 100) / 100.0)
+                feature_idx = i % len(features)
+                # Normalize and scale the feature
+                normalized_feature = features[feature_idx] / max(1, len(text))
+                embedding.append(float(normalized_feature * 2 - 1))  # Scale to [-1, 1]
             
             return embedding
             
@@ -280,7 +321,7 @@ class RAGProcessor:
 
 
     def _search_docling_rag(self, query: str, limit: int) -> List[Dict[str, Any]]:
-        """Search using Docling's RAG capabilities on documents"""
+        """Search using document processing and text similarity"""
         try:
             # Get all processed documents from S3
             response = self.s3_client.list_objects_v2(
@@ -291,7 +332,7 @@ class RAGProcessor:
             if 'Contents' not in response:
                 return []
             
-            # Use Docling's RAG search for each document
+            # Process documents and search for relevant content
             similar_chunks = []
             
             for obj in response['Contents']:
@@ -323,38 +364,94 @@ class RAGProcessor:
                                 # Clean up temporary file
                                 os.unlink(temp_file_path)
                         
-                        # Use Docling's RAG search
-                        search_results = doc.rag_search(query, top_k=limit)
+                        # Extract text content from document and search
+                        search_results = self._search_document_content(doc, query, obj['Key'])
                         
-                        # Convert Docling results to our format
+                        # Convert results to our format
                         for result in search_results:
                             chunk_data = {
                                 'chunk_id': str(uuid.uuid4()),
-                                'content': result.get('text', ''),
+                                'content': result.get('content', ''),
                                 'metadata': {
                                     'source': obj['Key'].split('/')[-1],
                                     's3_key': obj['Key'],
                                     's3_bucket': self.documents_bucket,
-                                    'docling_score': result.get('score', 0.0),
                                     'page_number': result.get('page_number', 0),
                                     'element_type': result.get('element_type', 'text')
                                 },
-                                'hierarchy_level': self._determine_hierarchy_level_from_docling(result),
-                                'similarity_score': result.get('score', 0.0)
+                                'hierarchy_level': result.get('hierarchy_level', 3),
+                                'similarity_score': result.get('similarity_score', 0.0)
                             }
                             similar_chunks.append(chunk_data)
                             
                     except Exception as e:
-                        logger.error(f"Error processing document {obj['Key']} for RAG search: {e}")
+                        logger.error(f"Error processing document {obj['Key']} for search: {e}")
                         continue
             
-            # Sort by Docling's similarity score and return top results
+            # Sort by similarity score and return top results
             similar_chunks.sort(key=lambda x: x['similarity_score'], reverse=True)
             return similar_chunks[:limit]
             
         except Exception as e:
-            logger.error(f"Error searching with Docling RAG: {e}")
+            logger.error(f"Error searching documents: {e}")
             return []
+
+    def _search_document_content(self, doc, query: str, s3_key: str) -> List[Dict[str, Any]]:
+        """Search for relevant content within a document"""
+        try:
+            results = []
+            query_lower = query.lower()
+            query_words = set(query_lower.split())
+            
+            # Process document structure
+            for page_idx, page in enumerate(doc.pages):
+                for element in page.elements:
+                    if hasattr(element, 'text') and element.text:
+                        content = element.text.strip()
+                        if len(content) < 10:  # Skip very short content
+                            continue
+                        
+                        # Calculate similarity score based on word overlap
+                        content_lower = content.lower()
+                        content_words = set(content_lower.split())
+                        
+                        # Calculate Jaccard similarity
+                        intersection = len(query_words.intersection(content_words))
+                        union = len(query_words.union(content_words))
+                        similarity_score = intersection / union if union > 0 else 0
+                        
+                        # Also check for exact phrase matches
+                        if query_lower in content_lower:
+                            similarity_score += 0.5
+                        
+                        # Only include results with some similarity
+                        if similarity_score > 0.1:
+                            results.append({
+                                'content': content,
+                                'page_number': page_idx + 1,
+                                'element_type': type(element).__name__,
+                                'hierarchy_level': self._determine_hierarchy_level_from_content(content),
+                                'similarity_score': similarity_score
+                            })
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"Error searching document content: {e}")
+            return []
+
+    def _determine_hierarchy_level_from_content(self, content: str) -> int:
+        """Determine hierarchy level from content analysis"""
+        content_lower = content.lower().strip()
+        
+        if len(content) < 100 and (content_lower.startswith('#') or content.isupper()):
+            return 1
+        elif 'section' in content_lower or 'chapter' in content_lower:
+            return 2
+        elif len(content) < 200:
+            return 3
+        else:
+            return 4
 
     def _determine_hierarchy_level_from_docling(self, docling_result: Dict[str, Any]) -> int:
         """Determine hierarchy level from Docling search result"""

@@ -7,9 +7,12 @@ RUN yum update -y && \
     gcc-c++ \
     && yum clean all
 
-# Copy requirements and install Python dependencies
+# Install uv for faster pip operations
+RUN pip install uv
+
+# Copy requirements and install Python dependencies using uv
 COPY requirements.txt ${LAMBDA_TASK_ROOT}
-RUN pip install --no-cache-dir -r requirements.txt
+RUN uv pip install --system --no-cache -r requirements.txt
 
 # Copy function code
 COPY . ${LAMBDA_TASK_ROOT}

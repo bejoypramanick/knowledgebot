@@ -49,8 +49,15 @@ class ChatHandler:
         self.knowledge_base_table = self.dynamodb.Table(KNOWLEDGE_BASE_TABLE)
         self.conversations_table = self.dynamodb.Table(CONVERSATIONS_TABLE)
         
-        # Initialize Anthropic client
-        self.anthropic_client = Anthropic(api_key=CLAUDE_API_KEY)
+        # Initialize Anthropic client with explicit configuration
+        try:
+            self.anthropic_client = Anthropic(
+                api_key=CLAUDE_API_KEY,
+                timeout=30.0
+            )
+        except Exception as e:
+            logger.error(f"Error initializing Anthropic client: {e}")
+            self.anthropic_client = None
 
     def get_presigned_upload_url(self, request: PresignedUrlRequest) -> Dict[str, Any]:
         """Generate presigned URL for document upload"""
@@ -162,6 +169,11 @@ class ChatHandler:
     def generate_response(self, user_message: str, conversation_id: str, use_rag: bool = True) -> str:
         """Generate AI response using Claude with optional RAG context"""
         try:
+            # Check if Anthropic client is available
+            if not self.anthropic_client:
+                logger.error("Anthropic client not initialized")
+                return "I'm sorry, I'm unable to process your request at the moment. Please contact our support team at 1-800-TECH-HELP."
+            
             # Get conversation history
             history = self.get_conversation_history(conversation_id)
             
