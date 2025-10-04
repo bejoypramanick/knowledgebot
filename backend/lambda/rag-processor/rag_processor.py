@@ -29,7 +29,7 @@ formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(messag
 console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 
-# Trigger workflow - S3 notification permissions added manually
+# Trigger workflow - S3 notification permissions added manually - Enhanced logging added
 
 # Configuration
 MAIN_BUCKET = os.environ.get('MAIN_BUCKET', 'chatbot-storage-ap-south-1')
