@@ -484,6 +484,157 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         'search_method': 'sentence_transformers'
                     })
                 }
+            
+            elif action == 'generate_embeddings':
+                text = body.get('text', '')
+                logger.info(f"Generating embeddings for text: {text[:100]}...")
+                
+                try:
+                    # Generate embedding using sentence-transformers
+                    embedding = processor.get_docling_embedding(text)
+                    
+                    return {
+                        'statusCode': 200,
+                        'headers': {
+                            'Content-Type': 'application/json',
+                            'Access-Control-Allow-Origin': '*',
+                            'Access-Control-Allow-Headers': 'Content-Type',
+                            'Access-Control-Allow-Methods': 'POST, OPTIONS'
+                        },
+                        'body': json.dumps({
+                            'embedding': embedding,
+                            'text': text,
+                            'dimension': len(embedding),
+                            'model': 'all-MiniLM-L6-v2'
+                        })
+                    }
+                except Exception as e:
+                    logger.error(f"Error generating embeddings: {e}")
+                    return {
+                        'statusCode': 500,
+                        'headers': {
+                            'Content-Type': 'application/json',
+                            'Access-Control-Allow-Origin': '*',
+                            'Access-Control-Allow-Headers': 'Content-Type',
+                            'Access-Control-Allow-Methods': 'POST, OPTIONS'
+                        },
+                        'body': json.dumps({
+                            'error': 'Failed to generate embeddings',
+                            'message': str(e)
+                        })
+                    }
+            
+            elif action == 'list_documents':
+                logger.info("Listing documents in knowledge base")
+                
+                try:
+                    # Get all documents from DynamoDB
+                    response = processor.knowledge_base_table.scan()
+                    documents = []
+                    
+                    if 'Items' in response:
+                        # Group by document_id to get unique documents
+                        doc_map = {}
+                        for item in response['Items']:
+                            doc_id = item.get('document_id', '')
+                            if doc_id and doc_id not in doc_map:
+                                metadata = item.get('metadata', {})
+                                doc_map[doc_id] = {
+                                    'document_id': doc_id,
+                                    'source': metadata.get('source', 'Unknown'),
+                                    's3_key': metadata.get('s3_key', ''),
+                                    'original_filename': metadata.get('original_filename', ''),
+                                    'processed_at': metadata.get('processed_at', ''),
+                                    'chunk_count': 0
+                                }
+                            if doc_id in doc_map:
+                                doc_map[doc_id]['chunk_count'] += 1
+                        
+                        documents = list(doc_map.values())
+                    
+                    return {
+                        'statusCode': 200,
+                        'headers': {
+                            'Content-Type': 'application/json',
+                            'Access-Control-Allow-Origin': '*',
+                            'Access-Control-Allow-Headers': 'Content-Type',
+                            'Access-Control-Allow-Methods': 'POST, OPTIONS'
+                        },
+                        'body': json.dumps({
+                            'documents': documents,
+                            'count': len(documents)
+                        })
+                    }
+                except Exception as e:
+                    logger.error(f"Error listing documents: {e}")
+                    return {
+                        'statusCode': 500,
+                        'headers': {
+                            'Content-Type': 'application/json',
+                            'Access-Control-Allow-Origin': '*',
+                            'Access-Control-Allow-Headers': 'Content-Type',
+                            'Access-Control-Allow-Methods': 'POST, OPTIONS'
+                        },
+                        'body': json.dumps({
+                            'error': 'Failed to list documents',
+                            'message': str(e)
+                        })
+                    }
+            
+            elif action == 'get_document_content':
+                document_id = body.get('document_id', '')
+                logger.info(f"Getting content for document: {document_id}")
+                
+                try:
+                    # Get all chunks for the document
+                    response = processor.knowledge_base_table.query(
+                        IndexName='document_id-index',  # Assuming you have a GSI on document_id
+                        KeyConditionExpression='document_id = :doc_id',
+                        ExpressionAttributeValues={':doc_id': document_id}
+                    )
+                    
+                    chunks = []
+                    if 'Items' in response:
+                        for item in response['Items']:
+                            chunks.append({
+                                'chunk_id': item.get('chunk_id', ''),
+                                'content': item.get('content', ''),
+                                'hierarchy_level': item.get('hierarchy_level', 0),
+                                'metadata': item.get('metadata', {})
+                            })
+                    
+                    # Sort by hierarchy level and position
+                    chunks.sort(key=lambda x: (x['hierarchy_level'], x['chunk_id']))
+                    
+                    return {
+                        'statusCode': 200,
+                        'headers': {
+                            'Content-Type': 'application/json',
+                            'Access-Control-Allow-Origin': '*',
+                            'Access-Control-Allow-Headers': 'Content-Type',
+                            'Access-Control-Allow-Methods': 'POST, OPTIONS'
+                        },
+                        'body': json.dumps({
+                            'document_id': document_id,
+                            'chunks': chunks,
+                            'chunk_count': len(chunks)
+                        })
+                    }
+                except Exception as e:
+                    logger.error(f"Error getting document content: {e}")
+                    return {
+                        'statusCode': 500,
+                        'headers': {
+                            'Content-Type': 'application/json',
+                            'Access-Control-Allow-Origin': '*',
+                            'Access-Control-Allow-Headers': 'Content-Type',
+                            'Access-Control-Allow-Methods': 'POST, OPTIONS'
+                        },
+                        'body': json.dumps({
+                            'error': 'Failed to get document content',
+                            'message': str(e)
+                        })
+                    }
         
         return {
             'statusCode': 200,

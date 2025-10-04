@@ -1,5 +1,0 @@
-This is a test document for S3 presigned URL upload. It contains multiple paragraphs to test the chunking functionality.
-
-This is the second paragraph with more content to ensure it gets processed properly.
-
-This is the third paragraph to test the document processing system.
