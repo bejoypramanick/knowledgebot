@@ -659,9 +659,14 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             # Handle knowledge-base actions
             logger.info(f"Processing knowledge-base action: {action}")
             
-            # Call document management Lambda for knowledge-base operations
+            # Map action to appropriate Lambda function
+            if action == 'get-upload-url':
+                target_lambda = PRESIGNED_URL_LAMBDA
+            else:
+                target_lambda = DOCUMENT_MANAGEMENT_LAMBDA
+            
             try:
-                result = orchestrator.delegate_to_lambda(DOCUMENT_MANAGEMENT_LAMBDA, body)
+                result = orchestrator.delegate_to_lambda(target_lambda, body)
                 
                 if result.get('statusCode') == 200:
                     return {
