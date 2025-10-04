@@ -176,6 +176,8 @@ Available Lambda Actions:
 4. get_document_content - Get specific document content (parameters: document_id) - CAN PARALLELIZE
 5. simple_response - Provide a simple response without backend actions (parameters: response_text) - CANNOT PARALLELIZE
 
+IMPORTANT: For document upload requests, use simple_response to guide users to the Knowledge Base Management interface instead of trying to perform the upload action directly.
+
 {conversation_context}
 
 User Query: "{user_message}"
