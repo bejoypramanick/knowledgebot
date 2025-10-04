@@ -309,15 +309,109 @@ class RAGProcessor:
             logger.error(f"Error saving chunks to knowledge base: {e}")
 
     def search_similar_chunks(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
-        """Search for similar chunks using Docling's RAG search capabilities"""
+        """Search for similar chunks using stored embeddings"""
         try:
-            # Always use Docling RAG search on documents for best results
-            return self._search_docling_rag(query, limit)
+            # Use embedding-based search for better performance
+            return self._search_embeddings(query, limit)
             
         except Exception as e:
             logger.error(f"Error searching similar chunks: {e}")
             return []
 
+    def _search_embeddings(self, query: str, limit: int) -> List[Dict[str, Any]]:
+        """Search using stored embeddings for vector similarity"""
+        try:
+            # Get query embedding using Docling
+            query_embedding = self.get_docling_embedding(query)
+            if not query_embedding:
+                logger.warning("Could not generate query embedding, falling back to text search")
+                return self._search_docling_rag(query, limit)
+            
+            # Get all chunk IDs from DynamoDB
+            response = self.knowledge_base_table.scan()
+            if 'Items' not in response or not response['Items']:
+                logger.info("No chunks found in knowledge base")
+                return []
+            
+            # Calculate similarities and collect results
+            similar_chunks = []
+            
+            for item in response['Items']:
+                chunk_id = item.get('chunk_id')
+                if not chunk_id:
+                    continue
+                
+                try:
+                    # Get embedding from S3
+                    embedding_key = f"embeddings/{chunk_id}.json"
+                    embedding_response = self.s3_client.get_object(
+                        Bucket=self.embeddings_bucket,
+                        Key=embedding_key
+                    )
+                    embedding_data = json.loads(embedding_response['Body'].read())
+                    chunk_embedding = embedding_data.get('embedding', [])
+                    
+                    if not chunk_embedding:
+                        continue
+                    
+                    # Calculate cosine similarity
+                    similarity = self._cosine_similarity(query_embedding, chunk_embedding)
+                    
+                    # Add to results
+                    chunk_data = {
+                        'chunk_id': chunk_id,
+                        'content': item.get('content', ''),
+                        'metadata': {
+                            'source': item.get('metadata', {}).get('source', 'Unknown'),
+                            'document_id': item.get('document_id', ''),
+                            's3_key': item.get('metadata', {}).get('s3_key', ''),
+                            's3_bucket': self.documents_bucket,
+                            'page_number': item.get('metadata', {}).get('page_number', 0),
+                            'element_type': item.get('metadata', {}).get('element_type', 'text')
+                        },
+                        'hierarchy_level': item.get('hierarchy_level', 0),
+                        'parent_id': item.get('parent_id'),
+                        'similarity_score': similarity
+                    }
+                    similar_chunks.append(chunk_data)
+                    
+                except Exception as e:
+                    logger.warning(f"Could not retrieve embedding for chunk {chunk_id}: {e}")
+                    continue
+            
+            # Sort by similarity score and return top results
+            similar_chunks.sort(key=lambda x: x['similarity_score'], reverse=True)
+            logger.info(f"Found {len(similar_chunks)} chunks, returning top {limit}")
+            return similar_chunks[:limit]
+            
+        except Exception as e:
+            logger.error(f"Error in embedding search: {e}")
+            # Fallback to document processing search
+            return self._search_docling_rag(query, limit)
+
+    def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
+        """Calculate cosine similarity between two vectors"""
+        try:
+            import numpy as np
+            
+            # Convert to numpy arrays
+            a = np.array(vec1)
+            b = np.array(vec2)
+            
+            # Calculate cosine similarity
+            dot_product = np.dot(a, b)
+            norm_a = np.linalg.norm(a)
+            norm_b = np.linalg.norm(b)
+            
+            if norm_a == 0 or norm_b == 0:
+                return 0.0
+            
+            similarity = dot_product / (norm_a * norm_b)
+            return float(similarity)
+            
+        except Exception as e:
+            logger.error(f"Error calculating cosine similarity: {e}")
+            return 0.0
 
     def _search_docling_rag(self, query: str, limit: int) -> List[Dict[str, Any]]:
         """Search using document processing and text similarity"""
