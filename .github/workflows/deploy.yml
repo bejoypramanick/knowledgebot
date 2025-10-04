@@ -126,22 +126,20 @@ jobs:
     - name: Build and push Docker image
       run: |
         echo "Building and pushing ${{ matrix.service }}..."
-        cd backend/lambda/${{ matrix.service }}
-        
-        # Verify we're in the correct directory
-        echo "Current directory: $(pwd)"
-        echo "Contents: $(ls -la)"
         
         # Verify shared directory exists
-        if [ -d "../shared" ]; then
-          echo "Shared directory found"
+        if [ -d "backend/lambda/shared" ]; then
+          echo "Shared directory found at backend/lambda/shared"
         else
           echo "Warning: Shared directory not found, but continuing with build"
         fi
         
-        # Build Docker image with verbose output
+        # Build Docker image with correct context (lambda directory)
         echo "Starting Docker build for ${{ matrix.service }}..."
-        docker build -t chatbot-${{ matrix.service }} . || {
+        echo "Build context: backend/lambda"
+        echo "Dockerfile: backend/lambda/${{ matrix.service }}/Dockerfile"
+        
+        docker build -t chatbot-${{ matrix.service }} -f backend/lambda/${{ matrix.service }}/Dockerfile backend/lambda || {
           echo "Docker build failed for ${{ matrix.service }}"
           exit 1
         }
