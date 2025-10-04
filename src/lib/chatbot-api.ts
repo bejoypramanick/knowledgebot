@@ -29,6 +29,50 @@ export interface DocumentSource {
   similarity_score: number;
   content: string;
   metadata: any;
+  // Enhanced Docling fields
+  docling_features?: {
+    element_type: string;
+    is_structural: boolean;
+    is_visual: boolean;
+    is_tabular: boolean;
+    hierarchy_info: {
+      level: number;
+      parent_id?: string;
+      has_children: boolean;
+    };
+    visual_indicators: {
+      has_position: boolean;
+      has_color: boolean;
+      position?: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      };
+    };
+  };
+  // Enhanced metadata with Docling features
+  docling_element_type?: string;
+  visual_position?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  document_structure?: {
+    hierarchy_level: number;
+    parent_id?: string;
+    is_heading: boolean;
+    is_table: boolean;
+    is_figure: boolean;
+  };
+  processing_info?: {
+    processed_at: string;
+    source: string;
+    page_number: number;
+    s3_key: string;
+    s3_bucket: string;
+  };
 }
 
 export interface ChatResponse {
@@ -98,6 +142,78 @@ export class ChatbotAPI {
 
   async initializeSampleOrders(): Promise<any> {
     const response = await axios.post(`${this.apiBaseUrl}/orders`, { action: 'init' });
+    return response.data;
+  }
+
+  // Enhanced Docling search methods
+  async searchWithDocling(query: string, limit: number = 5): Promise<{
+    results: DocumentSource[];
+    query: string;
+    count: number;
+    search_method: string;
+    features: string[];
+  }> {
+    const payload = {
+      action: 'search',
+      query,
+      limit
+    };
+    const response = await axios.post(`${this.apiBaseUrl}/rag-search`, payload);
+    return response.data;
+  }
+
+  async searchByStructure(
+    query: string, 
+    structureType: 'headings' | 'tables' | 'figures' | 'all' = 'all',
+    limit: number = 5
+  ): Promise<{
+    results: DocumentSource[];
+    query: string;
+    structure_type: string;
+    count: number;
+    search_method: string;
+  }> {
+    const payload = {
+      action: 'search_by_structure',
+      query,
+      structure_type: structureType,
+      limit
+    };
+    const response = await axios.post(`${this.apiBaseUrl}/rag-search`, payload);
+    return response.data;
+  }
+
+  async getDocumentVisualization(documentId: string): Promise<{
+    document_id: string;
+    total_chunks: number;
+    structure: {
+      headings: any[];
+      tables: any[];
+      figures: any[];
+      text_blocks: any[];
+    };
+    visual_elements: any[];
+    hierarchy_tree: Record<number, any[]>;
+  }> {
+    const payload = {
+      action: 'get_document_visualization',
+      document_id: documentId
+    };
+    const response = await axios.post(`${this.apiBaseUrl}/rag-search`, payload);
+    return response.data;
+  }
+
+  async generateEmbeddings(text: string): Promise<{
+    embedding: number[];
+    text: string;
+    dimension: number;
+    model: string;
+  }> {
+    const payload = {
+      action: 'generate_embeddings',
+      text
+    };
+    const response = await axios.post(`${this.apiBaseUrl}/rag-search`, payload);
     return response.data;
   }
 }

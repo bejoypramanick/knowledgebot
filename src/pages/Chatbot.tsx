@@ -10,6 +10,8 @@ import DocumentViewer from "@/components/DocumentViewer";
 import DocumentContextPanel from "@/components/DocumentContextPanel";
 import DocumentPreview from "@/components/DocumentPreview";
 import SourceHighlighter from "@/components/SourceHighlighter";
+import StructureSearchPanel from "@/components/StructureSearchPanel";
+import DocumentStructureViewer from "@/components/DocumentStructureViewer";
 
 interface DocumentSource {
   chunk_id?: string;
@@ -48,8 +50,11 @@ const Chatbot = () => {
   const [showDocumentViewer, setShowDocumentViewer] = useState(false);
   const [showContextPanel, setShowContextPanel] = useState(false);
   const [showDocumentPreview, setShowDocumentPreview] = useState(false);
+  const [showStructureSearch, setShowStructureSearch] = useState(false);
+  const [showDocumentStructure, setShowDocumentStructure] = useState(false);
   const [selectedSource, setSelectedSource] = useState<DocumentSource | null>(null);
   const [allSources, setAllSources] = useState<DocumentSource[]>([]);
+  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
 
   // Initialize session on component mount
   useEffect(() => {
@@ -120,6 +125,11 @@ const Chatbot = () => {
       // Update all sources for document visualization
       if (response.sources && response.sources.length > 0) {
         setAllSources(prev => [...prev, ...response.sources]);
+        
+        // Set selected document ID if we have sources
+        if (response.sources.length > 0 && !selectedDocumentId) {
+          setSelectedDocumentId(response.sources[0].document_id);
+        }
       }
     } catch (err: any) {
       console.error('Error sending message:', err);
@@ -181,6 +191,26 @@ const Chatbot = () => {
                   <Layers className="h-4 w-4 mr-1" />
                   Structure
                 </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowStructureSearch(true)}
+                  className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                >
+                  <FileText className="h-4 w-4 mr-1" />
+                  Search
+                </Button>
+                {selectedDocumentId && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowDocumentStructure(true)}
+                    className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                  >
+                    <Layers className="h-4 w-4 mr-1" />
+                    Doc Structure
+                  </Button>
+                )}
               </div>
             )}
           </div>
@@ -289,6 +319,27 @@ const Chatbot = () => {
         onSourceSelect={setSelectedSource}
         isOpen={showDocumentPreview}
         onClose={() => setShowDocumentPreview(false)}
+      />
+
+      <StructureSearchPanel
+        isOpen={showStructureSearch}
+        onClose={() => setShowStructureSearch(false)}
+        onSourceSelect={(source) => {
+          setSelectedSource(source);
+          setShowDocumentPreview(true);
+        }}
+        apiBaseUrl={AWS_CONFIG.endpoints.apiGateway}
+      />
+
+      <DocumentStructureViewer
+        isOpen={showDocumentStructure}
+        onClose={() => setShowDocumentStructure(false)}
+        onSourceSelect={(source) => {
+          setSelectedSource(source);
+          setShowDocumentPreview(true);
+        }}
+        documentId={selectedDocumentId || ''}
+        apiBaseUrl={AWS_CONFIG.endpoints.apiGateway}
       />
     </div>
   );
