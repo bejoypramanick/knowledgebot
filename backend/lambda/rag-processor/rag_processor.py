@@ -200,6 +200,12 @@ class RAGProcessor:
                 chunks = self._extract_hierarchical_chunks(doc, s3_key, s3_metadata, markdown_key)
                 logger.info(f"✅ Created {len(chunks)} hierarchical chunks")
                 
+                # If no hierarchical chunks were created, fall back to Docling's default chunking
+                if len(chunks) == 0:
+                    logger.info("🔄 No hierarchical chunks found, falling back to Docling default chunking...")
+                    chunks = self._extract_default_chunks(doc, s3_key, s3_metadata, markdown_key)
+                    logger.info(f"✅ Created {len(chunks)} default chunks")
+                
                 return chunks
                 
             finally:
@@ -240,6 +246,66 @@ class RAGProcessor:
         
         # Create parent-child relationships
         chunks = self._establish_hierarchy(chunks)
+        
+        return chunks
+
+    def _extract_default_chunks(self, doc, s3_key: str, s3_metadata: Dict[str, Any], markdown_key: str = "") -> List[DocumentChunk]:
+        """Extract chunks using Docling's default chunking strategy as fallback"""
+        chunks = []
+        document_id = s3_metadata.get('document_id', s3_key.replace('documents/', '').split('.')[0])
+        filename = s3_key.split('/')[-1]
+        
+        try:
+            # Get the full text content from the document
+            full_text = doc.document.export_to_markdown()
+            
+            if not full_text or len(full_text.strip()) < 10:
+                logger.warning("⚠️ Document has no meaningful text content for chunking")
+                return chunks
+            
+            # Split text into chunks using simple paragraph-based chunking
+            paragraphs = [p.strip() for p in full_text.split('\n\n') if p.strip()]
+            
+            logger.info(f"📄 Found {len(paragraphs)} paragraphs for chunking")
+            
+            for i, paragraph in enumerate(paragraphs):
+                if len(paragraph) < 10:  # Skip very short paragraphs
+                    continue
+                    
+                # Create chunk
+                chunk_id = f"{document_id}_chunk_{i+1}"
+                
+                # Get embedding
+                embedding = self.get_docling_embedding(paragraph)
+                
+                chunk = DocumentChunk(
+                    content=paragraph,
+                    metadata={
+                        'document_id': document_id,
+                        'source': filename,
+                        's3_key': s3_key,
+                        's3_bucket': self.main_bucket,
+                        'markdown_key': markdown_key,
+                        'chunk_index': i + 1,
+                        'total_chunks': len(paragraphs),
+                        'chunking_method': 'default_paragraph',
+                        'processed_at': datetime.utcnow().isoformat(),
+                        'original_filename': s3_metadata.get('original_filename', filename),
+                        **{k: v for k, v in s3_metadata.items() if k not in ['document_id', 'original_filename', 'upload_timestamp']}
+                    },
+                    embedding=embedding,
+                    hierarchy_level=3  # Default level for paragraph chunks
+                )
+                
+                chunks.append(chunk)
+                logger.info(f"📝 Created chunk {i+1}: {paragraph[:50]}...")
+            
+            logger.info(f"✅ Default chunking created {len(chunks)} chunks")
+            
+        except Exception as e:
+            logger.error(f"❌ Error in default chunking: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
         
         return chunks
 
