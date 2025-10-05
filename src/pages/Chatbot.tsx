@@ -215,28 +215,27 @@ const Chatbot = () => {
                   </Button>
                 </>
               )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowStructureSearch(true)}
+                className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+              >
+                <FileText className="h-4 w-4 mr-1" />
+                Search
+              </Button>
+              {selectedDocumentId && (
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setShowStructureSearch(true)}
+                  onClick={() => setShowDocumentStructure(true)}
                   className="bg-white/10 border-white/20 text-white hover:bg-white/20"
                 >
-                  <FileText className="h-4 w-4 mr-1" />
-                  Search
+                  <Layers className="h-4 w-4 mr-1" />
+                  Doc Structure
                 </Button>
-                {selectedDocumentId && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowDocumentStructure(true)}
-                    className="bg-white/10 border-white/20 text-white hover:bg-white/20"
-                  >
-                    <Layers className="h-4 w-4 mr-1" />
-                    Doc Structure
-                  </Button>
-                )}
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
 
