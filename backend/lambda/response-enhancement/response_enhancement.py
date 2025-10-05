@@ -24,7 +24,11 @@ class ResponseEnhancementService:
         # Initialize Anthropic client
         try:
             logger.info(f"Initializing Anthropic client with API key: {CLAUDE_API_KEY[:10]}...")
-            self.anthropic_client = Anthropic(api_key=CLAUDE_API_KEY)
+            # Initialize with explicit parameters to avoid proxy issues (same as orchestrator)
+            self.anthropic_client = Anthropic(
+                api_key=CLAUDE_API_KEY,
+                timeout=30.0
+            )
             logger.info("Anthropic client initialized successfully")
         except Exception as e:
             logger.error(f"Error initializing Anthropic client: {e}")

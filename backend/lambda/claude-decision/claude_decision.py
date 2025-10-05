@@ -5,6 +5,7 @@ Responsibility: Analyze user queries and create action plans using Claude
 import json
 import boto3
 import os
+import time
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
 from anthropic import Anthropic
@@ -12,10 +13,129 @@ from datetime import datetime
 import logging
 import sys
 import traceback
+from functools import wraps
 
-# Add shared utilities to path
-sys.path.append('/opt/python')
-from error_handler import error_handler, ErrorHandler, ErrorType, ErrorSeverity, AIServiceError, ValidationError
+# Note: Shared utilities not available in this deployment
+# from error_handler import error_handler, ErrorHandler, ErrorType, ErrorSeverity, AIServiceError, ValidationError
+
+# Simple retry decorator
+def retry_with_backoff(max_retries: int = 3, base_delay: float = 1.0, max_delay: float = 10.0):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        raise e
+                    delay = min(base_delay * (2 ** attempt), max_delay)
+                    logger.warning(f"Attempt {attempt + 1} failed: {e}. Retrying in {delay}s...")
+                    time.sleep(delay)
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+# Simple error handler classes
+class ErrorType:
+    VALIDATION_ERROR = "VALIDATION_ERROR"
+    EXTERNAL_SERVICE_ERROR = "EXTERNAL_SERVICE_ERROR"
+    RATE_LIMIT_ERROR = "RATE_LIMIT_ERROR"
+    AUTHENTICATION_ERROR = "AUTHENTICATION_ERROR"
+    PERMISSION_ERROR = "PERMISSION_ERROR"
+    TIMEOUT_ERROR = "TIMEOUT_ERROR"
+    UNKNOWN_ERROR = "UNKNOWN_ERROR"
+
+class ErrorSeverity:
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+class ValidationError(Exception):
+    def __init__(self, message: str, error_context=None):
+        super().__init__(message)
+        self.error_context = error_context
+
+class AIServiceError(Exception):
+    def __init__(self, message: str, error_context=None):
+        super().__init__(message)
+        self.error_context = error_context
+
+class ErrorHandler:
+    @staticmethod
+    def classify_error(exception: Exception, service_name: str, operation: str):
+        # Simple error classification
+        if isinstance(exception, ValidationError):
+            return type('ErrorContext', (), {
+                'error_type': ErrorType.VALIDATION_ERROR,
+                'severity': ErrorSeverity.MEDIUM,
+                'service': service_name,
+                'operation': operation
+            })()
+        elif "rate limit" in str(exception).lower():
+            return type('ErrorContext', (), {
+                'error_type': ErrorType.RATE_LIMIT_ERROR,
+                'severity': ErrorSeverity.MEDIUM,
+                'service': service_name,
+                'operation': operation
+            })()
+        else:
+            return type('ErrorContext', (), {
+                'error_type': ErrorType.UNKNOWN_ERROR,
+                'severity': ErrorSeverity.HIGH,
+                'service': service_name,
+                'operation': operation
+            })()
+
+    @staticmethod
+    def log_error(error_context, exception: Exception, additional_data=None):
+        logger.error(f"Error in {error_context.service}.{error_context.operation}: {str(exception)}")
+        if additional_data:
+            logger.error(f"Additional data: {additional_data}")
+
+    @staticmethod
+    def create_error_response(error_context, message: str, status_code: int = 500):
+        return {
+            'statusCode': status_code,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Methods': 'POST, OPTIONS'
+            },
+            'body': json.dumps({
+                'error': error_context.error_type,
+                'message': message,
+                'service': error_context.service,
+                'operation': error_context.operation
+            })
+        }
+
+def error_handler(service_name: str, operation: str):
+    """Decorator for error handling in lambda functions"""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except (ValidationError, AIServiceError) as e:
+                # Re-raise custom errors with context
+                ErrorHandler.log_error(e.error_context, e)
+                return ErrorHandler.create_error_response(
+                    e.error_context, 
+                    e.message,
+                    status_code=400 if e.error_context.error_type == ErrorType.VALIDATION_ERROR else 500
+                )
+            except Exception as e:
+                # Classify and handle unknown errors
+                error_context = ErrorHandler.classify_error(e, service_name, operation)
+                ErrorHandler.log_error(error_context, e)
+                
+                status_code = 400 if error_context.error_type == ErrorType.VALIDATION_ERROR else 500
+                return ErrorHandler.create_error_response(error_context, str(e), status_code)
+        
+        return wrapper
+    return decorator
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -56,17 +176,17 @@ class ClaudeDecisionService:
         self.dynamodb = boto3.resource('dynamodb', region_name='ap-south-1')
         self.conversations_table = self.dynamodb.Table(CONVERSATIONS_TABLE)
         
-        # Initialize Anthropic client with error handling
+        # Initialize Anthropic client (same as orchestrator)
         try:
-            if not CLAUDE_API_KEY:
-                raise ValidationError("Claude API key not configured", 
-                    ErrorHandler.classify_error(Exception("Missing API key"), "claude-decision", "init"))
-            
-            self.anthropic_client = Anthropic(api_key=CLAUDE_API_KEY)
+            # Initialize with explicit parameters to avoid proxy issues
+            self.anthropic_client = Anthropic(
+                api_key=CLAUDE_API_KEY,
+                timeout=30.0
+            )
             logger.info("Claude client initialized successfully")
         except Exception as e:
-            error_context = ErrorHandler.classify_error(e, "claude-decision", "init")
-            raise AIServiceError(f"Failed to initialize Claude client: {str(e)}", error_context)
+            logger.error(f"Error initializing Anthropic client: {e}")
+            self.anthropic_client = None
 
     def get_conversation_history(self, conversation_id: str, limit: int = 10) -> List[Dict[str, Any]]:
         """Get conversation history from DynamoDB with error handling"""
@@ -235,6 +355,25 @@ Respond with a JSON object in this exact format:
     def make_decision(self, user_message: str, conversation_id: str) -> ActionPlan:
         """Main decision-making function with comprehensive error handling"""
         try:
+            # Check if Anthropic client is available
+            if not self.anthropic_client:
+                logger.error("Anthropic client not initialized - returning fallback action plan")
+                fallback_group = ActionGroup(
+                    group_id="fallback_group",
+                    actions=[LambdaAction(
+                        action_type="simple_response",
+                        parameters={"response_text": "I'm sorry, I'm unable to process your request at the moment."}
+                    )],
+                    execution_type="sequential",
+                    group_priority=1
+                )
+                return ActionPlan(
+                    action_groups=[fallback_group],
+                    reasoning="Anthropic client not available, using fallback response",
+                    requires_rag=False,
+                    total_actions=1
+                )
+            
             # Validate inputs
             if not user_message or not user_message.strip():
                 raise ValidationError("User message cannot be empty", 
