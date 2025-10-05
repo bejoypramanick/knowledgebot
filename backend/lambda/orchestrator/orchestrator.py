@@ -575,6 +575,7 @@ If clarification is needed, return:
             
             # Stage 3: Call Response Enhancement Lambda
             logger.info("Stage 3: Calling Response Enhancement Lambda...")
+            logger.info(f"Calling {RESPONSE_ENHANCEMENT_LAMBDA} with action_results: {json.dumps(action_results, indent=2)}")
             enhancement_result = self.delegate_to_lambda(
                 RESPONSE_ENHANCEMENT_LAMBDA,
                 {
@@ -585,9 +586,11 @@ If clarification is needed, return:
                     'action_plan': action_plan.dict()
                 }
             )
+            logger.info(f"Response Enhancement result: {json.dumps(enhancement_result, indent=2)}")
             
             if enhancement_result.get('statusCode') == 200:
                 body = json.loads(enhancement_result['body'])
+                logger.info(f"Parsed response enhancement body: {json.dumps(body, indent=2)}")
                 return {
                     "response": body.get('response', ''),
                     "sources": body.get('sources', []),
