@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { MessageCircle, Send, MoreHorizontal, Bot, Loader2, FileText, Layers, Calendar } from "lucide-react";
+import { MessageCircle, Send, MoreHorizontal, Bot, Loader2, FileText, Layers, Calendar, Trash2 } from "lucide-react";
 import { ChatbotAPI, ChatMessage, ChatResponse } from "@/lib/chatbot-api";
 import { AWS_CONFIG } from "@/lib/aws-config";
 import EnhancedChatMessage from "@/components/EnhancedChatMessage";
@@ -45,6 +45,7 @@ const Chatbot = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [apiClient] = useState(new ChatbotAPI(AWS_CONFIG.endpoints.apiGateway));
   const [error, setError] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   
   // Document visualization state
   const [showDocumentViewer, setShowDocumentViewer] = useState(false);
@@ -55,6 +56,15 @@ const Chatbot = () => {
   const [selectedSource, setSelectedSource] = useState<DocumentSource | null>(null);
   const [allSources, setAllSources] = useState<DocumentSource[]>([]);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
+
+  // Auto-scroll to bottom when messages change
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isLoading]);
 
   // Initialize session on component mount
   useEffect(() => {
@@ -142,6 +152,23 @@ const Chatbot = () => {
     }
   };
 
+  const handleClearAllChats = () => {
+    setMessages([]);
+    setAllSources([]);
+    setSelectedSource(null);
+    setSelectedDocumentId(null);
+    setError(null);
+    
+    // Add welcome message back
+    const welcomeMessage: Message = {
+      id: 'welcome',
+      text: "Hello! I'm your AI assistant. How can I help you today?",
+      sender: 'bot',
+      timestamp: new Date().toISOString()
+    };
+    setMessages([welcomeMessage]);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-secondary">
       <div className="max-w-4xl mx-auto h-screen flex flex-col">
@@ -155,26 +182,39 @@ const Chatbot = () => {
               <h1 className="text-xl font-bold text-primary-foreground">Chat with Mr. Helpful</h1>
             </div>
             {/* Document Visualization Controls */}
-            {allSources.length > 0 && (
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowDocumentViewer(true)}
-                  className="bg-white/10 border-white/20 text-white hover:bg-white/20"
-                >
-                  <FileText className="h-4 w-4 mr-1" />
-                  View Sources
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowContextPanel(true)}
-                  className="bg-white/10 border-white/20 text-white hover:bg-white/20"
-                >
-                  <Layers className="h-4 w-4 mr-1" />
-                  Structure
-                </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleClearAllChats}
+                className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                title="Clear all chats"
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                Clear All
+              </Button>
+              {allSources.length > 0 && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowDocumentViewer(true)}
+                    className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                  >
+                    <FileText className="h-4 w-4 mr-1" />
+                    View Sources
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowContextPanel(true)}
+                    className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                  >
+                    <Layers className="h-4 w-4 mr-1" />
+                    Structure
+                  </Button>
+                </>
+              )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -242,6 +282,9 @@ const Chatbot = () => {
               </div>
             </div>
           )}
+          
+          {/* Auto-scroll target */}
+          <div ref={messagesEndRef} />
         </div>
 
         {/* Input Area */}
