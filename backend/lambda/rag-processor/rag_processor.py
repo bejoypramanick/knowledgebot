@@ -78,15 +78,7 @@ class RAGProcessor:
             # Initialize Docling converter
             logger.info("🔧 Initializing Docling converter...")
             try:
-                self.converter = DocumentConverter(
-                    format_options={
-                        InputFormat.PDF: PdfPipelineOptions(
-                            do_ocr=True,
-                            do_table_structure=True,
-                            table_structure_options={"do_cell_matching": True}
-                        )
-                    }
-                )
+                self.converter = DocumentConverter()
                 logger.info("✅ Docling converter initialized successfully")
             except Exception as e:
                 logger.error(f"❌ Error initializing Docling converter: {e}")
