@@ -82,9 +82,10 @@ class RAGProcessor:
                 artifacts_path = "/tmp/docling_artifacts"
                 os.makedirs(artifacts_path, exist_ok=True)
                 
-                self.converter = DocumentConverter(
-                    artifacts_path=artifacts_path
-                )
+                # Set environment variable for Docling artifacts path
+                os.environ['DOCLING_ARTIFACTS_PATH'] = artifacts_path
+                
+                self.converter = DocumentConverter()
                 logger.info(f"✅ Docling converter initialized successfully with artifacts path: {artifacts_path}")
             except Exception as e:
                 logger.error(f"❌ Error initializing Docling converter: {e}")

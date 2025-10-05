@@ -42,8 +42,10 @@ class EnhancedRAGSearchService:
         artifacts_path = "/tmp/docling_artifacts"
         os.makedirs(artifacts_path, exist_ok=True)
         
+        # Set environment variable for Docling artifacts path
+        os.environ['DOCLING_ARTIFACTS_PATH'] = artifacts_path
+        
         self.converter = DocumentConverter(
-            artifacts_path=artifacts_path,
             format_options={
                 InputFormat.PDF: PdfPipelineOptions(
                     do_ocr=True,
