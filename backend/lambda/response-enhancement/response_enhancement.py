@@ -85,8 +85,16 @@ class ResponseEnhancementService:
     def enhance_response(self, user_message: str, action_results: Dict[str, Any], conversation_id: str, action_plan: Dict[str, Any] = None) -> Dict[str, Any]:
         """Enhance response using Claude with action results and sources"""
         try:
+            logger.info("=" * 30)
+            logger.info("RESPONSE_ENHANCEMENT STARTED")
+            logger.info(f"User message: '{user_message}'")
+            logger.info(f"Conversation ID: '{conversation_id}'")
+            logger.info(f"Action results keys: {list(action_results.keys()) if action_results else 'None'}")
+            logger.info(f"Action plan: {action_plan}")
+            logger.info(f"Anthropic client initialized: {bool(self.anthropic_client)}")
+            
             if not self.anthropic_client:
-                logger.error("Anthropic client not initialized")
+                logger.error("Anthropic client not initialized - returning error response")
                 return {
                     "response": "I'm sorry, I'm unable to process your request at the moment.",
                     "sources": []

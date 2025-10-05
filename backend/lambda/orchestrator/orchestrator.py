@@ -154,8 +154,14 @@ class Orchestrator:
     def claude_decision_making(self, user_message: str, conversation_id: str) -> ActionPlan:
         """Claude analyzes query and decides what Lambda actions to take"""
         try:
+            logger.info("=" * 20)
+            logger.info("CLAUDE_DECISION_MAKING STARTED")
+            logger.info(f"User message: '{user_message}'")
+            logger.info(f"Conversation ID: '{conversation_id}'")
+            logger.info(f"Anthropic client initialized: {bool(self.anthropic_client)}")
+            
             if not self.anthropic_client:
-                logger.error("Anthropic client not initialized")
+                logger.error("Anthropic client not initialized - returning empty action plan")
                 return ActionPlan(actions=[], reasoning="Claude client not available", requires_rag=False)
             
             # Get conversation history for context
@@ -530,12 +536,21 @@ If clarification is needed, return:
     def process_chat_request(self, user_message: str, conversation_id: str) -> Dict[str, Any]:
         """Main orchestration function that coordinates all other lambdas"""
         try:
-            logger.info(f"Starting orchestration for: {user_message}")
+            logger.info("=" * 30)
+            logger.info("PROCESS_CHAT_REQUEST STARTED")
+            logger.info(f"User message: '{user_message}'")
+            logger.info(f"Conversation ID: '{conversation_id}'")
+            logger.info(f"CLAUDE_API_KEY present: {bool(CLAUDE_API_KEY)}")
+            logger.info(f"CLAUDE_API_KEY length: {len(CLAUDE_API_KEY) if CLAUDE_API_KEY else 0}")
             
             # Stage 1: Claude Decision Making
             logger.info("Stage 1: Claude decision making...")
             action_plan = self.claude_decision_making(user_message, conversation_id)
-            logger.info(f"Action plan: {action_plan.reasoning}")
+            logger.info(f"Action plan created: {action_plan}")
+            logger.info(f"Action plan reasoning: {action_plan.reasoning}")
+            logger.info(f"Can proceed: {action_plan.can_proceed}")
+            logger.info(f"Needs clarification: {action_plan.needs_clarification}")
+            logger.info(f"Total actions: {action_plan.total_actions}")
             
             # Check if clarification is needed
             if action_plan.needs_clarification and not action_plan.can_proceed:
@@ -600,10 +615,16 @@ If clarification is needed, return:
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Main Lambda handler for orchestration"""
     try:
-        logger.info(f"Orchestrator event: {json.dumps(event)}")
+        logger.info("=" * 50)
+        logger.info("ORCHESTRATOR LAMBDA STARTED")
+        logger.info(f"Event: {json.dumps(event, indent=2)}")
+        logger.info(f"Context: {context}")
+        logger.info(f"Environment variables: CLAUDE_API_KEY present: {bool(CLAUDE_API_KEY)}")
+        logger.info(f"Environment variables: CLAUDE_API_KEY length: {len(CLAUDE_API_KEY) if CLAUDE_API_KEY else 0}")
         
         # Handle OPTIONS request for CORS preflight
         if event.get('httpMethod') == 'OPTIONS':
+            logger.info("Handling OPTIONS request for CORS")
             return {
                 'statusCode': 200,
                 'headers': {
@@ -617,7 +638,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
         # Parse the request
         if 'body' in event:
+            logger.info("Parsing request body")
             body = json.loads(event['body'])
+            logger.info(f"Parsed body: {json.dumps(body, indent=2)}")
         else:
             body = event
         
@@ -628,16 +651,21 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
         if action == 'chat':
             # Handle chat request
+            logger.info("Processing chat request")
             chat_request = ChatRequest(**body)
+            logger.info(f"Chat request: message='{chat_request.message}', conversation_id='{chat_request.conversation_id}', use_rag={chat_request.use_rag}")
             
             # Generate or use existing conversation ID
             conversation_id = chat_request.conversation_id or str(uuid.uuid4())
+            logger.info(f"Using conversation ID: {conversation_id}")
             
             # Process the chat request
+            logger.info("Calling orchestrator.process_chat_request")
             result = orchestrator.process_chat_request(
                 chat_request.message, 
                 conversation_id
             )
+            logger.info(f"Chat processing result: {json.dumps(result, indent=2)}")
             
             return {
                 'statusCode': 200,

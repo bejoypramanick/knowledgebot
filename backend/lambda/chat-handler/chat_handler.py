@@ -772,8 +772,12 @@ Provide only the final response text, no additional formatting or explanations."
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Main Lambda handler for chat operations"""
     try:
-        logger.info(f"Chat handler event: {json.dumps(event)}")
-        logger.info(f"Lambda context: {context}")
+        logger.info("=" * 50)
+        logger.info("CHAT_HANDLER LAMBDA STARTED")
+        logger.info(f"Event: {json.dumps(event, indent=2)}")
+        logger.info(f"Context: {context}")
+        logger.info(f"CLAUDE_API_KEY present: {bool(CLAUDE_API_KEY)}")
+        logger.info(f"CLAUDE_API_KEY length: {len(CLAUDE_API_KEY) if CLAUDE_API_KEY else 0}")
         logger.info(f"Environment variables: {dict(os.environ)}")
         
         # Handle OPTIONS request for CORS preflight
