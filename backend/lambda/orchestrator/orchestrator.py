@@ -90,6 +90,7 @@ class Orchestrator:
         """Generic method to delegate tasks to any Lambda function with timeout handling"""
         try:
             logger.info(f"Delegating to {lambda_name} with payload: {json.dumps(payload)}")
+            logger.info(f"Invocation type: {invocation_type}")
             
             # For ML-heavy functions like RAG search, use async invocation to avoid timeouts
             if lambda_name in [RAG_SEARCH_LAMBDA, RAG_PROCESSOR_LAMBDA] and invocation_type == 'RequestResponse':
@@ -105,15 +106,19 @@ class Orchestrator:
                     'async': True
                 }
             
+            logger.info(f"Invoking {lambda_name} synchronously...")
             response = self.lambda_client.invoke(
                 FunctionName=lambda_name,
                 InvocationType=invocation_type,
                 Payload=json.dumps(payload)
             )
+            logger.info(f"Lambda invocation response: {response}")
             
             if invocation_type == 'RequestResponse':
-                result = json.loads(response['Payload'].read())
-                logger.info(f"Response from {lambda_name}: {json.dumps(result)}")
+                payload_data = response['Payload'].read()
+                logger.info(f"Raw payload from {lambda_name}: {payload_data}")
+                result = json.loads(payload_data)
+                logger.info(f"Parsed response from {lambda_name}: {json.dumps(result)}")
                 return result
             else:
                 logger.info(f"Async invocation to {lambda_name} completed")
@@ -121,6 +126,9 @@ class Orchestrator:
                 
         except Exception as e:
             logger.error(f"Error delegating to {lambda_name}: {e}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return {
                 'statusCode': 500,
                 'error': f'Error calling {lambda_name}',
@@ -576,17 +584,26 @@ If clarification is needed, return:
             # Stage 3: Call Response Enhancement Lambda
             logger.info("Stage 3: Calling Response Enhancement Lambda...")
             logger.info(f"Calling {RESPONSE_ENHANCEMENT_LAMBDA} with action_results: {json.dumps(action_results, indent=2)}")
-            enhancement_result = self.delegate_to_lambda(
-                RESPONSE_ENHANCEMENT_LAMBDA,
-                {
-                    'action': 'enhance_response',
-                    'user_message': user_message,
-                    'action_results': action_results,
-                    'conversation_id': conversation_id,
-                    'action_plan': action_plan.dict()
+            
+            try:
+                enhancement_result = self.delegate_to_lambda(
+                    RESPONSE_ENHANCEMENT_LAMBDA,
+                    {
+                        'action': 'enhance_response',
+                        'user_message': user_message,
+                        'action_results': action_results,
+                        'conversation_id': conversation_id,
+                        'action_plan': action_plan.dict()
+                    }
+                )
+                logger.info(f"Response Enhancement result: {json.dumps(enhancement_result, indent=2)}")
+            except Exception as e:
+                logger.error(f"Error calling response enhancement Lambda: {e}")
+                enhancement_result = {
+                    'statusCode': 500,
+                    'error': f'Error calling {RESPONSE_ENHANCEMENT_LAMBDA}',
+                    'message': str(e)
                 }
-            )
-            logger.info(f"Response Enhancement result: {json.dumps(enhancement_result, indent=2)}")
             
             if enhancement_result.get('statusCode') == 200:
                 body = json.loads(enhancement_result['body'])
