@@ -34,6 +34,82 @@ def retry_with_backoff(max_retries: int = 3, base_delay: float = 1.0, max_delay:
         return wrapper
     return decorator
 
+# Simple error handler classes
+class ErrorType:
+    VALIDATION_ERROR = "VALIDATION_ERROR"
+    EXTERNAL_SERVICE_ERROR = "EXTERNAL_SERVICE_ERROR"
+    RATE_LIMIT_ERROR = "RATE_LIMIT_ERROR"
+    AUTHENTICATION_ERROR = "AUTHENTICATION_ERROR"
+    PERMISSION_ERROR = "PERMISSION_ERROR"
+    TIMEOUT_ERROR = "TIMEOUT_ERROR"
+    UNKNOWN_ERROR = "UNKNOWN_ERROR"
+
+class ErrorSeverity:
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+class ValidationError(Exception):
+    def __init__(self, message: str, error_context=None):
+        super().__init__(message)
+        self.error_context = error_context
+
+class ExternalServiceError(Exception):
+    def __init__(self, message: str, error_context=None):
+        super().__init__(message)
+        self.error_context = error_context
+
+class ErrorHandler:
+    @staticmethod
+    def classify_error(exception: Exception, service_name: str, operation: str):
+        # Simple error classification
+        if isinstance(exception, ValidationError):
+            return type('ErrorContext', (), {
+                'error_type': ErrorType.VALIDATION_ERROR,
+                'severity': ErrorSeverity.MEDIUM,
+                'service': service_name,
+                'operation': operation
+            })()
+        elif "rate limit" in str(exception).lower():
+            return type('ErrorContext', (), {
+                'error_type': ErrorType.RATE_LIMIT_ERROR,
+                'severity': ErrorSeverity.MEDIUM,
+                'service': service_name,
+                'operation': operation
+            })()
+        else:
+            return type('ErrorContext', (), {
+                'error_type': ErrorType.UNKNOWN_ERROR,
+                'severity': ErrorSeverity.HIGH,
+                'service': service_name,
+                'operation': operation
+            })()
+
+    @staticmethod
+    def log_error(error_context, exception: Exception, additional_data=None):
+        logger.error(f"Error in {error_context.service}.{error_context.operation}: {str(exception)}")
+        if additional_data:
+            logger.error(f"Additional data: {additional_data}")
+
+    @staticmethod
+    def create_error_response(error_context, message: str, status_code: int = 500):
+        return {
+            'statusCode': status_code,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Methods': 'POST, OPTIONS'
+            },
+            'body': json.dumps({
+                'error': error_context.error_type,
+                'message': message,
+                'service': error_context.service,
+                'operation': error_context.operation
+            })
+        }
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

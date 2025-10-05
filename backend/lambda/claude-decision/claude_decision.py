@@ -351,7 +351,6 @@ Respond with a JSON object in this exact format:
             error_context = ErrorHandler.classify_error(e, "claude-decision", "parse_claude_response")
             raise ValidationError(f"Failed to parse Claude response: {str(e)}", error_context)
 
-    @error_handler("claude-decision", "make_decision")
     def make_decision(self, user_message: str, conversation_id: str) -> ActionPlan:
         """Main decision-making function with comprehensive error handling"""
         try:
