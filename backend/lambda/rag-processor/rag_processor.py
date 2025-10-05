@@ -75,11 +75,17 @@ class RAGProcessor:
                 logger.error(f"❌ Error initializing Anthropic client: {e}")
                 self.anthropic_client = None
             
-            # Initialize Docling converter
+            # Initialize Docling converter with /tmp artifacts path
             logger.info("🔧 Initializing Docling converter...")
             try:
-                self.converter = DocumentConverter()
-                logger.info("✅ Docling converter initialized successfully")
+                # Create artifacts directory in /tmp for writable access
+                artifacts_path = "/tmp/docling_artifacts"
+                os.makedirs(artifacts_path, exist_ok=True)
+                
+                self.converter = DocumentConverter(
+                    artifacts_path=artifacts_path
+                )
+                logger.info(f"✅ Docling converter initialized successfully with artifacts path: {artifacts_path}")
             except Exception as e:
                 logger.error(f"❌ Error initializing Docling converter: {e}")
                 raise e

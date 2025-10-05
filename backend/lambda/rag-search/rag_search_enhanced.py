@@ -38,8 +38,12 @@ class EnhancedRAGSearchService:
         self.main_bucket = MAIN_BUCKET
         self.knowledge_base_table = self.dynamodb.Table(KNOWLEDGE_BASE_TABLE)
         
-        # Initialize Docling converter for advanced features
+        # Initialize Docling converter for advanced features with /tmp artifacts path
+        artifacts_path = "/tmp/docling_artifacts"
+        os.makedirs(artifacts_path, exist_ok=True)
+        
         self.converter = DocumentConverter(
+            artifacts_path=artifacts_path,
             format_options={
                 InputFormat.PDF: PdfPipelineOptions(
                     do_ocr=True,
