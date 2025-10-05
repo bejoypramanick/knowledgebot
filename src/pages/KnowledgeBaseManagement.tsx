@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
@@ -178,9 +178,9 @@ const KnowledgeBaseManagement = () => {
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>Upload Document to Knowledge Base</DialogTitle>
-                <p className="text-sm text-muted-foreground">
+                <DialogDescription>
                   Upload documents to enhance your chatbot's knowledge base
-                </p>
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 {/* File Selection */}

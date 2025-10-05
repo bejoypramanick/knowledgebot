@@ -33,17 +33,13 @@ class PresignedUrlService:
             s3_key = f"documents/{uuid.uuid4()}{file_extension}"
             
             # Generate presigned URL for PUT operation with regional endpoint
+            # Don't include metadata in the presigned URL signature to avoid timestamp mismatch
             presigned_url = self.s3_client.generate_presigned_url(
                 'put_object',
                 Params={
                     'Bucket': self.main_bucket,
                     'Key': s3_key,
-                    'ContentType': content_type,
-                    'Metadata': {
-                        'original-filename': filename,
-                        'upload-timestamp': datetime.utcnow().isoformat(),
-                        'metadata': json.dumps(metadata or {})
-                    }
+                    'ContentType': content_type
                 },
                 ExpiresIn=3600  # 1 hour
             )

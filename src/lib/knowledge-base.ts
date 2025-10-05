@@ -98,8 +98,18 @@ export class KnowledgeBaseManager {
   }
 
   async getDocuments(): Promise<DocumentsListResponse> {
-    const response = await axios.post(`${this.apiBaseUrl}/knowledge-base`, { action: 'list' });
-    return response.data;
+    try {
+      const response = await axios.post(`${this.apiBaseUrl}/knowledge-base`, { action: 'list' });
+      return response.data;
+    } catch (error) {
+      console.error('Error in getDocuments:', error);
+      if (error.response) {
+        console.error('Response data:', error.response.data);
+        console.error('Response status:', error.response.status);
+        console.error('Response headers:', error.response.headers);
+      }
+      throw error;
+    }
   }
 
   async getPresignedUploadUrl(file: File, metadata: Partial<DocumentMetadata> = {}): Promise<PresignedUrlResponse> {
@@ -123,49 +133,15 @@ export class KnowledgeBaseManager {
   }
 
   async uploadToS3(file: File, presignedUrl: string, metadata: Partial<DocumentMetadata> = {}): Promise<void> {
-    // Extract metadata from the presigned URL response
-    const url = new URL(presignedUrl);
-    const signedHeaders = url.searchParams.get('X-Amz-SignedHeaders');
+    // Add metadata headers to the upload
+    const timestamp = new Date().toISOString();
     
     let headers: Record<string, string> = {
-      'Content-Type': file.type || 'application/octet-stream'
+      'Content-Type': file.type || 'application/octet-stream',
+      'x-amz-meta-original-filename': file.name,
+      'x-amz-meta-upload-timestamp': timestamp,
+      'x-amz-meta-metadata': JSON.stringify(metadata)
     };
-
-    // If the presigned URL expects metadata headers, include them
-    if (signedHeaders && signedHeaders.includes('x-amz-meta-')) {
-      const documentId = crypto.randomUUID();
-      const timestamp = new Date().toISOString();
-      
-      console.log('Expected signed headers:', signedHeaders);
-      
-      // Check which specific metadata headers are expected
-      if (signedHeaders.includes('x-amz-meta-author')) {
-        headers['x-amz-meta-author'] = metadata.author || 'unknown';
-      }
-      if (signedHeaders.includes('x-amz-meta-category')) {
-        headers['x-amz-meta-category'] = metadata.category || 'general';
-      }
-      if (signedHeaders.includes('x-amz-meta-tags')) {
-        headers['x-amz-meta-tags'] = JSON.stringify(metadata.tags || []);
-      }
-      if (signedHeaders.includes('x-amz-meta-document_id')) {
-        headers['x-amz-meta-document_id'] = documentId;
-      }
-      if (signedHeaders.includes('x-amz-meta-original-filename')) {
-        headers['x-amz-meta-original-filename'] = file.name;
-      }
-      if (signedHeaders.includes('x-amz-meta-title')) {
-        headers['x-amz-meta-title'] = metadata.title || file.name;
-      }
-      if (signedHeaders.includes('x-amz-meta-upload-timestamp')) {
-        headers['x-amz-meta-upload-timestamp'] = timestamp;
-      }
-      if (signedHeaders.includes('x-amz-meta-metadata')) {
-        headers['x-amz-meta-metadata'] = JSON.stringify(metadata);
-      }
-      
-      console.log('Including metadata headers:', Object.keys(headers).filter(k => k.startsWith('x-amz-meta-')));
-    }
 
     console.log('Upload headers:', headers);
     console.log('Presigned URL:', presignedUrl);

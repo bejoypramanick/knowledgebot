@@ -169,7 +169,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
         doc_service = DocumentManagementService()
         
-        if action == 'list_documents':
+        if action == 'list_documents' or action == 'list':
             limit = body.get('limit', 10)
             logger.info(f"Listing documents with limit: {limit}")
             
