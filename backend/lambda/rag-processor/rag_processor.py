@@ -83,7 +83,14 @@ class RAGProcessor:
                 os.makedirs(artifacts_path, exist_ok=True)
                 
                 self.converter = DocumentConverter(
-                    artifacts_path=artifacts_path
+                    artifacts_path=artifacts_path,
+                    format_options={
+                        InputFormat.PDF: PdfPipelineOptions(
+                            do_ocr=False,  # Disable OCR temporarily to speed up initialization
+                            do_table_structure=True,
+                            table_structure_options={"do_cell_matching": True}
+                        )
+                    }
                 )
                 logger.info(f"✅ Docling converter initialized successfully with artifacts path: {artifacts_path}")
             except Exception as e:
