@@ -8,13 +8,18 @@ import os
 from typing import Dict, Any, List, Optional
 import logging
 import numpy as np
-from docling.document_converter import DocumentConverter
-from docling.datamodel.base_models import InputFormat
-from docling.datamodel.pipeline_options import PdfPipelineOptions
-from docling.datamodel.document import Document
-from docling.datamodel.text import TextElement
-from docling.datamodel.table import Table
-from docling.datamodel.figure import Figure
+try:
+    from docling.document_converter import DocumentConverter
+    from docling.datamodel.base_models import InputFormat
+    from docling.datamodel.pipeline_options import PdfPipelineOptions
+    from docling.datamodel.document import Document
+    from docling.datamodel.text import TextElement
+    from docling.datamodel.table import Table
+    from docling.datamodel.figure import Figure
+    DOCLING_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Docling not available: {e}")
+    DOCLING_AVAILABLE = False
 import tempfile
 import uuid
 
@@ -69,6 +74,9 @@ class EnhancedRAGSearchService:
             raise Exception(f"Failed to generate embedding with sentence-transformers: {e}")
 
     def search_with_docling_metadata(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+        if not DOCLING_AVAILABLE:
+            logger.warning("Docling not available, falling back to basic search")
+            return self.search_similar_chunks(query, limit)
         """Enhanced search using Docling metadata and visualization features"""
         try:
             # Get query embedding
@@ -137,6 +145,8 @@ class EnhancedRAGSearchService:
             return []
 
     def _enhance_metadata_with_docling(self, item: Dict[str, Any], metadata: Dict[str, Any]) -> Dict[str, Any]:
+        if not DOCLING_AVAILABLE:
+            return metadata
         """Enhance metadata with Docling-specific information"""
         enhanced = metadata.copy()
         
@@ -174,6 +184,8 @@ class EnhancedRAGSearchService:
         return enhanced
 
     def _extract_docling_features(self, item: Dict[str, Any]) -> Dict[str, Any]:
+        if not DOCLING_AVAILABLE:
+            return {}
         """Extract Docling-specific features for visualization"""
         metadata = item.get('metadata', {})
         element_type = metadata.get('element_type', 'text')
