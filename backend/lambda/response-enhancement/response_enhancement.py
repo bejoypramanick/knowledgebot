@@ -10,6 +10,8 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Force rebuild trigger - response-enhancement Lambda deployment
+
 # Configuration
 CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY')
 CONVERSATIONS_TABLE = os.environ.get('CONVERSATIONS_TABLE', 'chatbot-conversations')
@@ -21,9 +23,13 @@ class ResponseEnhancementService:
         
         # Initialize Anthropic client
         try:
+            logger.info(f"Initializing Anthropic client with API key: {CLAUDE_API_KEY[:10]}...")
             self.anthropic_client = Anthropic(api_key=CLAUDE_API_KEY)
+            logger.info("Anthropic client initialized successfully")
         except Exception as e:
             logger.error(f"Error initializing Anthropic client: {e}")
+            logger.error(f"API key present: {bool(CLAUDE_API_KEY)}")
+            logger.error(f"API key length: {len(CLAUDE_API_KEY) if CLAUDE_API_KEY else 0}")
             self.anthropic_client = None
 
     def get_conversation_history(self, conversation_id: str, limit: int = 10) -> List[Dict[str, Any]]:
