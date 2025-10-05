@@ -616,6 +616,54 @@ jobs:
         
         echo "🎉 S3 bucket notifications configured successfully!"
 
+    - name: Configure S3 CORS Policy
+      run: |
+        echo "🌐 Configuring S3 CORS policy for frontend access..."
+        
+        BUCKET_NAME="chatbot-storage-ap-south-1"
+        
+        # Create CORS configuration
+        cat > s3-cors-config.json << EOF
+        {
+            "CORSRules": [
+                {
+                    "AllowedHeaders": ["*"],
+                    "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
+                    "AllowedOrigins": [
+                        "http://localhost:3000",
+                        "http://localhost:8080",
+                        "http://127.0.0.1:3000",
+                        "http://127.0.0.1:8080"
+                    ],
+                    "ExposeHeaders": [
+                        "ETag",
+                        "x-amz-meta-metadata",
+                        "x-amz-meta-original-filename",
+                        "x-amz-meta-upload-timestamp",
+                        "x-amz-request-id",
+                        "x-amz-version-id"
+                    ],
+                    "MaxAgeSeconds": 3000
+                }
+            ]
+        }
+        EOF
+        
+        # Apply CORS configuration
+        aws s3api put-bucket-cors \
+          --bucket $BUCKET_NAME \
+          --cors-configuration file://s3-cors-config.json \
+          --region ${{ env.AWS_REGION }}
+        
+        # Verify CORS configuration
+        echo "✅ Verifying S3 CORS configuration..."
+        aws s3api get-bucket-cors --bucket $BUCKET_NAME --region ${{ env.AWS_REGION }}
+        
+        # Clean up
+        rm -f s3-cors-config.json
+        
+        echo "🎉 S3 CORS policy configured successfully!"
+
     - name: Update Frontend Configuration
       run: |
         # Update the frontend configuration with the new API URL

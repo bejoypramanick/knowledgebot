@@ -10,7 +10,8 @@ import {
   ChevronDown, 
   ChevronRight,
   Copy,
-  Check
+  Check,
+  Clock
 } from 'lucide-react';
 import DocumentViewer from './DocumentViewer';
 
@@ -68,13 +69,17 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
 
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp);
-    const now = new Date();
-    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
     
-    if (diffInMinutes < 1) return 'Just now';
-    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
-    return date.toLocaleDateString();
+    // Format as DDD dd/MM/yyyy HH:mm:SS
+    const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'short' });
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    
+    return `${dayOfWeek} ${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
   };
 
   const getElementTypeIcon = (elementType: string) => {
@@ -97,6 +102,7 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
     if (score >= 0.6) return 'secondary';
     return 'outline';
   };
+
 
   return (
     <>
@@ -214,13 +220,19 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
               </div>
             )}
 
-            <p className={`text-xs mt-2 ${
+            <div className={`flex items-center gap-1 mt-2 ${
               sender === 'user' 
                 ? 'text-primary-foreground/70' 
                 : 'text-muted-foreground'
             }`}>
-              {formatTimestamp(timestamp)}
-            </p>
+              <Clock className="h-3 w-3" />
+              <span 
+                className="text-xs cursor-help" 
+                title={`Full timestamp: ${formatTimestamp(timestamp)}`}
+              >
+                {formatTimestamp(timestamp)}
+              </span>
+            </div>
           </div>
         </div>
       </div>

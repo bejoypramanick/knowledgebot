@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { MessageCircle, Send, MoreHorizontal, Bot, Loader2, FileText, Layers } from "lucide-react";
+import { MessageCircle, Send, MoreHorizontal, Bot, Loader2, FileText, Layers, Calendar } from "lucide-react";
 import { ChatbotAPI, ChatMessage, ChatResponse } from "@/lib/chatbot-api";
 import { AWS_CONFIG } from "@/lib/aws-config";
 import EnhancedChatMessage from "@/components/EnhancedChatMessage";
@@ -68,11 +68,7 @@ const Chatbot = () => {
           id: 'welcome',
           text: "Hello! I'm your AI assistant. How can I help you today?",
           sender: 'bot',
-          timestamp: new Date().toLocaleTimeString('en-US', { 
-            hour: '2-digit', 
-            minute: '2-digit',
-            hour12: false 
-          })
+          timestamp: new Date().toISOString()
         };
         setMessages([welcomeMessage]);
       } catch (err) {
@@ -91,11 +87,7 @@ const Chatbot = () => {
       id: Date.now().toString(),
       text: newMessage,
       sender: 'user',
-      timestamp: new Date().toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: false 
-      })
+      timestamp: new Date().toISOString()
     };
 
     setMessages(prev => [...prev, userMessage]);
@@ -110,11 +102,7 @@ const Chatbot = () => {
         id: (Date.now() + 1).toString(),
         text: response.response,
         sender: 'bot',
-        timestamp: new Date().toLocaleTimeString('en-US', { 
-          hour: '2-digit', 
-          minute: '2-digit',
-          hour12: false 
-        }),
+        timestamp: new Date().toISOString(),
         metadata: {
           sources: response.sources || []
         }
@@ -139,11 +127,7 @@ const Chatbot = () => {
         id: (Date.now() + 1).toString(),
         text: "I'm sorry, I encountered an error. Please try again or check your connection.",
         sender: 'bot',
-        timestamp: new Date().toLocaleTimeString('en-US', { 
-          hour: '2-digit', 
-          minute: '2-digit',
-          hour12: false 
-        })
+        timestamp: new Date().toISOString()
       };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
