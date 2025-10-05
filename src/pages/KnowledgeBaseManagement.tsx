@@ -46,24 +46,32 @@ const KnowledgeBaseManagement = () => {
   const loadDocuments = async () => {
     try {
       setIsLoading(true);
+      console.log('Loading documents...');
       const response = await knowledgeBaseManager.getDocuments();
+      console.log('Raw API response:', response);
+      
       // Transform the response data to match our Document interface
-      const transformedDocuments = (response.documents || []).map((doc: any) => ({
-        id: doc.chunk_id || doc.document_id || Math.random().toString(),
-        name: doc.title || doc.metadata?.source || 'Unknown Document',
-        type: doc.metadata?.document_type || 'txt',
-        status: doc.status || 'processed',
-        chunks: doc.chunks_count ? [doc] : [],
-        metadata: {
-          title: doc.title || doc.metadata?.source,
-          category: doc.metadata?.category || 'general',
-          tags: doc.metadata?.tags || [],
-          author: doc.metadata?.author || 'unknown',
-          sourceUrl: doc.metadata?.sourceUrl
-        },
-        createdAt: doc.created_at || new Date().toISOString(),
-        updatedAt: doc.created_at || new Date().toISOString()
-      }));
+      const transformedDocuments = (response.documents || []).map((doc: any) => {
+        console.log('Processing document:', doc);
+        return {
+          id: doc.chunk_id || doc.document_id || Math.random().toString(),
+          name: doc.title || doc.metadata?.source || doc.original_filename || 'Unknown Document',
+          type: doc.metadata?.document_type || 'txt',
+          status: doc.status || 'processed',
+          chunks: doc.chunks_count ? [doc] : [],
+          metadata: {
+            title: doc.title || doc.metadata?.source || doc.original_filename,
+            category: doc.metadata?.category || 'general',
+            tags: doc.metadata?.tags || [],
+            author: doc.metadata?.author || 'unknown',
+            sourceUrl: doc.metadata?.sourceUrl
+          },
+          createdAt: doc.created_at || doc.processed_at || new Date().toISOString(),
+          updatedAt: doc.created_at || doc.processed_at || new Date().toISOString()
+        };
+      });
+      
+      console.log('Transformed documents:', transformedDocuments);
       setDocuments(transformedDocuments);
     } catch (err) {
       console.error('Error loading documents:', err);

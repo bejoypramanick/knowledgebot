@@ -23,7 +23,10 @@ class DocumentManagementService:
         """List documents in the knowledge base"""
         try:
             # Get all documents from DynamoDB
+            logger.info("Scanning DynamoDB table for documents...")
             response = self.knowledge_base_table.scan()
+            logger.info(f"Found {len(response.get('Items', []))} items in DynamoDB")
+            
             documents = []
             
             if 'Items' in response:
@@ -31,6 +34,7 @@ class DocumentManagementService:
                 doc_map = {}
                 for item in response['Items']:
                     doc_id = item.get('document_id', '')
+                    logger.info(f"Processing item with document_id: {doc_id}")
                     if doc_id and doc_id not in doc_map:
                         metadata = item.get('metadata', {})
                         doc_map[doc_id] = {
@@ -41,14 +45,18 @@ class DocumentManagementService:
                             'processed_at': metadata.get('processed_at', ''),
                             'chunk_count': 0
                         }
+                        logger.info(f"Created document entry for {doc_id}: {doc_map[doc_id]}")
                     if doc_id in doc_map:
                         doc_map[doc_id]['chunk_count'] += 1
                 
                 documents = list(doc_map.values())
+                logger.info(f"Found {len(documents)} unique documents")
             
             # Sort by processed_at and limit results
             documents.sort(key=lambda x: x.get('processed_at', ''), reverse=True)
-            return documents[:limit]
+            result = documents[:limit]
+            logger.info(f"Returning {len(result)} documents")
+            return result
             
         except Exception as e:
             logger.error(f"Error listing documents: {e}")

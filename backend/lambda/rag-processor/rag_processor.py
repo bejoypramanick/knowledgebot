@@ -218,7 +218,9 @@ class RAGProcessor:
     def _extract_hierarchical_chunks(self, doc, s3_key: str, s3_metadata: Dict[str, Any], markdown_key: str = "") -> List[DocumentChunk]:
         """Extract hierarchical chunks from Docling document"""
         chunks = []
-        document_id = s3_metadata.get('document_id', str(uuid.uuid4()))
+        # Generate a consistent document_id based on the S3 key
+        # This ensures we can group chunks by document even if metadata doesn't contain document_id
+        document_id = s3_metadata.get('document_id', s3_key.replace('documents/', '').split('.')[0])
         filename = s3_key.split('/')[-1]
         
         # Process document structure
