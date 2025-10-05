@@ -86,25 +86,17 @@ class Orchestrator:
             logger.error(f"Error initializing Anthropic client: {e}")
             self.anthropic_client = None
 
-    def delegate_to_lambda(self, lambda_name: str, payload: Dict[str, Any], invocation_type: str = 'RequestResponse', timeout_seconds: int = 25) -> Dict[str, Any]:
+    def delegate_to_lambda(self, lambda_name: str, payload: Dict[str, Any], invocation_type: str = 'RequestResponse', timeout_seconds: int = 30) -> Dict[str, Any]:
         """Generic method to delegate tasks to any Lambda function with timeout handling"""
         try:
             logger.info(f"Delegating to {lambda_name} with payload: {json.dumps(payload)}")
             logger.info(f"Invocation type: {invocation_type}")
             
-            # For ML-heavy functions like RAG search, use async invocation to avoid timeouts
+            # For chat interactions, always use synchronous invocation for immediate responses
+            # Only use async for background processing tasks
             if lambda_name in [RAG_SEARCH_LAMBDA, RAG_PROCESSOR_LAMBDA] and invocation_type == 'RequestResponse':
-                logger.info(f"Using async invocation for ML-heavy function: {lambda_name}")
-                response = self.lambda_client.invoke(
-                    FunctionName=lambda_name,
-                    InvocationType='Event',  # Async invocation
-                    Payload=json.dumps(payload)
-                )
-                return {
-                    'statusCode': 202,
-                    'message': f'Async processing started for {lambda_name}',
-                    'async': True
-                }
+                logger.info(f"Using synchronous invocation for RAG search: {lambda_name}")
+                # Keep as synchronous for chat responses
             
             logger.info(f"Invoking {lambda_name} synchronously...")
             response = self.lambda_client.invoke(
