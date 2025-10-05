@@ -133,14 +133,10 @@ export class KnowledgeBaseManager {
   }
 
   async uploadToS3(file: File, presignedUrl: string, metadata: Partial<DocumentMetadata> = {}): Promise<void> {
-    // Add metadata headers to the upload
-    const timestamp = new Date().toISOString();
-    
+    // The presigned URL only includes content-type and host in its signature
+    // We should not send any metadata headers as they're not in the signed headers
     let headers: Record<string, string> = {
-      'Content-Type': file.type || 'application/octet-stream',
-      'x-amz-meta-original-filename': file.name,
-      'x-amz-meta-upload-timestamp': timestamp,
-      'x-amz-meta-metadata': JSON.stringify(metadata)
+      'Content-Type': file.type || 'application/octet-stream'
     };
 
     console.log('Upload headers:', headers);
