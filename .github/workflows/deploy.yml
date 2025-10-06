@@ -227,33 +227,33 @@ jobs:
         BUILD_SENTENCE_TRANSFORMERS="${{ needs.detect-base-image-changes.outputs.build_sentence_transformers }}"
         BUILD_EMBEDDINGS_LIGHT="${{ needs.detect-base-image-changes.outputs.build_embeddings_light }}"
         
-        # Check if base images exist in ECR
-        if ! aws ecr describe-images --repository-name chatbot-base-docling --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
+        # Check if base images exist in ECR (only if not already marked for rebuild due to changes)
+        if [ "$BUILD_DOCLING" != "true" ] && ! aws ecr describe-images --repository-name chatbot-base-docling --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
           echo "📦 Docling base image doesn't exist, building it..."
           BUILD_DOCLING="true"
         fi
         
-        if ! aws ecr describe-images --repository-name chatbot-base-docling-ocr --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
+        if [ "$BUILD_DOCLING_OCR" != "true" ] && ! aws ecr describe-images --repository-name chatbot-base-docling-ocr --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
           echo "📦 Docling OCR base image doesn't exist, building it..."
           BUILD_DOCLING_OCR="true"
         fi
         
-        if ! aws ecr describe-images --repository-name chatbot-base-docling-core --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
+        if [ "$BUILD_DOCLING_CORE" != "true" ] && ! aws ecr describe-images --repository-name chatbot-base-docling-core --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
           echo "📦 Docling Core base image doesn't exist, building it..."
           BUILD_DOCLING_CORE="true"
         fi
         
-        if ! aws ecr describe-images --repository-name chatbot-base-docling-tables --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
+        if [ "$BUILD_DOCLING_TABLES" != "true" ] && ! aws ecr describe-images --repository-name chatbot-base-docling-tables --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
           echo "📦 Docling Tables base image doesn't exist, building it..."
           BUILD_DOCLING_TABLES="true"
         fi
         
-        if ! aws ecr describe-images --repository-name chatbot-base-sentence-transformers --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
+        if [ "$BUILD_SENTENCE_TRANSFORMERS" != "true" ] && ! aws ecr describe-images --repository-name chatbot-base-sentence-transformers --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
           echo "📦 Sentence-transformers base image doesn't exist, building it..."
           BUILD_SENTENCE_TRANSFORMERS="true"
         fi
         
-        if ! aws ecr describe-images --repository-name chatbot-base-embeddings-light --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
+        if [ "$BUILD_EMBEDDINGS_LIGHT" != "true" ] && ! aws ecr describe-images --repository-name chatbot-base-embeddings-light --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
           echo "📦 Embeddings Light base image doesn't exist, building it..."
           BUILD_EMBEDDINGS_LIGHT="true"
         fi
