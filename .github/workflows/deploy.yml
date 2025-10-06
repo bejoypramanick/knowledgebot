@@ -432,11 +432,20 @@ jobs:
         # Upload build state as artifact
         echo "📤 Uploading build state..."
         echo "Final build state:"
-        cat "$BUILD_STATE_FILE"
+        BUILD_STATE_FILE="build_state.json"
+        if [ -f "$BUILD_STATE_FILE" ]; then
+          cat "$BUILD_STATE_FILE"
+        else
+          echo "No build state file found"
+        fi
         
         # Create artifact directory
         mkdir -p artifacts
-        cp "$BUILD_STATE_FILE" artifacts/
+        if [ -f "$BUILD_STATE_FILE" ]; then
+          cp "$BUILD_STATE_FILE" artifacts/
+        else
+          echo "No build state file to copy"
+        fi
         
         # Upload as artifact
         echo "Uploading build state artifact..."
