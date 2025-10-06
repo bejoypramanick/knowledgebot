@@ -38,13 +38,15 @@ class EnhancedRAGSearchService:
         self.main_bucket = MAIN_BUCKET
         self.knowledge_base_table = self.dynamodb.Table(KNOWLEDGE_BASE_TABLE)
         
-        # Initialize Docling converter for advanced features with /tmp artifacts path
+        # Initialize Docling converter (pre-loaded in Docker image)
         artifacts_path = "/tmp/docling_artifacts"
         os.makedirs(artifacts_path, exist_ok=True)
         
         # Set environment variable for Docling artifacts path
         os.environ['DOCLING_ARTIFACTS_PATH'] = artifacts_path
         
+        # Docling converter is pre-initialized in Docker image
+        # This should be much faster as models are already downloaded
         self.converter = DocumentConverter(
             format_options={
                 InputFormat.PDF: PdfPipelineOptions(
@@ -59,28 +61,18 @@ class EnhancedRAGSearchService:
         self._embedding_model = None
 
     def get_embedding(self, text: str) -> List[float]:
-        """Get embedding using HuggingFace sentence-transformers model"""
+        """Get embedding using pre-loaded HuggingFace sentence-transformers model"""
         try:
             from sentence_transformers import SentenceTransformer
-            import os
             
             # Use a lightweight, efficient sentence transformer model
             model_name = "all-MiniLM-L6-v2"  # 384-dimensional embeddings
             
-            # Initialize the model (it will be cached after first use)
+            # Initialize the model (pre-loaded in Docker image)
             if not self._embedding_model:
-                # Set cache directory to /tmp for Lambda environment
-                cache_dir = "/tmp/sentence_transformers_cache"
-                os.makedirs(cache_dir, exist_ok=True)
-                
-                # Set environment variables for HuggingFace cache
-                os.environ['TRANSFORMERS_CACHE'] = cache_dir
-                os.environ['HF_HOME'] = cache_dir
-                
-                self._embedding_model = SentenceTransformer(
-                    model_name,
-                    cache_folder=cache_dir
-                )
+                # Model is already downloaded and cached in the Docker image
+                # No need to set cache directories as it's pre-installed
+                self._embedding_model = SentenceTransformer(model_name)
             
             # Generate embedding
             embedding = self._embedding_model.encode(text, convert_to_tensor=False)
