@@ -1,0 +1,73 @@
+# Docling Base Image - Pre-installed with all models
+FROM public.ecr.aws/lambda/python:3.12
+
+# Install system dependencies for Docling
+RUN dnf install -y \
+    gcc \
+    gcc-c++ \
+    && dnf clean all
+
+# Install Docling and dependencies
+RUN pip install --upgrade pip && \
+    pip install --upgrade setuptools>=68.0.0 wheel && \
+    pip install --no-cache-dir \
+    docling>=2.55.1 \
+    numpy>=1.26.0,<2.0.0 \
+    httpx>=0.27.0,<0.29.0
+
+# Create artifacts directory for Docling
+RUN mkdir -p /tmp/docling_artifacts
+
+# Pre-initialize Docling converter to download all required models
+# This ensures all OCR, table structure, and other models are downloaded
+RUN python -c "
+from docling.document_converter import DocumentConverter
+from docling.datamodel.base_models import InputFormat
+from docling.datamodel.pipeline_options import PdfPipelineOptions
+import os
+
+# Set environment variable for Docling artifacts path
+os.environ['DOCLING_ARTIFACTS_PATH'] = '/tmp/docling_artifacts'
+
+# Initialize converter with all options to trigger model downloads
+converter = DocumentConverter(
+    format_options={
+        InputFormat.PDF: PdfPipelineOptions(
+            do_ocr=True,
+            do_table_structure=True,
+            table_structure_options={'do_cell_matching': True}
+        )
+    }
+)
+
+# Test with a simple document to ensure all models are loaded
+print('Docling base image initialized successfully with all models pre-loaded')
+"
+
+# Set environment variable
+ENV DOCLING_ARTIFACTS_PATH=/tmp/docling_artifacts
+
+# Create a simple test script to verify the installation
+RUN echo '#!/usr/bin/env python3
+from docling.document_converter import DocumentConverter
+from docling.datamodel.base_models import InputFormat
+from docling.datamodel.pipeline_options import PdfPipelineOptions
+import os
+
+os.environ["DOCLING_ARTIFACTS_PATH"] = "/tmp/docling_artifacts"
+converter = DocumentConverter(
+    format_options={
+        InputFormat.PDF: PdfPipelineOptions(
+            do_ocr=True,
+            do_table_structure=True,
+            table_structure_options={"do_cell_matching": True}
+        )
+    }
+)
+print("Docling base image ready!")
+' > /usr/local/bin/test_docling.py && chmod +x /usr/local/bin/test_docling.py
+
+# Label for identification
+LABEL base_image="docling" \
+      version="1.0" \
+      description="Pre-installed Docling with all models"

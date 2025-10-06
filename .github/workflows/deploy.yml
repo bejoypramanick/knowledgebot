@@ -5,11 +5,13 @@ on:
     branches: [ main ]
     paths:
       - 'backend/lambda/**'
+      - 'backend/base-images/**'
       - '.github/workflows/deploy.yml'
   pull_request:
     branches: [ main ]
     paths:
       - 'backend/lambda/**'
+      - 'backend/base-images/**'
       - '.github/workflows/deploy.yml'
   workflow_dispatch:
 
@@ -18,6 +20,83 @@ env:
   ECR_REGISTRY: 090163643302.dkr.ecr.ap-south-1.amazonaws.com
 
 jobs:
+  build-base-images:
+    runs-on: ubuntu-latest
+    environment: chatbot
+    timeout-minutes: 30
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build and push base images
+      run: |
+        echo "🏗️ Building and pushing base images..."
+        
+        # Create ECR repositories for base images
+        for base_image in docling sentence-transformers combined; do
+          echo "📋 Ensuring ECR repository exists for chatbot-base-$base_image..."
+          if aws ecr describe-repositories --repository-names "chatbot-base-$base_image" --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
+            echo "Repository chatbot-base-$base_image already exists"
+          else
+            echo "Creating repository chatbot-base-$base_image..."
+            aws ecr create-repository --repository-name "chatbot-base-$base_image" --region ${{ env.AWS_REGION }}
+            
+            # Set ECR repository policy
+            aws ecr set-repository-policy \
+              --repository-name "chatbot-base-$base_image" \
+              --region ${{ env.AWS_REGION }} \
+              --policy-text '{
+                  "Version": "2012-10-17",
+                  "Statement": [
+                      {
+                          "Sid": "LambdaECRImageRetrievalPolicy",
+                          "Effect": "Allow",
+                          "Principal": {
+                              "Service": "lambda.amazonaws.com"
+                          },
+                          "Action": [
+                              "ecr:BatchGetImage",
+                              "ecr:GetDownloadUrlForLayer"
+                          ]
+                      }
+                  ]
+              }' || echo "Policy already set"
+          fi
+        done
+        
+        # Build and push base images
+        cd backend/base-images
+        
+        for base_image in docling sentence-transformers combined; do
+          echo "🔨 Building $base_image base image..."
+          docker build -f Dockerfile.$base_image -t chatbot-base-$base_image:latest .
+          
+          # Tag for ECR
+          docker tag chatbot-base-$base_image:latest ${{ env.ECR_REGISTRY }}/chatbot-base-$base_image:latest
+          
+          # Push to ECR
+          echo "🚀 Pushing $base_image to ECR..."
+          docker push ${{ env.ECR_REGISTRY }}/chatbot-base-$base_image:latest
+          
+          # Clean up local image
+          docker rmi chatbot-base-$base_image:latest ${{ env.ECR_REGISTRY }}/chatbot-base-$base_image:latest || true
+          
+          echo "✅ $base_image base image built and pushed successfully!"
+        done
+        
+        echo "🎉 All base images built and pushed successfully!"
+
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
@@ -77,7 +156,7 @@ jobs:
         fi
 
   build-and-deploy:
-    needs: detect-changes
+    needs: [build-base-images, detect-changes]
     if: needs.detect-changes.outputs.services != '[]'
     runs-on: ubuntu-latest
     environment: chatbot

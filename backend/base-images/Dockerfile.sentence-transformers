@@ -1,0 +1,60 @@
+# Sentence Transformers Base Image - Pre-installed with all models
+FROM public.ecr.aws/lambda/python:3.12
+
+# Install sentence-transformers and dependencies
+RUN pip install --upgrade pip && \
+    pip install --upgrade setuptools>=68.0.0 wheel && \
+    pip install --no-cache-dir \
+    sentence-transformers>=2.7.0,<3.0.0 \
+    numpy>=1.26.0,<2.0.0 \
+    torch>=2.0.0 \
+    transformers>=4.30.0
+
+# Pre-download and cache the most commonly used models
+# This ensures models are available without runtime downloads
+RUN python -c "
+from sentence_transformers import SentenceTransformer
+import os
+
+# Set cache directory to /tmp for Lambda environment
+cache_dir = '/tmp/sentence_transformers_cache'
+os.makedirs(cache_dir, exist_ok=True)
+
+# Pre-download the most commonly used models
+models = [
+    'all-MiniLM-L6-v2',  # 384-dimensional, fast and efficient
+    'all-mpnet-base-v2', # 768-dimensional, high quality
+    'paraphrase-multilingual-MiniLM-L12-v2'  # Multilingual support
+]
+
+for model_name in models:
+    print(f'Downloading model: {model_name}')
+    model = SentenceTransformer(model_name, cache_folder=cache_dir)
+    print(f'Model {model_name} downloaded successfully')
+
+print('All sentence-transformers models pre-loaded successfully')
+"
+
+# Set environment variables for consistent caching
+ENV TRANSFORMERS_CACHE=/tmp/sentence_transformers_cache
+ENV HF_HOME=/tmp/sentence_transformers_cache
+ENV SENTENCE_TRANSFORMERS_HOME=/tmp/sentence_transformers_cache
+
+# Create a simple test script to verify the installation
+RUN echo '#!/usr/bin/env python3
+from sentence_transformers import SentenceTransformer
+import os
+
+os.environ["TRANSFORMERS_CACHE"] = "/tmp/sentence_transformers_cache"
+os.environ["HF_HOME"] = "/tmp/sentence_transformers_cache"
+
+# Test the most commonly used model
+model = SentenceTransformer("all-MiniLM-L6-v2")
+test_embedding = model.encode("This is a test sentence")
+print(f"Sentence transformers base image ready! Embedding dimension: {len(test_embedding)}")
+' > /usr/local/bin/test_sentence_transformers.py && chmod +x /usr/local/bin/test_sentence_transformers.py
+
+# Label for identification
+LABEL base_image="sentence-transformers" \
+      version="1.0" \
+      description="Pre-installed sentence-transformers with common models"
