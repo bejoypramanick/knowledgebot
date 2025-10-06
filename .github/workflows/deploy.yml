@@ -449,7 +449,7 @@ jobs:
     strategy:
       max-parallel: 5
       matrix:
-        service: ${{ fromJson(needs.detect-changes.outputs.services || '["orchestrator", "document-metadata"]') }}
+        service: ["orchestrator", "document-metadata"]
     
     steps:
     - name: Checkout code
