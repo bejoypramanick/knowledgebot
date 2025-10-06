@@ -62,13 +62,25 @@ class EnhancedRAGSearchService:
         """Get embedding using HuggingFace sentence-transformers model"""
         try:
             from sentence_transformers import SentenceTransformer
+            import os
             
             # Use a lightweight, efficient sentence transformer model
             model_name = "all-MiniLM-L6-v2"  # 384-dimensional embeddings
             
             # Initialize the model (it will be cached after first use)
             if not self._embedding_model:
-                self._embedding_model = SentenceTransformer(model_name)
+                # Set cache directory to /tmp for Lambda environment
+                cache_dir = "/tmp/sentence_transformers_cache"
+                os.makedirs(cache_dir, exist_ok=True)
+                
+                # Set environment variables for HuggingFace cache
+                os.environ['TRANSFORMERS_CACHE'] = cache_dir
+                os.environ['HF_HOME'] = cache_dir
+                
+                self._embedding_model = SentenceTransformer(
+                    model_name,
+                    cache_folder=cache_dir
+                )
             
             # Generate embedding
             embedding = self._embedding_model.encode(text, convert_to_tensor=False)
