@@ -25,7 +25,6 @@ jobs:
     outputs:
       build-docling: ${{ steps.changes.outputs.build_docling }}
       build-sentence-transformers: ${{ steps.changes.outputs.build_sentence_transformers }}
-      build-combined: ${{ steps.changes.outputs.build_combined }}
       build-any: ${{ steps.changes.outputs.build_any }}
     steps:
     - name: Checkout code
@@ -49,7 +48,6 @@ jobs:
         # Check for changes in base image files
         BUILD_DOCLING="false"
         BUILD_SENTENCE_TRANSFORMERS="false"
-        BUILD_COMBINED="false"
         BUILD_ANY="false"
         
         if echo "$CHANGED_FILES" | grep -q "backend/base-images/Dockerfile.docling"; then
@@ -68,14 +66,6 @@ jobs:
           echo "⏭️ Sentence-transformers base image - no changes"
         fi
         
-        if echo "$CHANGED_FILES" | grep -q "backend/base-images/Dockerfile.combined"; then
-          BUILD_COMBINED="true"
-          BUILD_ANY="true"
-          echo "✅ Combined base image needs rebuild"
-        else
-          echo "⏭️ Combined base image - no changes"
-        fi
-        
         # If any base image files changed, set build_any to true
         if echo "$CHANGED_FILES" | grep -q "backend/base-images/"; then
           BUILD_ANY="true"
@@ -83,7 +73,6 @@ jobs:
         
         echo "build_docling=$BUILD_DOCLING" >> $GITHUB_OUTPUT
         echo "build_sentence_transformers=$BUILD_SENTENCE_TRANSFORMERS" >> $GITHUB_OUTPUT
-        echo "build_combined=$BUILD_COMBINED" >> $GITHUB_OUTPUT
         echo "build_any=$BUILD_ANY" >> $GITHUB_OUTPUT
 
   build-base-images:
@@ -112,7 +101,7 @@ jobs:
         echo "🏗️ Building and pushing base images..."
         
         # Create ECR repositories for base images
-        for base_image in docling sentence-transformers combined; do
+        for base_image in docling sentence-transformers; do
           echo "📋 Ensuring ECR repository exists for chatbot-base-$base_image..."
           if aws ecr describe-repositories --repository-names "chatbot-base-$base_image" --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
             echo "Repository chatbot-base-$base_image already exists"
@@ -163,15 +152,6 @@ jobs:
           docker push ${{ env.ECR_REGISTRY }}/chatbot-base-sentence-transformers:latest
           docker rmi chatbot-base-sentence-transformers:latest ${{ env.ECR_REGISTRY }}/chatbot-base-sentence-transformers:latest || true
           echo "✅ Sentence-transformers base image built and pushed successfully!"
-        fi
-        
-        if [ "${{ needs.detect-base-image-changes.outputs.build_combined }}" = "true" ]; then
-          echo "🔨 Building combined base image..."
-          docker build -f Dockerfile.combined -t chatbot-base-combined:latest .
-          docker tag chatbot-base-combined:latest ${{ env.ECR_REGISTRY }}/chatbot-base-combined:latest
-          docker push ${{ env.ECR_REGISTRY }}/chatbot-base-combined:latest
-          docker rmi chatbot-base-combined:latest ${{ env.ECR_REGISTRY }}/chatbot-base-combined:latest || true
-          echo "✅ Combined base image built and pushed successfully!"
         fi
         
         echo "🎉 Base images build completed!"

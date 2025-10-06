@@ -26,8 +26,12 @@ from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 import os
 
-# Set environment variable for Docling artifacts path
+# Set environment variables to use /tmp for all model caching
 os.environ['DOCLING_ARTIFACTS_PATH'] = '/tmp/docling_artifacts'
+os.environ['TRANSFORMERS_CACHE'] = '/tmp/transformers_cache'
+os.environ['HF_HOME'] = '/tmp/huggingface_cache'
+os.environ['HF_DATASETS_CACHE'] = '/tmp/huggingface_datasets_cache'
+os.environ['TORCH_HOME'] = '/tmp/torch_cache'
 
 # Initialize converter with all options to trigger model downloads
 converter = DocumentConverter(
@@ -41,11 +45,15 @@ converter = DocumentConverter(
 )
 
 # Test with a simple document to ensure all models are loaded
-print('Docling base image initialized successfully with all models pre-loaded')
+print('Docling base image initialized successfully with all models pre-loaded in /tmp')
 "
 
-# Set environment variable
+# Set environment variables for /tmp caching
 ENV DOCLING_ARTIFACTS_PATH=/tmp/docling_artifacts
+ENV TRANSFORMERS_CACHE=/tmp/transformers_cache
+ENV HF_HOME=/tmp/huggingface_cache
+ENV HF_DATASETS_CACHE=/tmp/huggingface_datasets_cache
+ENV TORCH_HOME=/tmp/torch_cache
 
 # Create a simple test script to verify the installation
 RUN echo '#!/usr/bin/env python3

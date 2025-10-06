@@ -16,9 +16,16 @@ RUN python -c "
 from sentence_transformers import SentenceTransformer
 import os
 
-# Set cache directory to /tmp for Lambda environment
+# Set all cache directories to /tmp for Lambda environment
 cache_dir = '/tmp/sentence_transformers_cache'
 os.makedirs(cache_dir, exist_ok=True)
+
+# Set environment variables for all model caching
+os.environ['TRANSFORMERS_CACHE'] = '/tmp/transformers_cache'
+os.environ['HF_HOME'] = '/tmp/huggingface_cache'
+os.environ['HF_DATASETS_CACHE'] = '/tmp/huggingface_datasets_cache'
+os.environ['TORCH_HOME'] = '/tmp/torch_cache'
+os.environ['SENTENCE_TRANSFORMERS_HOME'] = cache_dir
 
 # Pre-download the most commonly used models
 models = [
@@ -32,12 +39,14 @@ for model_name in models:
     model = SentenceTransformer(model_name, cache_folder=cache_dir)
     print(f'Model {model_name} downloaded successfully')
 
-print('All sentence-transformers models pre-loaded successfully')
+print('All sentence-transformers models pre-loaded successfully in /tmp')
 "
 
-# Set environment variables for consistent caching
-ENV TRANSFORMERS_CACHE=/tmp/sentence_transformers_cache
-ENV HF_HOME=/tmp/sentence_transformers_cache
+# Set environment variables for consistent caching in /tmp
+ENV TRANSFORMERS_CACHE=/tmp/transformers_cache
+ENV HF_HOME=/tmp/huggingface_cache
+ENV HF_DATASETS_CACHE=/tmp/huggingface_datasets_cache
+ENV TORCH_HOME=/tmp/torch_cache
 ENV SENTENCE_TRANSFORMERS_HOME=/tmp/sentence_transformers_cache
 
 # Create a simple test script to verify the installation

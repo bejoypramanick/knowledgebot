@@ -82,8 +82,12 @@ class RAGProcessor:
                 artifacts_path = "/tmp/docling_artifacts"
                 os.makedirs(artifacts_path, exist_ok=True)
                 
-                # Set environment variable for Docling artifacts path
+                # Set all environment variables to use /tmp for model caching
                 os.environ['DOCLING_ARTIFACTS_PATH'] = artifacts_path
+                os.environ['TRANSFORMERS_CACHE'] = '/tmp/transformers_cache'
+                os.environ['HF_HOME'] = '/tmp/huggingface_cache'
+                os.environ['HF_DATASETS_CACHE'] = '/tmp/huggingface_datasets_cache'
+                os.environ['TORCH_HOME'] = '/tmp/torch_cache'
                 
                 # Docling converter is pre-initialized in Docker image
                 # This should be much faster as models are already downloaded
@@ -106,6 +110,7 @@ class RAGProcessor:
         """Get embedding using pre-loaded HuggingFace sentence-transformers model"""
         try:
             from sentence_transformers import SentenceTransformer
+            import os
             
             # Use a lightweight, efficient sentence transformer model
             # This model is optimized for semantic similarity and works well with Docling
@@ -113,8 +118,14 @@ class RAGProcessor:
             
             # Initialize the model (pre-loaded in Docker image)
             if not hasattr(self, '_embedding_model'):
+                # Set environment variables to use /tmp for model caching
+                os.environ['TRANSFORMERS_CACHE'] = '/tmp/transformers_cache'
+                os.environ['HF_HOME'] = '/tmp/huggingface_cache'
+                os.environ['HF_DATASETS_CACHE'] = '/tmp/huggingface_datasets_cache'
+                os.environ['TORCH_HOME'] = '/tmp/torch_cache'
+                os.environ['SENTENCE_TRANSFORMERS_HOME'] = '/tmp/sentence_transformers_cache'
+                
                 # Model is already downloaded and cached in the Docker image
-                # No need to set cache directories as it's pre-installed
                 self._embedding_model = SentenceTransformer(model_name)
             
             # Generate embedding
