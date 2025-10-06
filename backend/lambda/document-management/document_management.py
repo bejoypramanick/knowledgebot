@@ -29,7 +29,7 @@ class DocumentManagementService:
             
             documents = []
             
-            if 'Items' in response:
+            if 'Items' in response and len(response['Items']) > 0:
                 # Group by document_id to get unique documents
                 doc_map = {}
                 for item in response['Items']:
@@ -50,7 +50,12 @@ class DocumentManagementService:
                         doc_map[doc_id]['chunk_count'] += 1
                 
                 documents = list(doc_map.values())
-                logger.info(f"Found {len(documents)} unique documents")
+                logger.info(f"Found {len(documents)} unique documents from DynamoDB")
+            else:
+                # If DynamoDB is empty, check S3 for uploaded documents
+                logger.info("DynamoDB is empty, checking S3 for uploaded documents...")
+                documents = self._list_documents_from_s3()
+                logger.info(f"Found {len(documents)} documents from S3")
             
             # Sort by processed_at and limit results
             documents.sort(key=lambda x: x.get('processed_at', ''), reverse=True)
@@ -60,6 +65,47 @@ class DocumentManagementService:
             
         except Exception as e:
             logger.error(f"Error listing documents: {e}")
+            return []
+
+    def _list_documents_from_s3(self) -> List[Dict[str, Any]]:
+        """List documents directly from S3 when DynamoDB is empty"""
+        try:
+            logger.info("Listing documents from S3...")
+            
+            # List objects in the documents folder
+            response = self.s3_client.list_objects_v2(
+                Bucket=self.main_bucket,
+                Prefix='documents/',
+                MaxKeys=100
+            )
+            
+            documents = []
+            
+            if 'Contents' in response:
+                for obj in response['Contents']:
+                    key = obj['Key']
+                    if key.endswith(('.pdf', '.docx', '.txt', '.md', '.html')):
+                        # Extract filename from S3 key
+                        filename = key.split('/')[-1]
+                        
+                        # Create document entry
+                        doc_entry = {
+                            'document_id': key,  # Use S3 key as document ID
+                            'source': f"s3://{self.main_bucket}/{key}",
+                            's3_key': key,
+                            'original_filename': filename,
+                            'processed_at': obj['LastModified'].isoformat(),
+                            'chunk_count': 0,
+                            'status': 'uploaded'  # Mark as uploaded but not processed
+                        }
+                        documents.append(doc_entry)
+                        logger.info(f"Found document: {filename}")
+            
+            logger.info(f"Found {len(documents)} documents in S3")
+            return documents
+            
+        except Exception as e:
+            logger.error(f"Error listing documents from S3: {e}")
             return []
 
     def get_document_content(self, document_id: str) -> Dict[str, Any]:
