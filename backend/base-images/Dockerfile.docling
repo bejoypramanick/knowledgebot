@@ -20,33 +20,18 @@ RUN mkdir -p /tmp/docling_artifacts
 
 # Pre-initialize Docling converter to download all required models
 # This ensures all OCR, table structure, and other models are downloaded
-RUN python -c "
-from docling.document_converter import DocumentConverter
-from docling.datamodel.base_models import InputFormat
-from docling.datamodel.pipeline_options import PdfPipelineOptions
-import os
-
-# Set environment variables to use /tmp for all model caching
-os.environ['DOCLING_ARTIFACTS_PATH'] = '/tmp/docling_artifacts'
-os.environ['TRANSFORMERS_CACHE'] = '/tmp/transformers_cache'
-os.environ['HF_HOME'] = '/tmp/huggingface_cache'
-os.environ['HF_DATASETS_CACHE'] = '/tmp/huggingface_datasets_cache'
-os.environ['TORCH_HOME'] = '/tmp/torch_cache'
-
-# Initialize converter with all options to trigger model downloads
-converter = DocumentConverter(
-    format_options={
-        InputFormat.PDF: PdfPipelineOptions(
-            do_ocr=True,
-            do_table_structure=True,
-            table_structure_options={'do_cell_matching': True}
-        )
-    }
-)
-
-# Test with a simple document to ensure all models are loaded
-print('Docling base image initialized successfully with all models pre-loaded in /tmp')
-"
+RUN python -c "\
+import os; \
+os.environ['DOCLING_ARTIFACTS_PATH'] = '/tmp/docling_artifacts'; \
+os.environ['TRANSFORMERS_CACHE'] = '/tmp/transformers_cache'; \
+os.environ['HF_HOME'] = '/tmp/huggingface_cache'; \
+os.environ['HF_DATASETS_CACHE'] = '/tmp/huggingface_datasets_cache'; \
+os.environ['TORCH_HOME'] = '/tmp/torch_cache'; \
+from docling.document_converter import DocumentConverter; \
+from docling.datamodel.base_models import InputFormat; \
+from docling.datamodel.pipeline_options import PdfPipelineOptions; \
+converter = DocumentConverter(format_options={InputFormat.PDF: PdfPipelineOptions(do_ocr=True, do_table_structure=True, table_structure_options={'do_cell_matching': True})}); \
+print('Docling base image initialized successfully with all models pre-loaded in /tmp')"
 
 # Set environment variables for /tmp caching
 ENV DOCLING_ARTIFACTS_PATH=/tmp/docling_artifacts

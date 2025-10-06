@@ -12,35 +12,19 @@ RUN pip install --upgrade pip && \
 
 # Pre-download and cache the most commonly used models
 # This ensures models are available without runtime downloads
-RUN python -c "
-from sentence_transformers import SentenceTransformer
-import os
-
-# Set all cache directories to /tmp for Lambda environment
-cache_dir = '/tmp/sentence_transformers_cache'
-os.makedirs(cache_dir, exist_ok=True)
-
-# Set environment variables for all model caching
-os.environ['TRANSFORMERS_CACHE'] = '/tmp/transformers_cache'
-os.environ['HF_HOME'] = '/tmp/huggingface_cache'
-os.environ['HF_DATASETS_CACHE'] = '/tmp/huggingface_datasets_cache'
-os.environ['TORCH_HOME'] = '/tmp/torch_cache'
-os.environ['SENTENCE_TRANSFORMERS_HOME'] = cache_dir
-
-# Pre-download the most commonly used models
-models = [
-    'all-MiniLM-L6-v2',  # 384-dimensional, fast and efficient
-    'all-mpnet-base-v2', # 768-dimensional, high quality
-    'paraphrase-multilingual-MiniLM-L12-v2'  # Multilingual support
-]
-
-for model_name in models:
-    print(f'Downloading model: {model_name}')
-    model = SentenceTransformer(model_name, cache_folder=cache_dir)
-    print(f'Model {model_name} downloaded successfully')
-
-print('All sentence-transformers models pre-loaded successfully in /tmp')
-"
+RUN python -c "\
+import os; \
+from sentence_transformers import SentenceTransformer; \
+cache_dir = '/tmp/sentence_transformers_cache'; \
+os.makedirs(cache_dir, exist_ok=True); \
+os.environ['TRANSFORMERS_CACHE'] = '/tmp/transformers_cache'; \
+os.environ['HF_HOME'] = '/tmp/huggingface_cache'; \
+os.environ['HF_DATASETS_CACHE'] = '/tmp/huggingface_datasets_cache'; \
+os.environ['TORCH_HOME'] = '/tmp/torch_cache'; \
+os.environ['SENTENCE_TRANSFORMERS_HOME'] = cache_dir; \
+models = ['all-MiniLM-L6-v2', 'all-mpnet-base-v2', 'paraphrase-multilingual-MiniLM-L12-v2']; \
+[print(f'Downloading model: {model_name}') or SentenceTransformer(model_name, cache_folder=cache_dir) or print(f'Model {model_name} downloaded successfully') for model_name in models]; \
+print('All sentence-transformers models pre-loaded successfully in /tmp')"
 
 # Set environment variables for consistent caching in /tmp
 ENV TRANSFORMERS_CACHE=/tmp/transformers_cache
