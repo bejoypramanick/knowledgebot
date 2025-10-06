@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 # Configuration
 MAIN_BUCKET = os.environ.get('MAIN_BUCKET', 'chatbot-storage-ap-south-1')
 KNOWLEDGE_BASE_TABLE = os.environ.get('KNOWLEDGE_BASE_TABLE', 'chatbot-knowledge-base')
+METADATA_TABLE = os.environ.get('METADATA_TABLE', 'chatbot-knowledge-base-metadata')
 
 class DocumentManagementService:
     def __init__(self):
@@ -18,46 +19,37 @@ class DocumentManagementService:
         self.dynamodb = boto3.resource('dynamodb', region_name='ap-south-1')
         self.main_bucket = MAIN_BUCKET
         self.knowledge_base_table = self.dynamodb.Table(KNOWLEDGE_BASE_TABLE)
+        self.metadata_table = self.dynamodb.Table(METADATA_TABLE)
 
     def list_documents(self, limit: int = 10) -> List[Dict[str, Any]]:
-        """List documents in the knowledge base"""
+        """List documents from the metadata table"""
         try:
-            # Get all documents from DynamoDB
-            logger.info("Scanning DynamoDB table for documents...")
-            response = self.knowledge_base_table.scan()
-            logger.info(f"Found {len(response.get('Items', []))} items in DynamoDB")
+            logger.info("Scanning metadata table for documents...")
+            response = self.metadata_table.scan()
+            logger.info(f"Found {len(response.get('Items', []))} items in metadata table")
             
             documents = []
             
-            if 'Items' in response and len(response['Items']) > 0:
-                # Group by document_id to get unique documents
-                doc_map = {}
+            if 'Items' in response:
                 for item in response['Items']:
-                    doc_id = item.get('document_id', '')
-                    logger.info(f"Processing item with document_id: {doc_id}")
-                    if doc_id and doc_id not in doc_map:
-                        metadata = item.get('metadata', {})
-                        doc_map[doc_id] = {
-                            'document_id': doc_id,
-                            'source': metadata.get('source', 'Unknown'),
-                            's3_key': metadata.get('s3_key', ''),
-                            'original_filename': metadata.get('original_filename', ''),
-                            'processed_at': metadata.get('processed_at', ''),
-                            'chunk_count': 0
-                        }
-                        logger.info(f"Created document entry for {doc_id}: {doc_map[doc_id]}")
-                    if doc_id in doc_map:
-                        doc_map[doc_id]['chunk_count'] += 1
-                
-                documents = list(doc_map.values())
-                logger.info(f"Found {len(documents)} unique documents from DynamoDB")
-            else:
-                # If DynamoDB is empty, check S3 for uploaded documents
-                logger.info("DynamoDB is empty, checking S3 for uploaded documents...")
-                documents = self._list_documents_from_s3()
-                logger.info(f"Found {len(documents)} documents from S3")
+                    # Transform metadata table item to document format
+                    doc_entry = {
+                        'document_id': item.get('document_id', ''),
+                        'source': f"s3://{item.get('s3_bucket', '')}/{item.get('s3_key', '')}",
+                        's3_key': item.get('s3_key', ''),
+                        's3_download_url': item.get('s3_download_url', ''),
+                        'original_filename': item.get('original_filename', ''),
+                        'processed_at': item.get('processed_at', item.get('uploaded_at', '')),
+                        'chunk_count': item.get('chunks_count', 0),
+                        'status': item.get('status', 'unknown'),
+                        'file_size': item.get('file_size', 0),
+                        'content_type': item.get('content_type', ''),
+                        'metadata': item.get('metadata', {})
+                    }
+                    documents.append(doc_entry)
+                    logger.info(f"Found document: {doc_entry['original_filename']} (status: {doc_entry['status']})")
             
-            # Sort by processed_at and limit results
+            # Sort by uploaded_at and limit results
             documents.sort(key=lambda x: x.get('processed_at', ''), reverse=True)
             result = documents[:limit]
             logger.info(f"Returning {len(result)} documents")
@@ -65,47 +57,6 @@ class DocumentManagementService:
             
         except Exception as e:
             logger.error(f"Error listing documents: {e}")
-            return []
-
-    def _list_documents_from_s3(self) -> List[Dict[str, Any]]:
-        """List documents directly from S3 when DynamoDB is empty"""
-        try:
-            logger.info("Listing documents from S3...")
-            
-            # List objects in the documents folder
-            response = self.s3_client.list_objects_v2(
-                Bucket=self.main_bucket,
-                Prefix='documents/',
-                MaxKeys=100
-            )
-            
-            documents = []
-            
-            if 'Contents' in response:
-                for obj in response['Contents']:
-                    key = obj['Key']
-                    if key.endswith(('.pdf', '.docx', '.txt', '.md', '.html')):
-                        # Extract filename from S3 key
-                        filename = key.split('/')[-1]
-                        
-                        # Create document entry
-                        doc_entry = {
-                            'document_id': key,  # Use S3 key as document ID
-                            'source': f"s3://{self.main_bucket}/{key}",
-                            's3_key': key,
-                            'original_filename': filename,
-                            'processed_at': obj['LastModified'].isoformat(),
-                            'chunk_count': 0,
-                            'status': 'uploaded'  # Mark as uploaded but not processed
-                        }
-                        documents.append(doc_entry)
-                        logger.info(f"Found document: {filename}")
-            
-            logger.info(f"Found {len(documents)} documents in S3")
-            return documents
-            
-        except Exception as e:
-            logger.error(f"Error listing documents from S3: {e}")
             return []
 
     def get_document_content(self, document_id: str) -> Dict[str, Any]:
