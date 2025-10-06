@@ -302,8 +302,15 @@ jobs:
           
           while [ $retry_count -lt $max_retries ]; do
             if docker build --memory=4g --memory-swap=6g -f "$dockerfile" -t "$image_name:latest" . 2>&1 | tee build.log; then
-              echo "✅ Build successful for $image_name"
-              break
+              # Verify the image was actually created
+              if docker images "$image_name:latest" --format "{{.Repository}}:{{.Tag}}" | grep -q "$image_name:latest"; then
+                echo "✅ Build successful for $image_name"
+                break
+              else
+                echo "❌ Build reported success but image not found"
+                retry_count=$((retry_count + 1))
+                continue
+              fi
             else
               retry_count=$((retry_count + 1))
               echo "❌ Build failed for $image_name (attempt $retry_count/$max_retries)"
