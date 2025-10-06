@@ -704,6 +704,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             # Map action to appropriate Lambda function
             if action == 'get-upload-url':
                 target_lambda = PRESIGNED_URL_LAMBDA
+            elif action == 'list':
+                target_lambda = DOCUMENT_METADATA_LAMBDA
+                # Change action to the correct one for document-metadata Lambda
+                body['action'] = 'get_all_documents_metadata'
             else:
                 target_lambda = DOCUMENT_MANAGEMENT_LAMBDA
             

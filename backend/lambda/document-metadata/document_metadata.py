@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 # Configuration
 MAIN_BUCKET = os.environ.get('MAIN_BUCKET', 'chatbot-storage-ap-south-1')
 KNOWLEDGE_BASE_TABLE = os.environ.get('KNOWLEDGE_BASE_TABLE', 'chatbot-knowledge-base')
+METADATA_TABLE = os.environ.get('METADATA_TABLE', 'chatbot-knowledge-base-metadata')
 
 class DocumentMetadataService:
     def __init__(self):
@@ -23,6 +24,7 @@ class DocumentMetadataService:
         self.dynamodb = boto3.resource('dynamodb', region_name='ap-south-1')
         self.main_bucket = MAIN_BUCKET
         self.knowledge_base_table = self.dynamodb.Table(KNOWLEDGE_BASE_TABLE)
+        self.metadata_table = self.dynamodb.Table(METADATA_TABLE)
 
     def get_document_metadata(self, document_id: str) -> Optional[Dict[str, Any]]:
         """Get metadata for a specific document"""
@@ -217,39 +219,42 @@ class DocumentMetadataService:
     def get_all_documents_metadata(self) -> List[Dict[str, Any]]:
         """Get metadata for all documents"""
         try:
-            # Scan all chunks to get unique documents
-            response = self.knowledge_base_table.scan()
+            # Scan the metadata table directly
+            response = self.metadata_table.scan()
             
             if 'Items' not in response or not response['Items']:
-                logger.info("No documents found")
+                logger.info("No documents found in metadata table")
                 return []
             
-            # Group by document_id
-            documents = {}
+            # Transform metadata table items to document format
+            documents = []
             for item in response['Items']:
-                doc_id = item.get('document_id', '')
-                if not doc_id:
-                    continue
-                
-                if doc_id not in documents:
-                    metadata = item.get('metadata', {})
-                    documents[doc_id] = {
-                        'document_id': doc_id,
-                        'source': metadata.get('source', 'Unknown'),
-                        's3_key': metadata.get('s3_key', ''),
-                        'original_filename': metadata.get('original_filename', ''),
-                        'processed_at': metadata.get('processed_at', ''),
-                        'file_type': metadata.get('file_type', 'unknown'),
-                        'chunk_count': 0
+                metadata = item.get('metadata', {})
+                document = {
+                    'document_id': item.get('document_id', ''),
+                    'source': f"s3://{item.get('s3_bucket', '')}/{item.get('s3_key', '')}",
+                    's3_key': item.get('s3_key', ''),
+                    'original_filename': item.get('original_filename', ''),
+                    'processed_at': item.get('processed_at', item.get('uploaded_at', '')),
+                    'file_type': item.get('content_type', 'unknown'),
+                    'chunk_count': item.get('chunks_count', 0),
+                    'status': item.get('status', 'unknown'),
+                    'file_size': item.get('file_size', 0),
+                    's3_download_url': item.get('s3_download_url', ''),
+                    'metadata': {
+                        'title': metadata.get('title', ''),
+                        'category': metadata.get('category', 'general'),
+                        'author': metadata.get('author', 'unknown'),
+                        'tags': metadata.get('tags', [])
                     }
-                
-                documents[doc_id]['chunk_count'] += 1
+                }
+                documents.append(document)
             
-            # Convert to list and sort by processed_at
-            documents_list = list(documents.values())
-            documents_list.sort(key=lambda x: x.get('processed_at', ''), reverse=True)
+            # Sort by uploaded_at/processed_at
+            documents.sort(key=lambda x: x.get('processed_at', ''), reverse=True)
             
-            return documents_list
+            logger.info(f"Found {len(documents)} documents in metadata table")
+            return documents
             
         except Exception as e:
             logger.error(f"Error getting all documents metadata: {e}")
