@@ -88,7 +88,6 @@ class RAGProcessor:
                 os.environ['HF_HOME'] = '/tmp/huggingface_cache'
                 os.environ['HF_DATASETS_CACHE'] = '/tmp/huggingface_datasets_cache'
                 os.environ['TORCH_HOME'] = '/tmp/torch_cache'
-                os.environ['SENTENCE_TRANSFORMERS_HOME'] = '/tmp/sentence_transformers_cache'
                 
                 # Docling converter is pre-initialized in Docker image
                 # This should be much faster as models are already downloaded
@@ -125,13 +124,6 @@ class RAGProcessor:
                 os.environ['HF_DATASETS_CACHE'] = '/tmp/huggingface_datasets_cache'
                 os.environ['TORCH_HOME'] = '/tmp/torch_cache'
                 os.environ['SENTENCE_TRANSFORMERS_HOME'] = '/tmp/sentence_transformers_cache'
-                
-                # Create cache directories
-                cache_dirs = ['/tmp/transformers_cache', '/tmp/huggingface_cache', 
-                            '/tmp/huggingface_datasets_cache', '/tmp/torch_cache', 
-                            '/tmp/sentence_transformers_cache']
-                for cache_dir in cache_dirs:
-                    os.makedirs(cache_dir, exist_ok=True)
                 
                 # Model is already downloaded and cached in the Docker image
                 self._embedding_model = SentenceTransformer(model_name)

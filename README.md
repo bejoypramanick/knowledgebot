@@ -1,4 +1,4 @@
-# Welcome to your Lovable project
+# KnowledgeBot - AI-Powered Document Management System
 
 ## Project info
 

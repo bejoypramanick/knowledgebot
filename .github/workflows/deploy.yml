@@ -227,33 +227,33 @@ jobs:
         BUILD_SENTENCE_TRANSFORMERS="${{ needs.detect-base-image-changes.outputs.build_sentence_transformers }}"
         BUILD_EMBEDDINGS_LIGHT="${{ needs.detect-base-image-changes.outputs.build_embeddings_light }}"
         
-        # Check if base images exist in ECR (only if not already marked for rebuild due to changes)
-        if [ "$BUILD_DOCLING" != "true" ] && ! aws ecr describe-images --repository-name chatbot-base-docling --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
+        # Check if base images exist in ECR
+        if ! aws ecr describe-images --repository-name chatbot-base-docling --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
           echo "📦 Docling base image doesn't exist, building it..."
           BUILD_DOCLING="true"
         fi
         
-        if [ "$BUILD_DOCLING_OCR" != "true" ] && ! aws ecr describe-images --repository-name chatbot-base-docling-ocr --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
+        if ! aws ecr describe-images --repository-name chatbot-base-docling-ocr --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
           echo "📦 Docling OCR base image doesn't exist, building it..."
           BUILD_DOCLING_OCR="true"
         fi
         
-        if [ "$BUILD_DOCLING_CORE" != "true" ] && ! aws ecr describe-images --repository-name chatbot-base-docling-core --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
+        if ! aws ecr describe-images --repository-name chatbot-base-docling-core --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
           echo "📦 Docling Core base image doesn't exist, building it..."
           BUILD_DOCLING_CORE="true"
         fi
         
-        if [ "$BUILD_DOCLING_TABLES" != "true" ] && ! aws ecr describe-images --repository-name chatbot-base-docling-tables --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
+        if ! aws ecr describe-images --repository-name chatbot-base-docling-tables --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
           echo "📦 Docling Tables base image doesn't exist, building it..."
           BUILD_DOCLING_TABLES="true"
         fi
         
-        if [ "$BUILD_SENTENCE_TRANSFORMERS" != "true" ] && ! aws ecr describe-images --repository-name chatbot-base-sentence-transformers --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
+        if ! aws ecr describe-images --repository-name chatbot-base-sentence-transformers --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
           echo "📦 Sentence-transformers base image doesn't exist, building it..."
           BUILD_SENTENCE_TRANSFORMERS="true"
         fi
         
-        if [ "$BUILD_EMBEDDINGS_LIGHT" != "true" ] && ! aws ecr describe-images --repository-name chatbot-base-embeddings-light --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
+        if ! aws ecr describe-images --repository-name chatbot-base-embeddings-light --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
           echo "📦 Embeddings Light base image doesn't exist, building it..."
           BUILD_EMBEDDINGS_LIGHT="true"
         fi
@@ -449,7 +449,7 @@ jobs:
     strategy:
       max-parallel: 5
       matrix:
-        service: ["orchestrator", "document-metadata"]
+        service: ${{ fromJson(needs.detect-changes.outputs.services) }}
     
     steps:
     - name: Checkout code
@@ -545,8 +545,8 @@ jobs:
         free -h
         
         # Build with retry logic
-        retry_count=0
-        max_retries=3
+        local retry_count=0
+        local max_retries=3
         
         while [ $retry_count -lt $max_retries ]; do
           if docker build --no-cache --memory=2g --memory-swap=3g -t chatbot-${{ matrix.service }} -f backend/lambda/${{ matrix.service }}/Dockerfile backend/lambda 2>&1 | tee lambda_build.log; then
@@ -740,21 +740,6 @@ jobs:
               echo "Failed to update Lambda function ${{ matrix.service }}"
               exit 1
             }
-          
-          # Update environment variables for specific services
-          if [ "${{ matrix.service }}" = "document-metadata" ] || [ "${{ matrix.service }}" = "document-management" ] || [ "${{ matrix.service }}" = "presigned-url" ]; then
-            echo "Updating environment variables for ${{ matrix.service }}..."
-            aws lambda update-function-configuration \
-              --function-name "chatbot-${{ matrix.service }}" \
-              --environment Variables='{
-                "MAIN_BUCKET": "chatbot-storage-ap-south-1",
-                "KNOWLEDGE_BASE_TABLE": "chatbot-knowledge-base",
-                "METADATA_TABLE": "chatbot-knowledge-base-metadata"
-              }' || {
-                echo "Failed to update environment variables for ${{ matrix.service }}"
-                exit 1
-              }
-          fi
           echo "Successfully updated Lambda function ${{ matrix.service }}"
         else
           echo "Creating Lambda function chatbot-${{ matrix.service }}..."
@@ -944,7 +929,7 @@ jobs:
             "method.response.header.Access-Control-Allow-Headers": true,
             "method.response.header.Access-Control-Allow-Methods": true,
             "method.response.header.Access-Control-Allow-Origin": true
-          }' 2>/dev/null || echo "Knowledge-base OPTIONS method response already exists, skipping..."
+          }' || echo "Knowledge-base OPTIONS method response may already exist"
         
         # Set up knowledge-base OPTIONS integration for CORS
         echo "Setting up knowledge-base OPTIONS integration..."
@@ -974,46 +959,14 @@ jobs:
           --rest-api-id $API_ID \
           --stage-name prod || echo "Deployment may already exist"
         
-        # Clean up and add Lambda permission for API Gateway
-        echo "Managing Lambda permissions..."
-        STATEMENT_ID="apigateway-invoke-chatbot"
-        SOURCE_ARN="arn:aws:execute-api:${{ env.AWS_REGION }}:090163643302:$API_ID/*/*"
-        
-        # Get current policy
-        echo "📋 Checking current Lambda policy..."
-        CURRENT_POLICY=$(aws lambda get-policy --function-name chatbot-orchestrator --query "Policy" --output text 2>/dev/null || echo "{}")
-        
-        if [ "$CURRENT_POLICY" != "{}" ]; then
-          echo "🧹 Cleaning up old API Gateway permissions..."
-          # Extract statement IDs for API Gateway permissions
-          STATEMENT_IDS=$(echo "$CURRENT_POLICY" | jq -r '.Statement[] | select(.Principal.Service == "apigateway.amazonaws.com") | .Sid' 2>/dev/null || echo "")
-          
-          if [ -n "$STATEMENT_IDS" ]; then
-            echo "Found existing API Gateway permissions: $STATEMENT_IDS"
-            for old_statement_id in $STATEMENT_IDS; do
-              if [ "$old_statement_id" != "$STATEMENT_ID" ]; then
-                echo "🗑️ Removing old permission: $old_statement_id"
-                aws lambda remove-permission \
-                  --function-name chatbot-orchestrator \
-                  --statement-id "$old_statement_id" 2>/dev/null || echo "Failed to remove $old_statement_id (may not exist)"
-              fi
-            done
-          fi
-        fi
-        
-        # Add the correct permission
+        # Add Lambda permission for API Gateway
         echo "Adding Lambda permission..."
-        if echo "$CURRENT_POLICY" | grep -q "$STATEMENT_ID" 2>/dev/null; then
-          echo "✅ Correct Lambda permission already exists, skipping..."
-        else
-          echo "Adding new Lambda permission..."
-          aws lambda add-permission \
-            --function-name chatbot-orchestrator \
-            --statement-id "$STATEMENT_ID" \
-            --action lambda:InvokeFunction \
-            --principal apigateway.amazonaws.com \
-            --source-arn "$SOURCE_ARN" || echo "Failed to add permission, may already exist or policy limit exceeded"
-        fi
+        aws lambda add-permission \
+          --function-name chatbot-orchestrator \
+          --statement-id apigateway-invoke-$(date +%s) \
+          --action lambda:InvokeFunction \
+          --principal apigateway.amazonaws.com \
+          --source-arn "arn:aws:execute-api:${{ env.AWS_REGION }}:090163643302:$API_ID/*/*" || echo "Permission may already exist"
         
         # Output API URL
         API_URL="https://$API_ID.execute-api.${{ env.AWS_REGION }}.amazonaws.com/prod"
