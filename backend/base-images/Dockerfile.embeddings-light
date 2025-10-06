@@ -1,15 +1,16 @@
-# RAG Processor Service - Using specialized base images
-FROM 090163643302.dkr.ecr.ap-south-1.amazonaws.com/chatbot-base-docling-ocr:latest
+# Lightweight Embeddings Base Image - Only essential models
+FROM public.ecr.aws/lambda/python:3.12
 
-# Install lightweight embeddings
+# Install minimal dependencies for embeddings
 RUN pip install --upgrade pip && \
     pip install --upgrade "setuptools>=68.0.0" wheel && \
     pip install --no-cache-dir \
     "sentence-transformers>=2.7.0,<3.0.0" \
+    "numpy>=1.26.0,<2.0.0" \
     "torch>=2.0.0" \
     "transformers>=4.30.0"
 
-# Pre-download only essential sentence-transformers model
+# Pre-download only the most essential model
 RUN python -c "\
 import os; \
 from sentence_transformers import SentenceTransformer; \
@@ -21,19 +22,16 @@ os.environ['HF_DATASETS_CACHE'] = '/tmp/huggingface_datasets_cache'; \
 os.environ['TORCH_HOME'] = '/tmp/torch_cache'; \
 os.environ['SENTENCE_TRANSFORMERS_HOME'] = cache_dir; \
 model = SentenceTransformer('all-MiniLM-L6-v2', cache_folder=cache_dir); \
-print('Essential sentence transformers model pre-loaded successfully in /tmp')"
+print('Lightweight embeddings base image initialized successfully')"
 
-# Copy shared utilities
-COPY shared/ /opt/python/
+# Set environment variables for consistent caching in /tmp
+ENV TRANSFORMERS_CACHE=/tmp/transformers_cache
+ENV HF_HOME=/tmp/huggingface_cache
+ENV HF_DATASETS_CACHE=/tmp/huggingface_datasets_cache
+ENV TORCH_HOME=/tmp/torch_cache
+ENV SENTENCE_TRANSFORMERS_HOME=/tmp/sentence_transformers_cache
 
-# Copy requirements and install additional dependencies
-COPY rag-processor/requirements.txt ${LAMBDA_TASK_ROOT}
-RUN pip install --upgrade pip && \
-    pip install --upgrade setuptools>=68.0.0 wheel && \
-    pip install --no-cache-dir -r requirements.txt
-
-# Copy function code
-COPY rag-processor/rag_processor.py ${LAMBDA_TASK_ROOT}
-
-# Set the CMD to your handler
-CMD [ "rag_processor.lambda_handler" ]
+# Label for identification
+LABEL base_image="embeddings-light" \
+      version="1.0" \
+      description="Lightweight embeddings with only essential models"

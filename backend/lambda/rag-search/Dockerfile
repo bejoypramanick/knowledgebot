@@ -1,30 +1,27 @@
-# RAG Search Service - Using pre-built base images
-FROM 090163643302.dkr.ecr.ap-south-1.amazonaws.com/chatbot-base-docling:latest
+# RAG Search Service - Using lightweight embeddings base
+FROM 090163643302.dkr.ecr.ap-south-1.amazonaws.com/chatbot-base-embeddings-light:latest
 
-# Install sentence-transformers and dependencies
+# Install minimal Docling for search (no OCR, no table structure)
 RUN pip install --upgrade pip && \
-    pip install --upgrade setuptools>=68.0.0 wheel && \
+    pip install --upgrade "setuptools>=68.0.0" wheel && \
     pip install --no-cache-dir \
-    sentence-transformers>=2.7.0,<3.0.0 \
-    torch>=2.0.0 \
-    transformers>=4.30.0
+    "docling>=2.55.1" \
+    "numpy>=1.26.0,<2.0.0" \
+    "httpx>=0.27.0,<0.29.0"
 
-# Pre-download sentence-transformers models to /tmp
-RUN python -c "
-from sentence_transformers import SentenceTransformer
-import os
-
-# Set all environment variables to use /tmp for model caching
-os.environ['TRANSFORMERS_CACHE'] = '/tmp/transformers_cache'
-os.environ['HF_HOME'] = '/tmp/huggingface_cache'
-os.environ['HF_DATASETS_CACHE'] = '/tmp/huggingface_datasets_cache'
-os.environ['TORCH_HOME'] = '/tmp/torch_cache'
-os.environ['SENTENCE_TRANSFORMERS_HOME'] = '/tmp/sentence_transformers_cache'
-
-# Pre-download the most commonly used model
-model = SentenceTransformer('all-MiniLM-L6-v2')
-print('Sentence transformers model pre-loaded successfully in /tmp')
-"
+# Pre-initialize minimal Docling for search
+RUN python -c "\
+import os; \
+os.environ['DOCLING_ARTIFACTS_PATH'] = '/tmp/docling_artifacts'; \
+os.environ['TRANSFORMERS_CACHE'] = '/tmp/transformers_cache'; \
+os.environ['HF_HOME'] = '/tmp/huggingface_cache'; \
+os.environ['HF_DATASETS_CACHE'] = '/tmp/huggingface_datasets_cache'; \
+os.environ['TORCH_HOME'] = '/tmp/torch_cache'; \
+from docling.document_converter import DocumentConverter; \
+from docling.datamodel.base_models import InputFormat; \
+from docling.datamodel.pipeline_options import PdfPipelineOptions; \
+converter = DocumentConverter(format_options={InputFormat.PDF: PdfPipelineOptions(do_ocr=False, do_table_structure=False)}); \
+print('Minimal Docling for search initialized successfully')"
 
 # Copy shared utilities
 COPY shared/ /opt/python/

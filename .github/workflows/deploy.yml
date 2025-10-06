@@ -47,15 +47,43 @@ jobs:
         
         # Check for changes in base image files
         BUILD_DOCLING="false"
+        BUILD_DOCLING_OCR="false"
+        BUILD_DOCLING_CORE="false"
+        BUILD_DOCLING_TABLES="false"
         BUILD_SENTENCE_TRANSFORMERS="false"
+        BUILD_EMBEDDINGS_LIGHT="false"
         BUILD_ANY="false"
         
-        if echo "$CHANGED_FILES" | grep -q "backend/base-images/Dockerfile.docling"; then
+        if echo "$CHANGED_FILES" | grep -q "backend/base-images/Dockerfile.docling$"; then
           BUILD_DOCLING="true"
           BUILD_ANY="true"
           echo "✅ Docling base image needs rebuild"
         else
           echo "⏭️ Docling base image - no changes"
+        fi
+        
+        if echo "$CHANGED_FILES" | grep -q "backend/base-images/Dockerfile.docling-ocr"; then
+          BUILD_DOCLING_OCR="true"
+          BUILD_ANY="true"
+          echo "✅ Docling OCR base image needs rebuild"
+        else
+          echo "⏭️ Docling OCR base image - no changes"
+        fi
+        
+        if echo "$CHANGED_FILES" | grep -q "backend/base-images/Dockerfile.docling-core"; then
+          BUILD_DOCLING_CORE="true"
+          BUILD_ANY="true"
+          echo "✅ Docling Core base image needs rebuild"
+        else
+          echo "⏭️ Docling Core base image - no changes"
+        fi
+        
+        if echo "$CHANGED_FILES" | grep -q "backend/base-images/Dockerfile.docling-tables"; then
+          BUILD_DOCLING_TABLES="true"
+          BUILD_ANY="true"
+          echo "✅ Docling Tables base image needs rebuild"
+        else
+          echo "⏭️ Docling Tables base image - no changes"
         fi
         
         if echo "$CHANGED_FILES" | grep -q "backend/base-images/Dockerfile.sentence-transformers"; then
@@ -66,13 +94,25 @@ jobs:
           echo "⏭️ Sentence-transformers base image - no changes"
         fi
         
+        if echo "$CHANGED_FILES" | grep -q "backend/base-images/Dockerfile.embeddings-light"; then
+          BUILD_EMBEDDINGS_LIGHT="true"
+          BUILD_ANY="true"
+          echo "✅ Embeddings Light base image needs rebuild"
+        else
+          echo "⏭️ Embeddings Light base image - no changes"
+        fi
+        
         # If any base image files changed, set build_any to true
         if echo "$CHANGED_FILES" | grep -q "backend/base-images/"; then
           BUILD_ANY="true"
         fi
         
         echo "build_docling=$BUILD_DOCLING" >> $GITHUB_OUTPUT
+        echo "build_docling_ocr=$BUILD_DOCLING_OCR" >> $GITHUB_OUTPUT
+        echo "build_docling_core=$BUILD_DOCLING_CORE" >> $GITHUB_OUTPUT
+        echo "build_docling_tables=$BUILD_DOCLING_TABLES" >> $GITHUB_OUTPUT
         echo "build_sentence_transformers=$BUILD_SENTENCE_TRANSFORMERS" >> $GITHUB_OUTPUT
+        echo "build_embeddings_light=$BUILD_EMBEDDINGS_LIGHT" >> $GITHUB_OUTPUT
         echo "build_any=$BUILD_ANY" >> $GITHUB_OUTPUT
 
   build-base-images:
@@ -135,9 +175,13 @@ jobs:
         # Build and push base images
         cd backend/base-images
         
-        # Build base images - always build if they don't exist or if there are changes
+        # Build specialized base images - always build if they don't exist or if there are changes
         BUILD_DOCLING="${{ needs.detect-base-image-changes.outputs.build_docling }}"
+        BUILD_DOCLING_OCR="${{ needs.detect-base-image-changes.outputs.build_docling_ocr }}"
+        BUILD_DOCLING_CORE="${{ needs.detect-base-image-changes.outputs.build_docling_core }}"
+        BUILD_DOCLING_TABLES="${{ needs.detect-base-image-changes.outputs.build_docling_tables }}"
         BUILD_SENTENCE_TRANSFORMERS="${{ needs.detect-base-image-changes.outputs.build_sentence_transformers }}"
+        BUILD_EMBEDDINGS_LIGHT="${{ needs.detect-base-image-changes.outputs.build_embeddings_light }}"
         
         # Check if base images exist in ECR
         if ! aws ecr describe-images --repository-name chatbot-base-docling --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
@@ -145,9 +189,29 @@ jobs:
           BUILD_DOCLING="true"
         fi
         
+        if ! aws ecr describe-images --repository-name chatbot-base-docling-ocr --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
+          echo "📦 Docling OCR base image doesn't exist, building it..."
+          BUILD_DOCLING_OCR="true"
+        fi
+        
+        if ! aws ecr describe-images --repository-name chatbot-base-docling-core --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
+          echo "📦 Docling Core base image doesn't exist, building it..."
+          BUILD_DOCLING_CORE="true"
+        fi
+        
+        if ! aws ecr describe-images --repository-name chatbot-base-docling-tables --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
+          echo "📦 Docling Tables base image doesn't exist, building it..."
+          BUILD_DOCLING_TABLES="true"
+        fi
+        
         if ! aws ecr describe-images --repository-name chatbot-base-sentence-transformers --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
           echo "📦 Sentence-transformers base image doesn't exist, building it..."
           BUILD_SENTENCE_TRANSFORMERS="true"
+        fi
+        
+        if ! aws ecr describe-images --repository-name chatbot-base-embeddings-light --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
+          echo "📦 Embeddings Light base image doesn't exist, building it..."
+          BUILD_EMBEDDINGS_LIGHT="true"
         fi
         
         # Build docling base image if needed
@@ -162,6 +226,42 @@ jobs:
           echo "⏭️ Docling base image already exists, skipping build"
         fi
         
+        # Build docling OCR base image if needed
+        if [ "$BUILD_DOCLING_OCR" = "true" ]; then
+          echo "🔨 Building docling OCR base image..."
+          docker build -f Dockerfile.docling-ocr -t chatbot-base-docling-ocr:latest .
+          docker tag chatbot-base-docling-ocr:latest ${{ env.ECR_REGISTRY }}/chatbot-base-docling-ocr:latest
+          docker push ${{ env.ECR_REGISTRY }}/chatbot-base-docling-ocr:latest
+          docker rmi chatbot-base-docling-ocr:latest ${{ env.ECR_REGISTRY }}/chatbot-base-docling-ocr:latest || true
+          echo "✅ Docling OCR base image built and pushed successfully!"
+        else
+          echo "⏭️ Docling OCR base image already exists, skipping build"
+        fi
+        
+        # Build docling core base image if needed
+        if [ "$BUILD_DOCLING_CORE" = "true" ]; then
+          echo "🔨 Building docling core base image..."
+          docker build -f Dockerfile.docling-core -t chatbot-base-docling-core:latest .
+          docker tag chatbot-base-docling-core:latest ${{ env.ECR_REGISTRY }}/chatbot-base-docling-core:latest
+          docker push ${{ env.ECR_REGISTRY }}/chatbot-base-docling-core:latest
+          docker rmi chatbot-base-docling-core:latest ${{ env.ECR_REGISTRY }}/chatbot-base-docling-core:latest || true
+          echo "✅ Docling Core base image built and pushed successfully!"
+        else
+          echo "⏭️ Docling Core base image already exists, skipping build"
+        fi
+        
+        # Build docling tables base image if needed
+        if [ "$BUILD_DOCLING_TABLES" = "true" ]; then
+          echo "🔨 Building docling tables base image..."
+          docker build -f Dockerfile.docling-tables -t chatbot-base-docling-tables:latest .
+          docker tag chatbot-base-docling-tables:latest ${{ env.ECR_REGISTRY }}/chatbot-base-docling-tables:latest
+          docker push ${{ env.ECR_REGISTRY }}/chatbot-base-docling-tables:latest
+          docker rmi chatbot-base-docling-tables:latest ${{ env.ECR_REGISTRY }}/chatbot-base-docling-tables:latest || true
+          echo "✅ Docling Tables base image built and pushed successfully!"
+        else
+          echo "⏭️ Docling Tables base image already exists, skipping build"
+        fi
+        
         # Build sentence-transformers base image if needed
         if [ "$BUILD_SENTENCE_TRANSFORMERS" = "true" ]; then
           echo "🔨 Building sentence-transformers base image..."
@@ -172,6 +272,18 @@ jobs:
           echo "✅ Sentence-transformers base image built and pushed successfully!"
         else
           echo "⏭️ Sentence-transformers base image already exists, skipping build"
+        fi
+        
+        # Build embeddings light base image if needed
+        if [ "$BUILD_EMBEDDINGS_LIGHT" = "true" ]; then
+          echo "🔨 Building embeddings light base image..."
+          docker build -f Dockerfile.embeddings-light -t chatbot-base-embeddings-light:latest .
+          docker tag chatbot-base-embeddings-light:latest ${{ env.ECR_REGISTRY }}/chatbot-base-embeddings-light:latest
+          docker push ${{ env.ECR_REGISTRY }}/chatbot-base-embeddings-light:latest
+          docker rmi chatbot-base-embeddings-light:latest ${{ env.ECR_REGISTRY }}/chatbot-base-embeddings-light:latest || true
+          echo "✅ Embeddings Light base image built and pushed successfully!"
+        else
+          echo "⏭️ Embeddings Light base image already exists, skipping build"
         fi
         
         echo "🎉 Base images build completed!"
