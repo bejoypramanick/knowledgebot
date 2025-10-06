@@ -441,7 +441,7 @@ jobs:
         fi
 
   build-and-deploy:
-    needs: [detect-base-image-changes, build-base-images, detect-changes, create-api-gateway]
+    needs: [detect-base-image-changes, build-base-images, detect-changes]
     if: always()
     runs-on: ubuntu-latest
     environment: chatbot
@@ -449,7 +449,7 @@ jobs:
     strategy:
       max-parallel: 5
       matrix:
-        service: ${{ fromJson(needs.detect-changes.outputs.services) }}
+        service: ${{ fromJson(needs.detect-changes.outputs.services || '["orchestrator", "document-metadata"]') }}
     
     steps:
     - name: Checkout code
