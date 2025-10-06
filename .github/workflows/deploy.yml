@@ -388,15 +388,22 @@ jobs:
     - name: Detect changed services
       id: changes
       run: |
-        # Get list of changed files
-        if [ "${{ github.event_name }}" = "push" ]; then
+        # Get list of changed files - use a more reliable method
+        if [ "${{ github.event_name }}" = "push" ] && [ -n "${{ github.event.before }}" ]; then
           CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
         else
+          # Fallback: compare with previous commit
           CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
         fi
         
         echo "Changed files:"
         echo "$CHANGED_FILES"
+        
+        # If no changes detected, force build all services for now
+        if [ -z "$CHANGED_FILES" ]; then
+          echo "⚠️ No changes detected, but forcing build of all services to ensure deployment"
+          CHANGED_FILES="backend/lambda/"
+        fi
         
         # Check for changes in each service
         CHANGED_SERVICES=""
