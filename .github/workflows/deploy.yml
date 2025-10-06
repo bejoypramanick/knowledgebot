@@ -740,6 +740,21 @@ jobs:
               echo "Failed to update Lambda function ${{ matrix.service }}"
               exit 1
             }
+          
+          # Update environment variables for specific services
+          if [ "${{ matrix.service }}" = "document-metadata" ] || [ "${{ matrix.service }}" = "document-management" ] || [ "${{ matrix.service }}" = "presigned-url" ]; then
+            echo "Updating environment variables for ${{ matrix.service }}..."
+            aws lambda update-function-configuration \
+              --function-name "chatbot-${{ matrix.service }}" \
+              --environment Variables='{
+                "MAIN_BUCKET": "chatbot-storage-ap-south-1",
+                "KNOWLEDGE_BASE_TABLE": "chatbot-knowledge-base",
+                "METADATA_TABLE": "chatbot-knowledge-base-metadata"
+              }' || {
+                echo "Failed to update environment variables for ${{ matrix.service }}"
+                exit 1
+              }
+          fi
           echo "Successfully updated Lambda function ${{ matrix.service }}"
         else
           echo "Creating Lambda function chatbot-${{ matrix.service }}..."
