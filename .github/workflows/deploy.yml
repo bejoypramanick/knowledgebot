@@ -143,28 +143,13 @@ jobs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
 
-    - name: Setup Memory Management
+    - name: Setup Docker
       run: |
-        echo "🧠 Setting up memory management for Docker builds..."
+        echo "🐳 Setting up Docker for builds..."
         
-        # Configure Docker for better memory management
-        echo '{"max-concurrent-downloads": 2, "max-concurrent-uploads": 2, "storage-driver": "overlay2"}' | sudo tee /etc/docker/daemon.json
-        sudo systemctl restart docker || echo "Docker restart not available in GitHub Actions"
-        
-        # Set Docker build memory limits
+        # Set Docker build settings
         export DOCKER_BUILDKIT=1
         export BUILDKIT_PROGRESS=plain
-        
-        # Basic cleanup of Docker resources
-        echo "🧹 Basic cleanup of Docker resources..."
-        docker system prune -f || true
-        docker builder prune -f || true
-        
-        # Show available resources
-        echo "📊 Available system resources:"
-        free -h
-        df -h
-        docker system df
 
     - name: Check Build State
       run: |
@@ -292,74 +277,16 @@ jobs:
             echo "🔨 Building $image_name..."
           fi
           
-          # Monitor memory before build
-          echo "📊 Memory before build:"
-          free -h
-          
-          # Build with memory limits and retry logic
-          local retry_count=0
-          local max_retries=3
-          
-          while [ $retry_count -lt $max_retries ]; do
-            if docker build --memory=4g --memory-swap=6g -f "$dockerfile" -t "$image_name:latest" . 2>&1 | tee build.log; then
-              # Verify the image was actually created
-              if docker images "$image_name:latest" --format "{{.Repository}}:{{.Tag}}" | grep -q "$image_name:latest"; then
-                echo "✅ Build successful for $image_name"
-                break
-              else
-                echo "❌ Build reported success but image not found"
-                retry_count=$((retry_count + 1))
-                continue
-              fi
-            else
-              retry_count=$((retry_count + 1))
-              echo "❌ Build failed for $image_name (attempt $retry_count/$max_retries)"
-              
-              # Check if it's a space/OOM error
-              if grep -q "No space left on device\|out of memory\|OOM\|ENOSPC" build.log; then
-                echo "🚨 Space/OOM error detected, performing aggressive cleanup..."
-                
-                # Aggressive cleanup for space/OOM issues
-                docker system prune -af --volumes || true
-                docker builder prune -af || true
-                docker image prune -af || true
-                docker container prune -f || true
-                docker volume prune -f || true
-                docker network prune -f || true
-                
-                # Clean up system caches
-                sudo apt-get clean || true
-                sudo rm -rf /var/lib/apt/lists/* || true
-                sudo rm -rf /tmp/* || true
-                sudo rm -rf /var/tmp/* || true
-                rm -rf ~/.cache/pip || true
-                rm -rf /tmp/pip-* || true
-                
-                # Clean up logs
-                sudo find /var/log -name "*.log" -type f -delete || true
-                sudo journalctl --vacuum-time=1d || true
-                
-                echo "📊 Space after aggressive cleanup:"
-                df -h
-                docker system df
-                
-                sleep 15
-              else
-                echo "🧹 Regular cleanup and retrying..."
-                docker system prune -f || true
-                docker builder prune -f || true
-                sleep 10
-              fi
-              
-              if [ $retry_count -ge $max_retries ]; then
-                echo "💥 Build failed after $max_retries attempts"
-                # Mark as failed in state file
-                echo "📝 Marking $image_name as failed..."
-                jq --arg img "$image_name" '.failed_images += [$img] | .completed_images -= [$img]' "$BUILD_STATE_FILE" > "${BUILD_STATE_FILE}.tmp" && mv "${BUILD_STATE_FILE}.tmp" "$BUILD_STATE_FILE"
-                return 1
-              fi
-            fi
-          done
+          # Simple build - let it fail naturally if out of memory
+          if docker build -f "$dockerfile" -t "$image_name:latest" .; then
+            echo "✅ Build successful for $image_name"
+          else
+            echo "❌ Build failed for $image_name"
+            # Mark as failed in state file
+            echo "📝 Marking $image_name as failed..."
+            jq --arg img "$image_name" '.failed_images += [$img] | .completed_images -= [$img]' "$BUILD_STATE_FILE" > "${BUILD_STATE_FILE}.tmp" && mv "${BUILD_STATE_FILE}.tmp" "$BUILD_STATE_FILE"
+            return 1
+          fi
           
           # Tag and push
           docker tag "$image_name:latest" "${{ env.ECR_REGISTRY }}/$ecr_repo:latest"
@@ -371,16 +298,6 @@ jobs:
           # Mark as completed in state file
           echo "📝 Marking $image_name as completed..."
           jq --arg img "$image_name" '.completed_images += [$img] | .failed_images -= [$img]' "$BUILD_STATE_FILE" > "${BUILD_STATE_FILE}.tmp" && mv "${BUILD_STATE_FILE}.tmp" "$BUILD_STATE_FILE"
-          
-          # Basic cleanup after each build
-          echo "🧹 Basic cleanup after $image_name build..."
-          docker system prune -f || true
-          docker builder prune -f || true
-          
-          # Show space after cleanup
-          echo "📊 Space after cleanup:"
-          df -h
-          docker system df
           
           echo "✅ $image_name built and pushed successfully!"
         }
