@@ -1,14 +1,19 @@
 # Lightweight Embeddings Base Image - Only essential models
 FROM public.ecr.aws/lambda/python:3.12
 
-# Install minimal dependencies for embeddings
-RUN pip install --upgrade pip && \
-    pip install --upgrade "setuptools>=68.0.0" wheel && \
+# Install minimal dependencies for embeddings with space optimization
+RUN pip install --upgrade pip --no-cache-dir && \
+    pip install --upgrade "setuptools>=68.0.0" wheel --no-cache-dir && \
+    pip install --no-cache-dir --no-deps \
+    "numpy>=1.26.0,<2.0.0" && \
+    pip install --no-cache-dir --no-deps \
+    "torch>=2.0.0" --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir --no-deps \
+    "transformers>=4.30.0" && \
+    pip install --no-cache-dir --no-deps \
+    "sentence-transformers>=2.7.0,<3.0.0" && \
     pip install --no-cache-dir \
-    "sentence-transformers>=2.7.0,<3.0.0" \
-    "numpy>=1.26.0,<2.0.0" \
-    "torch>=2.0.0" \
-    "transformers>=4.30.0"
+    "tokenizers" "huggingface-hub" "requests" "tqdm" "packaging" "filelock" "fsspec" "pyyaml" "regex" "safetensors" "scikit-learn" "scipy" "joblib" "threadpoolctl"
 
 # Pre-download only the most essential model
 RUN python -c "\

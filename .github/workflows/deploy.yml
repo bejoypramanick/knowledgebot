@@ -120,10 +120,17 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     environment: chatbot
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
+    - name: Download Build State
+      uses: actions/download-artifact@v4
+      with:
+        name: build-state
+        path: ./
+      continue-on-error: true
 
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
@@ -136,9 +143,61 @@ jobs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
 
+    - name: Setup Memory Management
+      run: |
+        echo "🧠 Setting up memory management for Docker builds..."
+        
+        # Configure Docker for better memory management
+        echo '{"max-concurrent-downloads": 2, "max-concurrent-uploads": 2, "storage-driver": "overlay2"}' | sudo tee /etc/docker/daemon.json
+        sudo systemctl restart docker || echo "Docker restart not available in GitHub Actions"
+        
+        # Set Docker build memory limits
+        export DOCKER_BUILDKIT=1
+        export BUILDKIT_PROGRESS=plain
+        
+        # Basic cleanup of Docker resources
+        echo "🧹 Basic cleanup of Docker resources..."
+        docker system prune -f || true
+        docker builder prune -f || true
+        
+        # Show available resources
+        echo "📊 Available system resources:"
+        free -h
+        df -h
+        docker system df
+
+    - name: Check Build State
+      run: |
+        echo "🔍 Checking build state for resumption..."
+        
+        # Create build state file
+        BUILD_STATE_FILE="build_state.json"
+        
+        # Initialize build state if it doesn't exist
+        if [ ! -f "$BUILD_STATE_FILE" ]; then
+          cat > "$BUILD_STATE_FILE" << EOF
+        {
+          "completed_images": [],
+          "failed_images": [],
+          "build_start_time": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        }
+        EOF
+        fi
+        
+        # Load existing state
+        COMPLETED_IMAGES=$(jq -r '.completed_images[]' "$BUILD_STATE_FILE" 2>/dev/null || echo "")
+        FAILED_IMAGES=$(jq -r '.failed_images[]' "$BUILD_STATE_FILE" 2>/dev/null || echo "")
+        
+        echo "✅ Previously completed images: $COMPLETED_IMAGES"
+        echo "❌ Previously failed images: $FAILED_IMAGES"
+        
+        # Save state for other steps
+        echo "COMPLETED_IMAGES=$COMPLETED_IMAGES" >> $GITHUB_ENV
+        echo "FAILED_IMAGES=$FAILED_IMAGES" >> $GITHUB_ENV
+
     - name: Build and push base images
       run: |
-        echo "🏗️ Building and pushing base images..."
+        echo "🏗️ Building and pushing base images with resume capability..."
         
         # Create ECR repositories for base images
         for base_image in docling docling-ocr docling-core docling-tables sentence-transformers embeddings-light; do
@@ -214,79 +273,173 @@ jobs:
           BUILD_EMBEDDINGS_LIGHT="true"
         fi
         
+        # Function to build image with memory management and resume capability
+        build_image() {
+          local image_name=$1
+          local dockerfile=$2
+          local ecr_repo=$3
+          
+          # Check if this image was already completed
+          if echo "$COMPLETED_IMAGES" | grep -q "$image_name"; then
+            echo "⏭️ $image_name already completed, skipping..."
+            return 0
+          fi
+          
+          # Check if this image previously failed
+          if echo "$FAILED_IMAGES" | grep -q "$image_name"; then
+            echo "🔄 Retrying previously failed image: $image_name"
+          else
+            echo "🔨 Building $image_name..."
+          fi
+          
+          # Monitor memory before build
+          echo "📊 Memory before build:"
+          free -h
+          
+          # Build with memory limits and retry logic
+          local retry_count=0
+          local max_retries=3
+          
+          while [ $retry_count -lt $max_retries ]; do
+            if docker build --memory=4g --memory-swap=6g -f "$dockerfile" -t "$image_name:latest" . 2>&1 | tee build.log; then
+              echo "✅ Build successful for $image_name"
+              break
+            else
+              retry_count=$((retry_count + 1))
+              echo "❌ Build failed for $image_name (attempt $retry_count/$max_retries)"
+              
+              # Check if it's a space/OOM error
+              if grep -q "No space left on device\|out of memory\|OOM\|ENOSPC" build.log; then
+                echo "🚨 Space/OOM error detected, performing aggressive cleanup..."
+                
+                # Aggressive cleanup for space/OOM issues
+                docker system prune -af --volumes || true
+                docker builder prune -af || true
+                docker image prune -af || true
+                docker container prune -f || true
+                docker volume prune -f || true
+                docker network prune -f || true
+                
+                # Clean up system caches
+                sudo apt-get clean || true
+                sudo rm -rf /var/lib/apt/lists/* || true
+                sudo rm -rf /tmp/* || true
+                sudo rm -rf /var/tmp/* || true
+                rm -rf ~/.cache/pip || true
+                rm -rf /tmp/pip-* || true
+                
+                # Clean up logs
+                sudo find /var/log -name "*.log" -type f -delete || true
+                sudo journalctl --vacuum-time=1d || true
+                
+                echo "📊 Space after aggressive cleanup:"
+                df -h
+                docker system df
+                
+                sleep 15
+              else
+                echo "🧹 Regular cleanup and retrying..."
+                docker system prune -f || true
+                docker builder prune -f || true
+                sleep 10
+              fi
+              
+              if [ $retry_count -ge $max_retries ]; then
+                echo "💥 Build failed after $max_retries attempts"
+                # Mark as failed in state file
+                echo "📝 Marking $image_name as failed..."
+                jq --arg img "$image_name" '.failed_images += [$img] | .completed_images -= [$img]' "$BUILD_STATE_FILE" > "${BUILD_STATE_FILE}.tmp" && mv "${BUILD_STATE_FILE}.tmp" "$BUILD_STATE_FILE"
+                return 1
+              fi
+            fi
+          done
+          
+          # Tag and push
+          docker tag "$image_name:latest" "${{ env.ECR_REGISTRY }}/$ecr_repo:latest"
+          docker push "${{ env.ECR_REGISTRY }}/$ecr_repo:latest"
+          
+          # Clean up local images
+          docker rmi "$image_name:latest" "${{ env.ECR_REGISTRY }}/$ecr_repo:latest" || true
+          
+          # Mark as completed in state file
+          echo "📝 Marking $image_name as completed..."
+          jq --arg img "$image_name" '.completed_images += [$img] | .failed_images -= [$img]' "$BUILD_STATE_FILE" > "${BUILD_STATE_FILE}.tmp" && mv "${BUILD_STATE_FILE}.tmp" "$BUILD_STATE_FILE"
+          
+          # Basic cleanup after each build
+          echo "🧹 Basic cleanup after $image_name build..."
+          docker system prune -f || true
+          docker builder prune -f || true
+          
+          # Show space after cleanup
+          echo "📊 Space after cleanup:"
+          df -h
+          docker system df
+          
+          echo "✅ $image_name built and pushed successfully!"
+        }
+        
         # Build docling base image if needed
         if [ "$BUILD_DOCLING" = "true" ]; then
-          echo "🔨 Building docling base image..."
-          docker build -f Dockerfile.docling -t chatbot-base-docling:latest .
-          docker tag chatbot-base-docling:latest ${{ env.ECR_REGISTRY }}/chatbot-base-docling:latest
-          docker push ${{ env.ECR_REGISTRY }}/chatbot-base-docling:latest
-          docker rmi chatbot-base-docling:latest ${{ env.ECR_REGISTRY }}/chatbot-base-docling:latest || true
-          echo "✅ Docling base image built and pushed successfully!"
+          build_image "chatbot-base-docling" "Dockerfile.docling" "chatbot-base-docling"
         else
           echo "⏭️ Docling base image already exists, skipping build"
         fi
         
         # Build docling OCR base image if needed
         if [ "$BUILD_DOCLING_OCR" = "true" ]; then
-          echo "🔨 Building docling OCR base image..."
-          docker build -f Dockerfile.docling-ocr -t chatbot-base-docling-ocr:latest .
-          docker tag chatbot-base-docling-ocr:latest ${{ env.ECR_REGISTRY }}/chatbot-base-docling-ocr:latest
-          docker push ${{ env.ECR_REGISTRY }}/chatbot-base-docling-ocr:latest
-          docker rmi chatbot-base-docling-ocr:latest ${{ env.ECR_REGISTRY }}/chatbot-base-docling-ocr:latest || true
-          echo "✅ Docling OCR base image built and pushed successfully!"
+          build_image "chatbot-base-docling-ocr" "Dockerfile.docling-ocr" "chatbot-base-docling-ocr"
         else
           echo "⏭️ Docling OCR base image already exists, skipping build"
         fi
         
         # Build docling core base image if needed
         if [ "$BUILD_DOCLING_CORE" = "true" ]; then
-          echo "🔨 Building docling core base image..."
-          docker build -f Dockerfile.docling-core -t chatbot-base-docling-core:latest .
-          docker tag chatbot-base-docling-core:latest ${{ env.ECR_REGISTRY }}/chatbot-base-docling-core:latest
-          docker push ${{ env.ECR_REGISTRY }}/chatbot-base-docling-core:latest
-          docker rmi chatbot-base-docling-core:latest ${{ env.ECR_REGISTRY }}/chatbot-base-docling-core:latest || true
-          echo "✅ Docling Core base image built and pushed successfully!"
+          build_image "chatbot-base-docling-core" "Dockerfile.docling-core" "chatbot-base-docling-core"
         else
           echo "⏭️ Docling Core base image already exists, skipping build"
         fi
         
         # Build docling tables base image if needed
         if [ "$BUILD_DOCLING_TABLES" = "true" ]; then
-          echo "🔨 Building docling tables base image..."
-          docker build -f Dockerfile.docling-tables -t chatbot-base-docling-tables:latest .
-          docker tag chatbot-base-docling-tables:latest ${{ env.ECR_REGISTRY }}/chatbot-base-docling-tables:latest
-          docker push ${{ env.ECR_REGISTRY }}/chatbot-base-docling-tables:latest
-          docker rmi chatbot-base-docling-tables:latest ${{ env.ECR_REGISTRY }}/chatbot-base-docling-tables:latest || true
-          echo "✅ Docling Tables base image built and pushed successfully!"
+          build_image "chatbot-base-docling-tables" "Dockerfile.docling-tables" "chatbot-base-docling-tables"
         else
           echo "⏭️ Docling Tables base image already exists, skipping build"
         fi
         
         # Build sentence-transformers base image if needed
         if [ "$BUILD_SENTENCE_TRANSFORMERS" = "true" ]; then
-          echo "🔨 Building sentence-transformers base image..."
-          docker build -f Dockerfile.sentence-transformers -t chatbot-base-sentence-transformers:latest .
-          docker tag chatbot-base-sentence-transformers:latest ${{ env.ECR_REGISTRY }}/chatbot-base-sentence-transformers:latest
-          docker push ${{ env.ECR_REGISTRY }}/chatbot-base-sentence-transformers:latest
-          docker rmi chatbot-base-sentence-transformers:latest ${{ env.ECR_REGISTRY }}/chatbot-base-sentence-transformers:latest || true
-          echo "✅ Sentence-transformers base image built and pushed successfully!"
+          build_image "chatbot-base-sentence-transformers" "Dockerfile.sentence-transformers" "chatbot-base-sentence-transformers"
         else
           echo "⏭️ Sentence-transformers base image already exists, skipping build"
         fi
         
         # Build embeddings light base image if needed
         if [ "$BUILD_EMBEDDINGS_LIGHT" = "true" ]; then
-          echo "🔨 Building embeddings light base image..."
-          docker build -f Dockerfile.embeddings-light -t chatbot-base-embeddings-light:latest .
-          docker tag chatbot-base-embeddings-light:latest ${{ env.ECR_REGISTRY }}/chatbot-base-embeddings-light:latest
-          docker push ${{ env.ECR_REGISTRY }}/chatbot-base-embeddings-light:latest
-          docker rmi chatbot-base-embeddings-light:latest ${{ env.ECR_REGISTRY }}/chatbot-base-embeddings-light:latest || true
-          echo "✅ Embeddings Light base image built and pushed successfully!"
+          build_image "chatbot-base-embeddings-light" "Dockerfile.embeddings-light" "chatbot-base-embeddings-light"
         else
           echo "⏭️ Embeddings Light base image already exists, skipping build"
         fi
         
         echo "🎉 Base images build completed!"
+        
+        # Upload build state as artifact
+        echo "📤 Uploading build state..."
+        echo "Final build state:"
+        cat "$BUILD_STATE_FILE"
+        
+        # Create artifact directory
+        mkdir -p artifacts
+        cp "$BUILD_STATE_FILE" artifacts/
+        
+        # Upload as artifact
+        echo "Uploading build state artifact..."
+
+    - name: Upload Build State
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-state
+        path: artifacts/build_state.json
+        retention-days: 7
 
   detect-changes:
     runs-on: ubuntu-latest
@@ -351,7 +504,7 @@ jobs:
     if: needs.detect-changes.outputs.services != '[]'
     runs-on: ubuntu-latest
     environment: chatbot
-    timeout-minutes: 45
+    timeout-minutes: 90
     strategy:
       max-parallel: 5
       matrix:
@@ -371,6 +524,29 @@ jobs:
     - name: Login to Amazon ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Setup Memory Management for Lambda Build
+      run: |
+        echo "🧠 Setting up memory management for Lambda build (${{ matrix.service }})..."
+        
+        # Configure Docker for better memory management
+        echo '{"max-concurrent-downloads": 2, "max-concurrent-uploads": 2}' | sudo tee /etc/docker/daemon.json
+        sudo systemctl restart docker || echo "Docker restart not available in GitHub Actions"
+        
+        # Set Docker build memory limits
+        export DOCKER_BUILDKIT=1
+        export BUILDKIT_PROGRESS=plain
+        
+        # Clean up any existing Docker resources
+        echo "🧹 Cleaning up Docker resources..."
+        docker system prune -f || true
+        docker builder prune -f || true
+        
+        # Show available memory
+        echo "📊 Available system resources:"
+        free -h
+        df -h
+        docker system df
 
     - name: Create ECR repository
       run: |
@@ -420,11 +596,71 @@ jobs:
         echo "Build context: backend/lambda"
         echo "Dockerfile: backend/lambda/${{ matrix.service }}/Dockerfile"
         
-        # Build with optimizations to reduce resource usage
-        docker build --no-cache --memory=2g --memory-swap=2g -t chatbot-${{ matrix.service }} -f backend/lambda/${{ matrix.service }}/Dockerfile backend/lambda || {
-          echo "Docker build failed for ${{ matrix.service }}"
-          exit 1
-        }
+        # Build with memory management and retry logic
+        echo "🔨 Building Lambda function: ${{ matrix.service }}"
+        
+        # Monitor memory before build
+        echo "📊 Memory before build:"
+        free -h
+        
+        # Build with retry logic
+        local retry_count=0
+        local max_retries=3
+        
+        while [ $retry_count -lt $max_retries ]; do
+          if docker build --no-cache --memory=2g --memory-swap=3g -t chatbot-${{ matrix.service }} -f backend/lambda/${{ matrix.service }}/Dockerfile backend/lambda 2>&1 | tee lambda_build.log; then
+            echo "✅ Build successful for ${{ matrix.service }}"
+            break
+          else
+            retry_count=$((retry_count + 1))
+            echo "❌ Build failed for ${{ matrix.service }} (attempt $retry_count/$max_retries)"
+            
+            # Check if it's a space/OOM error
+            if grep -q "No space left on device\|out of memory\|OOM\|ENOSPC" lambda_build.log; then
+              echo "🚨 Space/OOM error detected, performing aggressive cleanup..."
+              
+              # Aggressive cleanup for space/OOM issues
+              docker system prune -af --volumes || true
+              docker builder prune -af || true
+              docker image prune -af || true
+              docker container prune -f || true
+              docker volume prune -f || true
+              docker network prune -f || true
+              
+              # Clean up system caches
+              sudo apt-get clean || true
+              sudo rm -rf /var/lib/apt/lists/* || true
+              sudo rm -rf /tmp/* || true
+              sudo rm -rf /var/tmp/* || true
+              rm -rf ~/.cache/pip || true
+              rm -rf /tmp/pip-* || true
+              
+              # Clean up logs
+              sudo find /var/log -name "*.log" -type f -delete || true
+              sudo journalctl --vacuum-time=1d || true
+              
+              echo "📊 Space after aggressive cleanup:"
+              df -h
+              docker system df
+              
+              sleep 20
+            else
+              echo "🧹 Regular cleanup and retrying..."
+              docker system prune -f || true
+              docker builder prune -f || true
+              sleep 15
+            fi
+            
+            if [ $retry_count -ge $max_retries ]; then
+              echo "💥 Build failed after $max_retries attempts"
+              exit 1
+            fi
+          fi
+        done
+        
+        # Clean up after build
+        echo "🧹 Cleaning up after build..."
+        docker system prune -f || true
         
         # Tag for ECR
         echo "Tagging image for ECR..."
