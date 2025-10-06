@@ -959,14 +959,37 @@ jobs:
           --rest-api-id $API_ID \
           --stage-name prod || echo "Deployment may already exist"
         
-        # Add Lambda permission for API Gateway (only if it doesn't exist)
-        echo "Adding Lambda permission..."
+        # Clean up and add Lambda permission for API Gateway
+        echo "Managing Lambda permissions..."
         STATEMENT_ID="apigateway-invoke-chatbot"
         SOURCE_ARN="arn:aws:execute-api:${{ env.AWS_REGION }}:090163643302:$API_ID/*/*"
         
-        # Check if permission already exists
-        if aws lambda get-policy --function-name chatbot-orchestrator --query "Policy" --output text 2>/dev/null | grep -q "$STATEMENT_ID"; then
-          echo "✅ Lambda permission already exists, skipping..."
+        # Get current policy
+        echo "📋 Checking current Lambda policy..."
+        CURRENT_POLICY=$(aws lambda get-policy --function-name chatbot-orchestrator --query "Policy" --output text 2>/dev/null || echo "{}")
+        
+        if [ "$CURRENT_POLICY" != "{}" ]; then
+          echo "🧹 Cleaning up old API Gateway permissions..."
+          # Extract statement IDs for API Gateway permissions
+          STATEMENT_IDS=$(echo "$CURRENT_POLICY" | jq -r '.Statement[] | select(.Principal.Service == "apigateway.amazonaws.com") | .Sid' 2>/dev/null || echo "")
+          
+          if [ -n "$STATEMENT_IDS" ]; then
+            echo "Found existing API Gateway permissions: $STATEMENT_IDS"
+            for old_statement_id in $STATEMENT_IDS; do
+              if [ "$old_statement_id" != "$STATEMENT_ID" ]; then
+                echo "🗑️ Removing old permission: $old_statement_id"
+                aws lambda remove-permission \
+                  --function-name chatbot-orchestrator \
+                  --statement-id "$old_statement_id" 2>/dev/null || echo "Failed to remove $old_statement_id (may not exist)"
+              fi
+            done
+          fi
+        fi
+        
+        # Add the correct permission
+        echo "Adding Lambda permission..."
+        if echo "$CURRENT_POLICY" | grep -q "$STATEMENT_ID" 2>/dev/null; then
+          echo "✅ Correct Lambda permission already exists, skipping..."
         else
           echo "Adding new Lambda permission..."
           aws lambda add-permission \
