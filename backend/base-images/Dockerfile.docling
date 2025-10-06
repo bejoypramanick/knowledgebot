@@ -41,23 +41,23 @@ ENV HF_DATASETS_CACHE=/tmp/huggingface_datasets_cache
 ENV TORCH_HOME=/tmp/torch_cache
 
 # Create a simple test script to verify the installation
-RUN echo '#!/usr/bin/env python3
-from docling.document_converter import DocumentConverter
-from docling.datamodel.base_models import InputFormat
-from docling.datamodel.pipeline_options import PdfPipelineOptions
-import os
-
-os.environ["DOCLING_ARTIFACTS_PATH"] = "/tmp/docling_artifacts"
-converter = DocumentConverter(
-    format_options={
-        InputFormat.PDF: PdfPipelineOptions(
-            do_ocr=True,
-            do_table_structure=True,
-            table_structure_options={"do_cell_matching": True}
-        )
-    }
-)
-print("Docling base image ready!")
+RUN echo '#!/usr/bin/env python3\n\
+from docling.document_converter import DocumentConverter\n\
+from docling.datamodel.base_models import InputFormat\n\
+from docling.datamodel.pipeline_options import PdfPipelineOptions\n\
+import os\n\
+\n\
+os.environ["DOCLING_ARTIFACTS_PATH"] = "/tmp/docling_artifacts"\n\
+converter = DocumentConverter(\n\
+    format_options={\n\
+        InputFormat.PDF: PdfPipelineOptions(\n\
+            do_ocr=True,\n\
+            do_table_structure=True,\n\
+            table_structure_options={"do_cell_matching": True}\n\
+        )\n\
+    }\n\
+)\n\
+print("Docling base image ready!")\n\
 ' > /usr/local/bin/test_docling.py && chmod +x /usr/local/bin/test_docling.py
 
 # Label for identification

@@ -34,17 +34,17 @@ ENV TORCH_HOME=/tmp/torch_cache
 ENV SENTENCE_TRANSFORMERS_HOME=/tmp/sentence_transformers_cache
 
 # Create a simple test script to verify the installation
-RUN echo '#!/usr/bin/env python3
-from sentence_transformers import SentenceTransformer
-import os
-
-os.environ["TRANSFORMERS_CACHE"] = "/tmp/sentence_transformers_cache"
-os.environ["HF_HOME"] = "/tmp/sentence_transformers_cache"
-
-# Test the most commonly used model
-model = SentenceTransformer("all-MiniLM-L6-v2")
-test_embedding = model.encode("This is a test sentence")
-print(f"Sentence transformers base image ready! Embedding dimension: {len(test_embedding)}")
+RUN echo '#!/usr/bin/env python3\n\
+from sentence_transformers import SentenceTransformer\n\
+import os\n\
+\n\
+os.environ["TRANSFORMERS_CACHE"] = "/tmp/sentence_transformers_cache"\n\
+os.environ["HF_HOME"] = "/tmp/sentence_transformers_cache"\n\
+\n\
+# Test the most commonly used model\n\
+model = SentenceTransformer("all-MiniLM-L6-v2")\n\
+test_embedding = model.encode("This is a test sentence")\n\
+print(f"Sentence transformers base image ready! Embedding dimension: {len(test_embedding)}")\n\
 ' > /usr/local/bin/test_sentence_transformers.py && chmod +x /usr/local/bin/test_sentence_transformers.py
 
 # Label for identification
