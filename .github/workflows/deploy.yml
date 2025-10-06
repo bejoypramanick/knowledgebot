@@ -141,7 +141,7 @@ jobs:
         echo "🏗️ Building and pushing base images..."
         
         # Create ECR repositories for base images
-        for base_image in docling sentence-transformers; do
+        for base_image in docling docling-ocr docling-core docling-tables sentence-transformers embeddings-light; do
           echo "📋 Ensuring ECR repository exists for chatbot-base-$base_image..."
           if aws ecr describe-repositories --repository-names "chatbot-base-$base_image" --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
             echo "Repository chatbot-base-$base_image already exists"
