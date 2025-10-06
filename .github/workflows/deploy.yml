@@ -20,7 +20,75 @@ env:
   ECR_REGISTRY: 090163643302.dkr.ecr.ap-south-1.amazonaws.com
 
 jobs:
+  detect-base-image-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      build-docling: ${{ steps.changes.outputs.build_docling }}
+      build-sentence-transformers: ${{ steps.changes.outputs.build_sentence_transformers }}
+      build-combined: ${{ steps.changes.outputs.build_combined }}
+      build-any: ${{ steps.changes.outputs.build_any }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Detect base image changes
+      id: changes
+      run: |
+        # Get list of changed files
+        if [ "${{ github.event_name }}" = "push" ]; then
+          CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
+        else
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+        fi
+        
+        echo "Changed files:"
+        echo "$CHANGED_FILES"
+        
+        # Check for changes in base image files
+        BUILD_DOCLING="false"
+        BUILD_SENTENCE_TRANSFORMERS="false"
+        BUILD_COMBINED="false"
+        BUILD_ANY="false"
+        
+        if echo "$CHANGED_FILES" | grep -q "backend/base-images/Dockerfile.docling"; then
+          BUILD_DOCLING="true"
+          BUILD_ANY="true"
+          echo "✅ Docling base image needs rebuild"
+        else
+          echo "⏭️ Docling base image - no changes"
+        fi
+        
+        if echo "$CHANGED_FILES" | grep -q "backend/base-images/Dockerfile.sentence-transformers"; then
+          BUILD_SENTENCE_TRANSFORMERS="true"
+          BUILD_ANY="true"
+          echo "✅ Sentence-transformers base image needs rebuild"
+        else
+          echo "⏭️ Sentence-transformers base image - no changes"
+        fi
+        
+        if echo "$CHANGED_FILES" | grep -q "backend/base-images/Dockerfile.combined"; then
+          BUILD_COMBINED="true"
+          BUILD_ANY="true"
+          echo "✅ Combined base image needs rebuild"
+        else
+          echo "⏭️ Combined base image - no changes"
+        fi
+        
+        # If any base image files changed, set build_any to true
+        if echo "$CHANGED_FILES" | grep -q "backend/base-images/"; then
+          BUILD_ANY="true"
+        fi
+        
+        echo "build_docling=$BUILD_DOCLING" >> $GITHUB_OUTPUT
+        echo "build_sentence_transformers=$BUILD_SENTENCE_TRANSFORMERS" >> $GITHUB_OUTPUT
+        echo "build_combined=$BUILD_COMBINED" >> $GITHUB_OUTPUT
+        echo "build_any=$BUILD_ANY" >> $GITHUB_OUTPUT
+
   build-base-images:
+    needs: detect-base-image-changes
+    if: needs.detect-base-image-changes.outputs.build_any == 'true'
     runs-on: ubuntu-latest
     environment: chatbot
     timeout-minutes: 30
@@ -78,24 +146,35 @@ jobs:
         # Build and push base images
         cd backend/base-images
         
-        for base_image in docling sentence-transformers combined; do
-          echo "🔨 Building $base_image base image..."
-          docker build -f Dockerfile.$base_image -t chatbot-base-$base_image:latest .
-          
-          # Tag for ECR
-          docker tag chatbot-base-$base_image:latest ${{ env.ECR_REGISTRY }}/chatbot-base-$base_image:latest
-          
-          # Push to ECR
-          echo "🚀 Pushing $base_image to ECR..."
-          docker push ${{ env.ECR_REGISTRY }}/chatbot-base-$base_image:latest
-          
-          # Clean up local image
-          docker rmi chatbot-base-$base_image:latest ${{ env.ECR_REGISTRY }}/chatbot-base-$base_image:latest || true
-          
-          echo "✅ $base_image base image built and pushed successfully!"
-        done
+        # Build only the images that have changes
+        if [ "${{ needs.detect-base-image-changes.outputs.build_docling }}" = "true" ]; then
+          echo "🔨 Building docling base image..."
+          docker build -f Dockerfile.docling -t chatbot-base-docling:latest .
+          docker tag chatbot-base-docling:latest ${{ env.ECR_REGISTRY }}/chatbot-base-docling:latest
+          docker push ${{ env.ECR_REGISTRY }}/chatbot-base-docling:latest
+          docker rmi chatbot-base-docling:latest ${{ env.ECR_REGISTRY }}/chatbot-base-docling:latest || true
+          echo "✅ Docling base image built and pushed successfully!"
+        fi
         
-        echo "🎉 All base images built and pushed successfully!"
+        if [ "${{ needs.detect-base-image-changes.outputs.build_sentence_transformers }}" = "true" ]; then
+          echo "🔨 Building sentence-transformers base image..."
+          docker build -f Dockerfile.sentence-transformers -t chatbot-base-sentence-transformers:latest .
+          docker tag chatbot-base-sentence-transformers:latest ${{ env.ECR_REGISTRY }}/chatbot-base-sentence-transformers:latest
+          docker push ${{ env.ECR_REGISTRY }}/chatbot-base-sentence-transformers:latest
+          docker rmi chatbot-base-sentence-transformers:latest ${{ env.ECR_REGISTRY }}/chatbot-base-sentence-transformers:latest || true
+          echo "✅ Sentence-transformers base image built and pushed successfully!"
+        fi
+        
+        if [ "${{ needs.detect-base-image-changes.outputs.build_combined }}" = "true" ]; then
+          echo "🔨 Building combined base image..."
+          docker build -f Dockerfile.combined -t chatbot-base-combined:latest .
+          docker tag chatbot-base-combined:latest ${{ env.ECR_REGISTRY }}/chatbot-base-combined:latest
+          docker push ${{ env.ECR_REGISTRY }}/chatbot-base-combined:latest
+          docker rmi chatbot-base-combined:latest ${{ env.ECR_REGISTRY }}/chatbot-base-combined:latest || true
+          echo "✅ Combined base image built and pushed successfully!"
+        fi
+        
+        echo "🎉 Base images build completed!"
 
   detect-changes:
     runs-on: ubuntu-latest
@@ -156,7 +235,7 @@ jobs:
         fi
 
   build-and-deploy:
-    needs: [build-base-images, detect-changes]
+    needs: [detect-base-image-changes, build-base-images, detect-changes]
     if: needs.detect-changes.outputs.services != '[]'
     runs-on: ubuntu-latest
     environment: chatbot
