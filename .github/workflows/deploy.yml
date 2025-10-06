@@ -461,6 +461,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       services: ${{ steps.changes.outputs.services }}
+    if: always()
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -517,7 +518,7 @@ jobs:
 
   build-and-deploy:
     needs: [detect-base-image-changes, build-base-images, detect-changes]
-    if: needs.detect-changes.outputs.services != '[]'
+    if: always()
     runs-on: ubuntu-latest
     environment: chatbot
     timeout-minutes: 90
