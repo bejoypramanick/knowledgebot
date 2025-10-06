@@ -545,8 +545,8 @@ jobs:
         free -h
         
         # Build with retry logic
-        local retry_count=0
-        local max_retries=3
+        retry_count=0
+        max_retries=3
         
         while [ $retry_count -lt $max_retries ]; do
           if docker build --no-cache --memory=2g --memory-swap=3g -t chatbot-${{ matrix.service }} -f backend/lambda/${{ matrix.service }}/Dockerfile backend/lambda 2>&1 | tee lambda_build.log; then
