@@ -441,7 +441,7 @@ jobs:
         fi
 
   build-and-deploy:
-    needs: [detect-base-image-changes, build-base-images, detect-changes]
+    needs: [detect-base-image-changes, build-base-images, detect-changes, create-api-gateway]
     if: always()
     runs-on: ubuntu-latest
     environment: chatbot
