@@ -88,7 +88,7 @@ const Chatbot = () => {
     };
 
     initializeSession();
-  }, []);
+  }, [apiClient]);
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !sessionId || isLoading) return;
