@@ -929,7 +929,7 @@ jobs:
             "method.response.header.Access-Control-Allow-Headers": true,
             "method.response.header.Access-Control-Allow-Methods": true,
             "method.response.header.Access-Control-Allow-Origin": true
-          }' || echo "Knowledge-base OPTIONS method response may already exist"
+          }' 2>/dev/null || echo "Knowledge-base OPTIONS method response already exists, skipping..."
         
         # Set up knowledge-base OPTIONS integration for CORS
         echo "Setting up knowledge-base OPTIONS integration..."
@@ -959,14 +959,23 @@ jobs:
           --rest-api-id $API_ID \
           --stage-name prod || echo "Deployment may already exist"
         
-        # Add Lambda permission for API Gateway
+        # Add Lambda permission for API Gateway (only if it doesn't exist)
         echo "Adding Lambda permission..."
-        aws lambda add-permission \
-          --function-name chatbot-orchestrator \
-          --statement-id apigateway-invoke-$(date +%s) \
-          --action lambda:InvokeFunction \
-          --principal apigateway.amazonaws.com \
-          --source-arn "arn:aws:execute-api:${{ env.AWS_REGION }}:090163643302:$API_ID/*/*" || echo "Permission may already exist"
+        STATEMENT_ID="apigateway-invoke-chatbot"
+        SOURCE_ARN="arn:aws:execute-api:${{ env.AWS_REGION }}:090163643302:$API_ID/*/*"
+        
+        # Check if permission already exists
+        if aws lambda get-policy --function-name chatbot-orchestrator --query "Policy" --output text 2>/dev/null | grep -q "$STATEMENT_ID"; then
+          echo "✅ Lambda permission already exists, skipping..."
+        else
+          echo "Adding new Lambda permission..."
+          aws lambda add-permission \
+            --function-name chatbot-orchestrator \
+            --statement-id "$STATEMENT_ID" \
+            --action lambda:InvokeFunction \
+            --principal apigateway.amazonaws.com \
+            --source-arn "$SOURCE_ARN" || echo "Failed to add permission, may already exist or policy limit exceeded"
+        fi
         
         # Output API URL
         API_URL="https://$API_ID.execute-api.${{ env.AWS_REGION }}.amazonaws.com/prod"
