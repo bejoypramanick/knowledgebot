@@ -77,7 +77,7 @@ jobs:
 
   build-base-images:
     needs: detect-base-image-changes
-    if: needs.detect-base-image-changes.outputs.build_any == 'true'
+    if: always()
     runs-on: ubuntu-latest
     environment: chatbot
     timeout-minutes: 30
@@ -135,23 +135,43 @@ jobs:
         # Build and push base images
         cd backend/base-images
         
-        # Build only the images that have changes
-        if [ "${{ needs.detect-base-image-changes.outputs.build_docling }}" = "true" ]; then
+        # Build base images - always build if they don't exist or if there are changes
+        BUILD_DOCLING="${{ needs.detect-base-image-changes.outputs.build_docling }}"
+        BUILD_SENTENCE_TRANSFORMERS="${{ needs.detect-base-image-changes.outputs.build_sentence_transformers }}"
+        
+        # Check if base images exist in ECR
+        if ! aws ecr describe-images --repository-name chatbot-base-docling --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
+          echo "📦 Docling base image doesn't exist, building it..."
+          BUILD_DOCLING="true"
+        fi
+        
+        if ! aws ecr describe-images --repository-name chatbot-base-sentence-transformers --image-ids imageTag=latest --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
+          echo "📦 Sentence-transformers base image doesn't exist, building it..."
+          BUILD_SENTENCE_TRANSFORMERS="true"
+        fi
+        
+        # Build docling base image if needed
+        if [ "$BUILD_DOCLING" = "true" ]; then
           echo "🔨 Building docling base image..."
           docker build -f Dockerfile.docling -t chatbot-base-docling:latest .
           docker tag chatbot-base-docling:latest ${{ env.ECR_REGISTRY }}/chatbot-base-docling:latest
           docker push ${{ env.ECR_REGISTRY }}/chatbot-base-docling:latest
           docker rmi chatbot-base-docling:latest ${{ env.ECR_REGISTRY }}/chatbot-base-docling:latest || true
           echo "✅ Docling base image built and pushed successfully!"
+        else
+          echo "⏭️ Docling base image already exists, skipping build"
         fi
         
-        if [ "${{ needs.detect-base-image-changes.outputs.build_sentence_transformers }}" = "true" ]; then
+        # Build sentence-transformers base image if needed
+        if [ "$BUILD_SENTENCE_TRANSFORMERS" = "true" ]; then
           echo "🔨 Building sentence-transformers base image..."
           docker build -f Dockerfile.sentence-transformers -t chatbot-base-sentence-transformers:latest .
           docker tag chatbot-base-sentence-transformers:latest ${{ env.ECR_REGISTRY }}/chatbot-base-sentence-transformers:latest
           docker push ${{ env.ECR_REGISTRY }}/chatbot-base-sentence-transformers:latest
           docker rmi chatbot-base-sentence-transformers:latest ${{ env.ECR_REGISTRY }}/chatbot-base-sentence-transformers:latest || true
           echo "✅ Sentence-transformers base image built and pushed successfully!"
+        else
+          echo "⏭️ Sentence-transformers base image already exists, skipping build"
         fi
         
         echo "🎉 Base images build completed!"
