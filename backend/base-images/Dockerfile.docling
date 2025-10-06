@@ -9,11 +9,11 @@ RUN dnf install -y \
 
 # Install Docling and dependencies
 RUN pip install --upgrade pip && \
-    pip install --upgrade setuptools>=68.0.0 wheel && \
+    pip install --upgrade "setuptools>=68.0.0" wheel && \
     pip install --no-cache-dir \
-    docling>=2.55.1 \
-    numpy>=1.26.0,<2.0.0 \
-    httpx>=0.27.0,<0.29.0
+    "docling>=2.55.1" \
+    "numpy>=1.26.0,<2.0.0" \
+    "httpx>=0.27.0,<0.29.0"
 
 # Create artifacts directory for Docling
 RUN mkdir -p /tmp/docling_artifacts
