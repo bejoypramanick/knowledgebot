@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Deploy Unified Intelligent Agents
-# This script deploys AI-powered agents that replace ALL Lambda functions
+# Deploy Knowledge Agents
+# All business logic and formatting handled by AgentBuilder model
 
 set -e
 
-echo "🧠 Deploying Unified Intelligent Agents..."
+echo "🧠 Deploying Knowledge Agents..."
 
 # Get the directory of this script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -31,65 +31,57 @@ export KNOWLEDGE_BASE_TABLE="${KNOWLEDGE_BASE_TABLE:-chatbot-knowledge-base}"
 export METADATA_TABLE="${METADATA_TABLE:-chatbot-knowledge-base-metadata}"
 
 # 3. Create deployment packages
-echo "📦 Creating unified agent deployment packages..."
+echo "📦 Creating CRUD agent deployment packages..."
 
-# Create unified chat agent package
-echo "Creating unified chat agent package..."
-zip -r unified-chat-agent.zip \
-  lambda_handlers_unified.py \
-  unified_intelligent_agent.py \
-  intelligent_orchestrator_agent.py \
-  intelligent_response_agent.py \
-  retrieval_workflow.py \
-  document_ingestion_workflow.py \
+# Create knowledge chat agent package
+echo "Creating knowledge chat agent package..."
+zip -r knowledge-chat-agent.zip \
+  knowledge_lambda_handlers.py \
+  knowledge_agent.py \
+  crud_tools_only.py \
   custom_functions.py \
-  agent_configurations.py \
   -x "*.pyc" "*/__pycache__/*" "*.git*"
 
-# Create unified document processing agent package
-echo "Creating unified document processing agent package..."
-zip -r unified-document-agent.zip \
-  lambda_handlers_unified.py \
-  unified_intelligent_agent.py \
-  intelligent_orchestrator_agent.py \
-  intelligent_response_agent.py \
-  retrieval_workflow.py \
-  document_ingestion_workflow.py \
+# Create knowledge document processing agent package
+echo "Creating knowledge document processing agent package..."
+zip -r knowledge-document-agent.zip \
+  knowledge_lambda_handlers.py \
+  knowledge_agent.py \
+  crud_tools_only.py \
   custom_functions.py \
-  agent_configurations.py \
   -x "*.pyc" "*/__pycache__/*" "*.git*"
 
 # 4. Deploy Lambda functions
-echo "🚀 Deploying Unified Intelligent Lambda functions..."
+echo "🚀 Deploying Knowledge Lambda functions..."
 
-# Deploy Unified Chat Agent (replaces orchestrator, claude-decision, response-enhancement, etc.)
-echo "Deploying Unified Chat Agent..."
+# Deploy Knowledge Chat Agent
+echo "Deploying Knowledge Chat Agent..."
 aws lambda update-function-code \
-  --function-name chatbot-unified-chat-agent \
-  --zip-file fileb://unified-chat-agent.zip \
+  --function-name chatbot-knowledge-chat-agent \
+  --zip-file fileb://knowledge-chat-agent.zip \
   --region ap-south-1 || \
 aws lambda create-function \
-  --function-name chatbot-unified-chat-agent \
+  --function-name chatbot-knowledge-chat-agent \
   --runtime python3.9 \
   --role arn:aws:iam::090163643302:role/chatbot-agent-lambda-role \
-  --handler lambda_handlers_unified.lambda_handler_unified_chat \
-  --zip-file fileb://unified-chat-agent.zip \
+  --handler knowledge_lambda_handlers.lambda_handler_knowledge_chat \
+  --zip-file fileb://knowledge-chat-agent.zip \
   --timeout 900 \
   --memory-size 3008 \
   --region ap-south-1
 
-# Deploy Unified Document Processing Agent (replaces document-management, rag-processor, etc.)
-echo "Deploying Unified Document Processing Agent..."
+# Deploy Knowledge Document Processing Agent
+echo "Deploying Knowledge Document Processing Agent..."
 aws lambda update-function-code \
-  --function-name chatbot-unified-document-agent \
-  --zip-file fileb://unified-document-agent.zip \
+  --function-name chatbot-knowledge-document-agent \
+  --zip-file fileb://knowledge-document-agent.zip \
   --region ap-south-1 || \
 aws lambda create-function \
-  --function-name chatbot-unified-document-agent \
+  --function-name chatbot-knowledge-document-agent \
   --runtime python3.9 \
   --role arn:aws:iam::090163643302:role/chatbot-agent-lambda-role \
-  --handler lambda_handlers_unified.lambda_handler_unified_document_ingestion \
-  --zip-file fileb://unified-document-agent.zip \
+  --handler knowledge_lambda_handlers.lambda_handler_knowledge_document_ingestion \
+  --zip-file fileb://knowledge-document-agent.zip \
   --timeout 900 \
   --memory-size 3008 \
   --region ap-south-1
@@ -97,9 +89,9 @@ aws lambda create-function \
 # 5. Update Lambda environment variables
 echo "🔧 Updating Lambda environment variables..."
 
-# Update Unified Chat Agent environment
+# Update Knowledge Chat Agent environment
 aws lambda update-function-configuration \
-  --function-name chatbot-unified-chat-agent \
+  --function-name chatbot-knowledge-chat-agent \
   --environment Variables="{
     OPENAI_API_KEY=${OPENAI_API_KEY},
     PINECONE_API_KEY=${PINECONE_API_KEY},
@@ -116,9 +108,9 @@ aws lambda update-function-configuration \
   }" \
   --region ap-south-1
 
-# Update Unified Document Processing Agent environment
+# Update Knowledge Document Processing Agent environment
 aws lambda update-function-configuration \
-  --function-name chatbot-unified-document-agent \
+  --function-name chatbot-knowledge-document-agent \
   --environment Variables="{
     OPENAI_API_KEY=${OPENAI_API_KEY},
     PINECONE_API_KEY=${PINECONE_API_KEY},
@@ -138,33 +130,43 @@ aws lambda update-function-configuration \
 # 6. Update Lambda handler configuration
 echo "🔧 Updating Lambda handler configuration..."
 
-# Update Unified Chat Agent handler
+# Update Knowledge Chat Agent handler
 aws lambda update-function-configuration \
-  --function-name chatbot-unified-chat-agent \
-  --handler lambda_handlers_unified.lambda_handler_unified_chat \
+  --function-name chatbot-knowledge-chat-agent \
+  --handler knowledge_lambda_handlers.lambda_handler_knowledge_chat \
   --region ap-south-1
 
-# Update Unified Document Processing Agent handler
+# Update Knowledge Document Processing Agent handler
 aws lambda update-function-configuration \
-  --function-name chatbot-unified-document-agent \
-  --handler lambda_handlers_unified.lambda_handler_unified_document_ingestion \
+  --function-name chatbot-knowledge-document-agent \
+  --handler knowledge_lambda_handlers.lambda_handler_knowledge_document_ingestion \
   --region ap-south-1
 
-echo "✅ Unified Intelligent Agents deployment completed successfully!"
+echo "✅ Knowledge Agents deployment completed successfully!"
 echo ""
-echo "🎉 Lambda Functions Replaced with AI Intelligence:"
-echo "  ❌ chatbot-orchestrator → ✅ chatbot-unified-chat-agent"
-echo "  ❌ chatbot-claude-decision → ✅ chatbot-unified-chat-agent"
-echo "  ❌ chatbot-response-enhancement → ✅ chatbot-unified-chat-agent"
-echo "  ❌ chatbot-response-formatter → ✅ chatbot-unified-chat-agent"
-echo "  ❌ chatbot-source-extractor → ✅ chatbot-unified-chat-agent"
-echo "  ❌ chatbot-conversation-manager → ✅ chatbot-unified-chat-agent"
-echo "  ❌ chatbot-document-management → ✅ chatbot-unified-document-agent"
-echo "  ❌ chatbot-rag-processor → ✅ chatbot-unified-document-agent"
-echo "  ❌ chatbot-embedding-service → ✅ chatbot-unified-document-agent"
+echo "🎉 Architecture: CRUD Tools + AI Intelligence"
+echo "  🔧 CRUD Tools: Pure data operations only"
+echo "  🧠 AI Model: All business logic and formatting"
+echo "  📊 Lambda Functions: 2 (chat + document processing)"
+echo ""
+echo "🔧 CRUD Tools Available:"
+echo "  📁 S3: read_s3_data_tool"
+echo "  🔍 Pinecone: search_pinecone_tool, upsert_pinecone_tool, delete_pinecone_tool"
+echo "  🕸️ Neo4j: search_neo4j_tool, execute_neo4j_write_tool"
+echo "  🗄️ DynamoDB: read_dynamodb_tool, batch_read_dynamodb_tool, write_dynamodb_tool, update_dynamodb_tool, delete_dynamodb_tool"
+echo "  🧮 Embeddings: generate_embedding_tool"
+echo ""
+echo "🧠 AI Handles:"
+echo "  ✅ Business logic and decision making"
+echo "  ✅ Query understanding and intent analysis"
+echo "  ✅ Data processing and synthesis"
+echo "  ✅ Response generation and formatting"
+echo "  ✅ Error handling and user guidance"
+echo "  ✅ Multi-question processing"
+echo "  ✅ Context awareness and conversation flow"
 echo ""
 echo "📋 Next steps:"
-echo "1. Test the unified chat endpoint:"
+echo "1. Test the CRUD chat endpoint:"
 echo "   curl -X POST 'https://your-api-gateway-url/chat' \\"
 echo "     -H 'Content-Type: application/json' \\"
 echo "     -d '{\"message\": \"test query\"}'"
@@ -174,5 +176,4 @@ echo "   aws s3 cp test-document.pdf s3://${DOCUMENTS_BUCKET}/documents/"
 echo ""
 echo "3. Check CloudWatch logs for processing status"
 echo ""
-echo "🧠 Your system now uses AI intelligence instead of complex Lambda logic!"
-echo "🎯 Reduced from 16+ Lambda functions to 2 intelligent agents!"
+echo "🎯 Perfect separation: CRUD tools for data, AI for intelligence! 🧠✨"

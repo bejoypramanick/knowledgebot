@@ -1,6 +1,6 @@
 """
-Unified Lambda Handlers using OpenAI AgentBuilder
-This module replaces ALL Lambda functions with intelligent agents
+Lambda Handlers with CRUD Tools Only
+All business logic and formatting handled by AgentBuilder model
 """
 
 import json
@@ -9,15 +9,15 @@ import asyncio
 from typing import Dict, Any
 import logging
 
-# Import our unified intelligent agent
-from unified_intelligent_agent import run_unified_intelligent_processing, UnifiedInput
+# Import our knowledge agent
+from knowledge_agent import run_unified_crud_processing, CRUDAgentInput
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-async def unified_chat_handler_async(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    """Unified chat handler that replaces ALL Lambda functions with AI intelligence"""
+async def knowledge_chat_handler_async(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """Knowledge chat handler - all business logic handled by AgentBuilder model"""
     try:
         # Extract query from event
         if 'body' in event:
@@ -38,16 +38,16 @@ async def unified_chat_handler_async(event: Dict[str, Any], context: Any) -> Dic
                 })
             }
         
-        # Create unified input
-        unified_input = UnifiedInput(
+        # Create knowledge agent input
+        knowledge_input = CRUDAgentInput(
             user_query=user_query,
             conversation_history=conversation_history,
             conversation_id=conversation_id,
             user_preferences=user_preferences
         )
         
-        # Run the unified intelligent processing
-        result = await run_unified_intelligent_processing(unified_input)
+        # Run the knowledge processing
+        result = await run_unified_crud_processing(knowledge_input)
         
         return {
             "statusCode": 200,
@@ -62,16 +62,17 @@ async def unified_chat_handler_async(event: Dict[str, Any], context: Any) -> Dic
                 "sources": result.get("sources", []),
                 "conversation_id": result.get("conversation_id", conversation_id),
                 "processing_time": result.get("processing_time", 0),
-                "workflow_type": result.get("workflow_type", "unified_intelligent_processing"),
-                "agent_used": result.get("agent_used", "unified_intelligent_agent"),
-                "lambda_functions_replaced": result.get("lambda_functions_replaced", []),
-                "timestamp": result.get("timestamp", ""),
-                "needs_clarification": False  # AI handles clarifications naturally
+                "workflow_type": result.get("workflow_type", "knowledge_processing"),
+                "agent_used": result.get("agent_used", "knowledge_agent"),
+                "tools_used": result.get("tools_used", "crud_only"),
+                "business_logic": result.get("business_logic", "ai_handled"),
+                "timestamp": datetime.now().isoformat(),
+                "needs_clarification": False
             })
         }
         
     except Exception as e:
-        logger.error(f"Error in unified chat handler: {e}")
+        logger.error(f"Error in knowledge chat handler: {e}")
         return {
             "statusCode": 500,
             "headers": {
@@ -86,13 +87,13 @@ async def unified_chat_handler_async(event: Dict[str, Any], context: Any) -> Dic
                 "sources": [],
                 "conversation_id": "",
                 "processing_time": 0,
-                "workflow_type": "unified_intelligent_processing",
-                "agent_used": "unified_intelligent_agent"
+                "workflow_type": "knowledge_processing",
+                "agent_used": "knowledge_agent"
             })
         }
 
-async def unified_document_ingestion_handler_async(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    """Unified document ingestion handler using AI intelligence"""
+async def knowledge_document_ingestion_handler_async(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """Knowledge document ingestion handler - all business logic handled by AgentBuilder model"""
     try:
         # Extract S3 event information
         records = event.get('Records', [])
@@ -109,16 +110,16 @@ async def unified_document_ingestion_handler_async(event: Dict[str, Any], contex
         bucket = s3_info.get('bucket', {}).get('name', '')
         key = s3_info.get('object', {}).get('key', '')
         
-        # Create unified input for document processing
-        unified_input = UnifiedInput(
+        # Create knowledge agent input for document processing
+        knowledge_input = CRUDAgentInput(
             user_query=f"Process document: s3://{bucket}/{key}",
             conversation_history=[],
             conversation_id=f"doc_processing_{hash(key)}",
             user_preferences={"processing_type": "document_ingestion"}
         )
         
-        # Run the unified intelligent processing
-        result = await run_unified_intelligent_processing(unified_input)
+        # Run the knowledge processing
+        result = await run_unified_crud_processing(knowledge_input)
         
         return {
             "statusCode": 200,
@@ -128,31 +129,32 @@ async def unified_document_ingestion_handler_async(event: Dict[str, Any], contex
                 "s3_bucket": bucket,
                 "s3_key": key,
                 "processing_time": result.get("processing_time", 0),
-                "workflow_type": "unified_document_ingestion",
-                "agent_used": "unified_intelligent_agent",
-                "lambda_functions_replaced": ["document_management", "rag_processor", "embedding_service"]
+                "workflow_type": "knowledge_processing",
+                "agent_used": "knowledge_agent",
+                "tools_used": "crud_only",
+                "business_logic": "ai_handled"
             })
         }
         
     except Exception as e:
-        logger.error(f"Error in unified document ingestion handler: {e}")
+        logger.error(f"Error in knowledge document ingestion handler: {e}")
         return {
             "statusCode": 500,
             "body": json.dumps({
                 "error": str(e),
                 "status": "failed",
-                "workflow_type": "unified_document_ingestion"
+                "workflow_type": "unified_crud_processing"
             })
         }
 
 # Synchronous wrappers for Lambda
-def lambda_handler_unified_chat(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    """Synchronous wrapper for unified chat handler"""
-    return asyncio.run(unified_chat_handler_async(event, context))
+def lambda_handler_knowledge_chat(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """Synchronous wrapper for knowledge chat handler"""
+    return asyncio.run(knowledge_chat_handler_async(event, context))
 
-def lambda_handler_unified_document_ingestion(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    """Synchronous wrapper for unified document ingestion handler"""
-    return asyncio.run(unified_document_ingestion_handler_async(event, context))
+def lambda_handler_knowledge_document_ingestion(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """Synchronous wrapper for knowledge document ingestion handler"""
+    return asyncio.run(knowledge_document_ingestion_handler_async(event, context))
 
 # Main Lambda handler (can be used for both chat and document processing)
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -176,11 +178,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             record = event['Records'][0]
             if record.get('eventSource') == 'aws:s3':
                 logger.info("Processing S3 event for document ingestion")
-                return lambda_handler_unified_document_ingestion(event, context)
+                return lambda_handler_knowledge_document_ingestion(event, context)
         
         # Otherwise, treat as chat request
         logger.info("Processing chat request")
-        return lambda_handler_unified_chat(event, context)
+        return lambda_handler_knowledge_chat(event, context)
         
     except Exception as e:
         logger.error(f"Error in main lambda handler: {e}")
@@ -196,16 +198,16 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 "sources": [],
                 "conversation_id": "",
                 "processing_time": 0,
-                "workflow_type": "unified_intelligent_processing",
-                "agent_used": "unified_intelligent_agent"
+                "workflow_type": "knowledge_processing",
+                "agent_used": "knowledge_agent"
             })
         }
 
 # Alternative handlers for specific use cases
 def chat_lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Dedicated chat Lambda handler"""
-    return lambda_handler_unified_chat(event, context)
+    return lambda_handler_knowledge_chat(event, context)
 
 def document_ingestion_lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Dedicated document ingestion Lambda handler"""
-    return lambda_handler_unified_document_ingestion(event, context)
+    return lambda_handler_knowledge_document_ingestion(event, context)
