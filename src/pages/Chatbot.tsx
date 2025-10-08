@@ -170,7 +170,7 @@ const Chatbot = () => {
   };
 
   return (
-    <div className="h-screen bg-gradient-secondary flex flex-col overflow-hidden">
+    <div className="h-full bg-gradient-secondary flex flex-col overflow-hidden">
       {/* Demo Only Banner */}
       <div className="bg-red-600 text-white py-1 px-3 text-xs font-bold flex-shrink-0">
         <div className="flex items-center gap-2">

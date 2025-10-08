@@ -23,16 +23,18 @@ const App = () => (
           v7_relativeSplatPath: true
         }}
       >
-        <Navigation />
-        <main className="min-h-screen">
-          <Routes>
-            <Route path="/" element={<Chatbot />} />
-            <Route path="/configuration" element={<ChatbotConfiguration />} />
-            <Route path="/performance" element={<ChatbotPerformance />} />
-            <Route path="/knowledge-base" element={<KnowledgeBaseManagement />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </main>
+        <div className="h-screen flex flex-col overflow-hidden">
+          <Navigation />
+          <main className="flex-1 overflow-hidden">
+            <Routes>
+              <Route path="/" element={<Chatbot />} />
+              <Route path="/configuration" element={<ChatbotConfiguration />} />
+              <Route path="/performance" element={<ChatbotPerformance />} />
+              <Route path="/knowledge-base" element={<KnowledgeBaseManagement />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </main>
+        </div>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

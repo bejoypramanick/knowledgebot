@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 
 const ChatbotConfiguration = () => {
   return (
-    <div className="min-h-screen bg-gradient-secondary">
+    <div className="h-full bg-gradient-secondary overflow-y-auto">
       <div className="p-6 max-w-7xl mx-auto space-y-8 animate-fade-in">
         <div className="flex items-center justify-between">
           <div>
