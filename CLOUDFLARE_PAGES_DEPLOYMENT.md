@@ -22,7 +22,7 @@
 
 #### **Build Configuration**
 - **Framework preset**: `Vite`
-- **Build command**: `npm ci && npm run build`
+- **Build command**: `./build.sh` (or `npm ci && npm run build`)
 - **Build output directory**: `dist`
 - **Root directory**: `/` (leave empty)
 
@@ -30,6 +30,10 @@
 Add these environment variables in the **Environment variables** section:
 
 ```bash
+# Node.js Configuration
+NODE_VERSION=18.18.0
+NPM_CONFIG_PRODUCTION=false
+
 # Vite Configuration
 VITE_APP_TITLE=KnowledgeBot
 VITE_APP_VERSION=1.0.0
@@ -41,6 +45,10 @@ VITE_API_TIMEOUT=30000
 # Feature Flags
 VITE_ENABLE_DEBUG=false
 VITE_ENABLE_ANALYTICS=true
+
+# Build Configuration
+CI=true
+NODE_ENV=production
 ```
 
 ### 4. **Advanced Settings**
