@@ -1,90 +1,51 @@
-# KnowledgeBot Frontend - AI-Powered Document Management System
+# KnowledgeBot - AI-Powered Knowledge Assistant
 
-A modern React frontend for the KnowledgeBot AI-powered document management system.
+**Copyright (c) 2025 Bejoy Pramanick. All rights reserved.**
 
-## Project info
+## ⚠️ PROPRIETARY SOFTWARE
 
-**Frontend URL**: https://lovable.dev/projects/3458e147-42ab-4071-8b20-5bed99985ad7  
-**Backend Repository**: [knowledgebot-backend](https://github.com/yourusername/knowledgebot-backend) (Private)
+This software is proprietary and confidential. It is licensed under strict terms that **prohibit commercial use without explicit written permission**.
 
-## How can I edit this code?
+## 🚫 Commercial Use Prohibited
 
-There are several ways of editing your application.
+- **NO SELLING**: This software cannot be sold, rented, or leased
+- **NO COMMERCIAL USE**: Cannot be used for any commercial purpose without permission
+- **NO DISTRIBUTION**: Cannot be distributed or sublicensed to third parties
+- **NO DERIVATIVE WORKS**: Cannot create derivative works without permission
 
-**Use Lovable**
+## 📋 License Terms
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/3458e147-42ab-4071-8b20-5bed99985ad7) and start prompting.
+This software is provided under a **PROPRIETARY LICENSE** with the following key restrictions:
 
-Changes made via Lovable will be committed automatically to this repo.
+1. **Personal/Educational Use Only**: Limited to non-commercial purposes
+2. **No Commercialization**: Selling or monetizing requires explicit written permission
+3. **No Redistribution**: Cannot be shared, sold, or transferred to others
+4. **No Reverse Engineering**: Cannot decompile or disassemble the code
+5. **No Derivative Works**: Cannot create modifications without permission
 
-**Use your preferred IDE**
+## 🔒 Intellectual Property
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+All rights, title, and interest in this software remain with Bejoy Pramanick. This includes:
+- Source code and algorithms
+- User interface design and components
+- Documentation and specifications
+- Any derivative works or modifications
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## 📞 Contact for Permissions
 
-Follow these steps:
+For commercial use permissions or licensing inquiries, contact:
+- **Name**: Bejoy Pramanick
+- **Email**: [Your Email Address]
+- **Subject**: KnowledgeBot Commercial License Inquiry
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+## 🛡️ Legal Protection
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+This software is protected by copyright law and proprietary licensing terms. Unauthorized commercial use may result in legal action.
 
-# Step 3: Install the necessary dependencies.
-npm i
+## 📄 Full License
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+See the [LICENSE](LICENSE) file for complete terms and conditions.
 
-**Edit a file directly in GitHub**
+---
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This frontend project is built with:
-
-- **Vite** - Fast build tool and dev server
-- **TypeScript** - Type-safe JavaScript
-- **React** - UI library
-- **shadcn-ui** - Component library
-- **Tailwind CSS** - Utility-first CSS framework
-
-## Backend Integration
-
-This frontend connects to the KnowledgeBot backend system which includes:
-
-- **OpenAI AgentToolkit** - AI agent with CRUD tools
-- **AWS Lambda** - Serverless functions
-- **DynamoDB** - Document storage
-- **Pinecone** - Vector search (optional)
-- **Neo4j** - Knowledge graph (optional)
-- **S3** - File storage
-
-For backend setup and deployment, see the [knowledgebot-backend](https://github.com/yourusername/knowledgebot-backend) repository.
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/3458e147-42ab-4071-8b20-5bed99985ad7) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
-# Test trigger
+**By using this software, you acknowledge that you have read and understood the license terms and agree to be bound by them.**

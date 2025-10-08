@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "license": "PROPRIETARY",
   "packageManager": "npm@9.8.1",
   "engines": {
     "node": ">=18.18.0",

@@ -1,3 +1,11 @@
+/**
+ * KnowledgeBot - AI-Powered Knowledge Assistant
+ * Copyright (c) 2025 Bejoy Pramanick. All rights reserved.
+ * 
+ * PROPRIETARY SOFTWARE - See LICENSE file for terms and conditions.
+ * Commercial use prohibited without explicit written permission.
+ */
+
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
