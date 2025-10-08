@@ -3,11 +3,14 @@
 const Index = () => {
   return (
     <div className="min-h-screen bg-background">
-      {/* Development Banner */}
-      <div className="bg-amber-500 text-amber-900 text-center py-2 px-4 text-sm font-medium">
-        <div className="flex items-center justify-center gap-2">
-          <div className="w-2 h-2 bg-amber-700 rounded-full animate-pulse"></div>
-          <span>🚧 In Development - This is a prototype version</span>
+      {/* Demo Only Banner */}
+      <div className="bg-red-600 text-white py-1 px-3 text-xs font-bold">
+        <div className="flex items-center gap-2">
+          <span className="text-lg">✗</span>
+          <span>DEMO ONLY</span>
+        </div>
+        <div className="text-xs text-red-100 mt-0.5">
+          NOT FOR ORID USE
         </div>
       </div>
       
@@ -17,10 +20,10 @@ const Index = () => {
           <p className="text-xl text-muted-foreground mb-6">Your AI-powered knowledge assistant</p>
           <div className="bg-muted/30 border border-border/20 rounded-lg p-4 max-w-md mx-auto">
             <p className="text-sm text-muted-foreground mb-2">
-              <strong>⚠️ Development Notice:</strong>
+              <strong>⚠️ Demo Notice:</strong>
             </p>
             <p className="text-xs text-muted-foreground">
-              This application is currently in active development. Please do not use this as a production application. Features may be incomplete or unstable.
+              This is a demonstration version only. Not intended for production use. Features may be incomplete or unstable.
             </p>
           </div>
         </div>
