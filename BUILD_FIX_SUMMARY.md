@@ -16,7 +16,7 @@ note: try re-running without --frozen-lockfile and commit the updated lockfile
 
 ### 1. **Removed Conflicting Lockfiles**
 ```bash
-rm bun.lockb
+rm -f *.lockb yarn.lock
 ```
 - Eliminated conflicting lockfiles
 - Forces npm to be the primary package manager
