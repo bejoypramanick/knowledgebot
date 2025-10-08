@@ -31,17 +31,17 @@ VITE_APP_VERSION=1.0.0
 
 ### **3. Advanced Settings**
 - **Node.js version**: `18.18.0` (auto-detected from .nvmrc)
-- **Package manager**: `npm` (enforced by package.json)
+- **Package manager**: `npm@9.8.1` (enforced by package.json)
 
 ## 🛡️ **Protection Layers Implemented**
 
 ### **1. Package.json Configuration**
 ```json
 {
-  "packageManager": "npm@10.9.2",
+  "packageManager": "npm@9.8.1",
   "engines": {
     "node": ">=18.18.0",
-    "npm": ">=10.9.2"
+    "npm": ">=9.8.0"
   }
 }
 ```
@@ -50,7 +50,6 @@ VITE_APP_VERSION=1.0.0
 ```ini
 package-lock=true
 lockfile-version=3
-engine-strict=true
 save-exact=true
 ```
 
@@ -104,7 +103,7 @@ You should see:
 ```
 Starting KnowledgeBot build process...
 Node.js version: v18.18.0
-npm version: 10.9.2
+npm version: 9.8.1
 Cleaning up lockfiles...
 Installing dependencies with npm...
 added 476 packages, and audited 477 packages in 10s
