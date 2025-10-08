@@ -182,7 +182,7 @@ const Chatbot = () => {
         </div>
       </div>
       
-      <div className="max-w-4xl mx-auto flex-1 flex flex-col overflow-hidden">
+      <div className="w-full flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <div className="bg-gradient-primary border-b border-border/20 backdrop-blur-sm px-6 py-4 flex-shrink-0">
           <div className="flex items-center justify-between">
