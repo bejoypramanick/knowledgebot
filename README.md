@@ -1,8 +1,11 @@
-# KnowledgeBot - AI-Powered Document Management System
+# KnowledgeBot Frontend - AI-Powered Document Management System
+
+A modern React frontend for the KnowledgeBot AI-powered document management system.
 
 ## Project info
 
-**URL**: https://lovable.dev/projects/3458e147-42ab-4071-8b20-5bed99985ad7
+**Frontend URL**: https://lovable.dev/projects/3458e147-42ab-4071-8b20-5bed99985ad7  
+**Backend Repository**: [knowledgebot-backend](https://github.com/yourusername/knowledgebot-backend) (Private)
 
 ## How can I edit this code?
 
@@ -52,13 +55,26 @@ npm run dev
 
 ## What technologies are used for this project?
 
-This project is built with:
+This frontend project is built with:
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- **Vite** - Fast build tool and dev server
+- **TypeScript** - Type-safe JavaScript
+- **React** - UI library
+- **shadcn-ui** - Component library
+- **Tailwind CSS** - Utility-first CSS framework
+
+## Backend Integration
+
+This frontend connects to the KnowledgeBot backend system which includes:
+
+- **OpenAI AgentToolkit** - AI agent with CRUD tools
+- **AWS Lambda** - Serverless functions
+- **DynamoDB** - Document storage
+- **Pinecone** - Vector search (optional)
+- **Neo4j** - Knowledge graph (optional)
+- **S3** - File storage
+
+For backend setup and deployment, see the [knowledgebot-backend](https://github.com/yourusername/knowledgebot-backend) repository.
 
 ## How can I deploy this project?
 
