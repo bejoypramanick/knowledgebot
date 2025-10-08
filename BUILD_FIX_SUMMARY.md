@@ -7,18 +7,18 @@ note: try re-running without --frozen-lockfile and commit the updated lockfile
 ```
 
 ## 🔍 **Root Cause Analysis**
-1. **Mixed Package Managers**: Both `bun.lockb` and `package-lock.json` existed
-2. **Cloudflare Detection**: Cloudflare Pages detected Bun and tried to use `bun install --frozen-lockfile`
-3. **Lockfile Mismatch**: The Bun lockfile was out of sync with `package.json`
+1. **Mixed Package Managers**: Multiple lockfiles existed causing conflicts
+2. **Cloudflare Detection**: Cloudflare Pages detected alternative package managers and tried to use incompatible commands
+3. **Lockfile Mismatch**: Lockfiles were out of sync with `package.json`
 4. **Package Manager Confusion**: No explicit package manager specification
 
 ## ✅ **Complete Solution Applied**
 
-### 1. **Removed Bun Lockfile**
+### 1. **Removed Conflicting Lockfiles**
 ```bash
 rm bun.lockb
 ```
-- Eliminated the conflicting Bun lockfile
+- Eliminated conflicting lockfiles
 - Forces npm to be the primary package manager
 
 ### 2. **Added .npmrc Configuration**

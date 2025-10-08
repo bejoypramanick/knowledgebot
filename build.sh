@@ -14,7 +14,6 @@ echo "npm version: $(npm --version)"
 
 # Remove any existing lockfiles that might cause conflicts
 echo "Cleaning up lockfiles..."
-rm -f bun.lockb
 rm -f yarn.lock
 
 # Install dependencies using npm only
