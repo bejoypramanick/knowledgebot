@@ -178,7 +178,7 @@ const Chatbot = () => {
           <span>DEMO ONLY</span>
         </div>
         <div className="text-xs text-red-100 mt-0.5">
-          NOT FOR ORID USE
+          NOT FOR PROD USE
         </div>
       </div>
       
