@@ -22,7 +22,7 @@
 
 #### **Build Configuration**
 - **Framework preset**: `Vite`
-- **Build command**: `npm run build`
+- **Build command**: `npm ci && npm run build`
 - **Build output directory**: `dist`
 - **Root directory**: `/` (leave empty)
 
@@ -47,6 +47,7 @@ VITE_ENABLE_ANALYTICS=true
 
 #### **Build Settings**
 - **Node.js version**: `18.18.0` (specified in .nvmrc)
+- **Package manager**: `npm` (specified in package.json)
 - **Build command**: `npm ci && npm run build`
 - **Build output directory**: `dist`
 
