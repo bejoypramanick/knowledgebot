@@ -171,6 +171,14 @@ const Chatbot = () => {
 
   return (
     <div className="min-h-screen bg-gradient-secondary">
+      {/* Development Banner */}
+      <div className="bg-amber-500 text-amber-900 text-center py-2 px-4 text-sm font-medium">
+        <div className="flex items-center justify-center gap-2">
+          <div className="w-2 h-2 bg-amber-700 rounded-full animate-pulse"></div>
+          <span>🚧 In Development - This is a prototype version</span>
+        </div>
+      </div>
+      
       <div className="max-w-4xl mx-auto h-screen flex flex-col">
         {/* Header */}
         <div className="bg-gradient-primary border-b border-border/20 backdrop-blur-sm px-6 py-4">
@@ -316,6 +324,18 @@ const Chatbot = () => {
                 <Send className="h-4 w-4" />
               )}
             </Button>
+          </div>
+        </div>
+        
+        {/* Development Disclaimer */}
+        <div className="bg-muted/30 border-t border-border/20 px-6 py-3">
+          <div className="text-center text-xs text-muted-foreground">
+            <p className="mb-1">
+              <strong>⚠️ Development Notice:</strong> This application is currently in active development.
+            </p>
+            <p>
+              Please do not use this as a production application. Features may be incomplete or unstable.
+            </p>
           </div>
         </div>
       </div>
