@@ -170,9 +170,9 @@ const Chatbot = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-secondary">
+    <div className="h-screen bg-gradient-secondary flex flex-col overflow-hidden">
       {/* Demo Only Banner */}
-      <div className="bg-red-600 text-white py-1 px-3 text-xs font-bold">
+      <div className="bg-red-600 text-white py-1 px-3 text-xs font-bold flex-shrink-0">
         <div className="flex items-center gap-2">
           <span className="text-lg">✗</span>
           <span>DEMO ONLY</span>
@@ -182,9 +182,9 @@ const Chatbot = () => {
         </div>
       </div>
       
-      <div className="max-w-4xl mx-auto h-screen flex flex-col">
+      <div className="max-w-4xl mx-auto flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-primary border-b border-border/20 backdrop-blur-sm px-6 py-4">
+        <div className="bg-gradient-primary border-b border-border/20 backdrop-blur-sm px-6 py-4 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center">
@@ -252,7 +252,7 @@ const Chatbot = () => {
 
         {/* Error Message */}
         {error && (
-          <div className="px-6 py-2">
+          <div className="px-6 py-2 flex-shrink-0">
             <div className="bg-red-100 border border-red-300 text-red-700 px-4 py-3 rounded">
               {error}
             </div>
@@ -298,7 +298,7 @@ const Chatbot = () => {
         </div>
 
         {/* Input Area */}
-        <div className="border-t border-border/20 bg-card/50 backdrop-blur-sm p-4">
+        <div className="border-t border-border/20 bg-card/50 backdrop-blur-sm p-4 flex-shrink-0">
           <div className="flex items-center space-x-3">
             <Button 
               variant="ghost" 
@@ -331,7 +331,7 @@ const Chatbot = () => {
         </div>
         
         {/* Demo Disclaimer */}
-        <div className="bg-muted/30 border-t border-border/20 px-6 py-3">
+        <div className="bg-muted/30 border-t border-border/20 px-6 py-3 flex-shrink-0">
           <div className="text-center text-xs text-muted-foreground">
             <p className="mb-1">
               <strong>⚠️ Demo Notice:</strong> This is a demonstration version only.

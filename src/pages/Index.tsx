@@ -2,9 +2,9 @@
 
 const Index = () => {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-screen bg-background flex flex-col overflow-hidden">
       {/* Demo Only Banner */}
-      <div className="bg-red-600 text-white py-1 px-3 text-xs font-bold">
+      <div className="bg-red-600 text-white py-1 px-3 text-xs font-bold flex-shrink-0">
         <div className="flex items-center gap-2">
           <span className="text-lg">✗</span>
           <span>DEMO ONLY</span>
@@ -14,7 +14,7 @@ const Index = () => {
         </div>
       </div>
       
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex-1 flex items-center justify-center overflow-y-auto">
         <div className="text-center">
           <h1 className="mb-4 text-4xl font-bold">Welcome to KnowledgeBot</h1>
           <p className="text-xl text-muted-foreground mb-6">Your AI-powered knowledge assistant</p>
