@@ -101,20 +101,30 @@ const KnowledgeBaseManagement = () => {
       setError(null);
       setSuccess(null);
 
+      console.log('Starting document upload process...');
+      console.log('File:', selectedFile.name, 'Size:', selectedFile.size, 'Type:', selectedFile.type);
+      console.log('Metadata:', uploadMetadata);
+
       // Step 1: Get presigned URL
       setUploadProgress(10);
+      console.log('Step 1: Requesting presigned URL...');
       const presignedResponse = await knowledgeBaseManager.getPresignedUploadUrl(selectedFile, uploadMetadata);
+      console.log('Presigned URL received:', presignedResponse);
       
       // Step 2: Upload to S3
       setUploadProgress(30);
+      console.log('Step 2: Uploading to S3...');
       await knowledgeBaseManager.uploadToS3(selectedFile, presignedResponse.presigned_url, uploadMetadata);
+      console.log('S3 upload completed');
       
       // Step 2.5: Update S3 object metadata (if needed)
       if (presignedResponse.metadata) {
+        console.log('Step 2.5: Updating S3 metadata...');
         await knowledgeBaseManager.updateS3ObjectMetadata(presignedResponse.s3_key, presignedResponse.metadata);
       }
       
       // Step 3: Wait for processing (simulate progress)
+      console.log('Step 3: Document processing initiated...');
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => {
           if (prev >= 90) {
@@ -131,7 +141,8 @@ const KnowledgeBaseManagement = () => {
       clearInterval(progressInterval);
       setUploadProgress(100);
       
-      setSuccess(`Document uploaded successfully! Processing will begin shortly.`);
+      setSuccess(`Document "${selectedFile.name}" uploaded successfully! Processing will begin shortly.`);
+      console.log('Upload process completed successfully');
       
       // Reset form
       setSelectedFile(null);
@@ -154,7 +165,7 @@ const KnowledgeBaseManagement = () => {
 
     } catch (err) {
       console.error('Error uploading document:', err);
-      setError('Failed to upload document. Please try again.');
+      setError(`Failed to upload document: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again.`);
     } finally {
       setIsUploading(false);
     }
@@ -246,9 +257,10 @@ const KnowledgeBaseManagement = () => {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
                       <span>
-                        {uploadProgress < 30 ? 'Getting upload URL...' :
-                         uploadProgress < 90 ? 'Uploading to S3...' :
-                         'Processing document...'}
+                        {uploadProgress < 10 ? 'Requesting upload URL...' :
+                         uploadProgress < 30 ? 'Uploading to S3...' :
+                         uploadProgress < 90 ? 'Processing document...' :
+                         'Upload complete!'}
                       </span>
                       <span>{uploadProgress}%</span>
                     </div>

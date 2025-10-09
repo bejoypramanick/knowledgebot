@@ -126,6 +126,8 @@ export class KnowledgeBaseManager {
       }
     };
 
+    console.log('Requesting presigned URL with payload:', payload);
+
     // Use the knowledge-base endpoint for presigned URL generation
     const response = await axios.post(`${this.apiBaseUrl}/knowledge-base`, payload);
     console.log('Presigned URL response:', response.data);
@@ -133,6 +135,10 @@ export class KnowledgeBaseManager {
   }
 
   async uploadToS3(file: File, presignedUrl: string, metadata: Partial<DocumentMetadata> = {}): Promise<void> {
+    console.log('Starting S3 upload with presigned URL');
+    console.log('File:', file.name, 'Size:', file.size, 'Type:', file.type);
+    console.log('Presigned URL:', presignedUrl.substring(0, 100) + '...');
+
     // The presigned URL only includes content-type and host in its signature
     // We should not send any metadata headers as they're not in the signed headers
     let headers: Record<string, string> = {
@@ -140,12 +146,25 @@ export class KnowledgeBaseManager {
     };
 
     console.log('Upload headers:', headers);
-    console.log('Presigned URL:', presignedUrl);
 
-    const response = await axios.put(presignedUrl, file, { headers });
+    try {
+      const response = await axios.put(presignedUrl, file, { 
+        headers,
+        timeout: 300000, // 5 minute timeout for large files
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total!);
+          console.log(`Upload progress: ${percentCompleted}%`);
+        }
+      });
 
-    if (response.status !== 200) {
-      throw new Error(`Upload failed with status ${response.status}`);
+      if (response.status !== 200) {
+        throw new Error(`Upload failed with status ${response.status}`);
+      }
+
+      console.log('S3 upload completed successfully');
+    } catch (error) {
+      console.error('S3 upload failed:', error);
+      throw error;
     }
   }
 
