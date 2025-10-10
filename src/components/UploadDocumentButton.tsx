@@ -65,12 +65,31 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
       setError(null);
       setUploadProgress(0);
 
-      const result = await knowledgeBaseManager.uploadDocument(
+      console.log('Starting presigned URL upload process...');
+      
+      // Step 1: Get presigned URL
+      setUploadProgress(10);
+      console.log('Step 1: Requesting presigned URL...');
+      const presignedResponse = await knowledgeBaseManager.getPresignedUploadUrl(
         selectedFile,
+        uploadMetadata as DocumentMetadata
+      );
+      console.log('Presigned URL received:', presignedResponse);
+      
+      // Step 2: Upload to S3 using presigned URL
+      setUploadProgress(30);
+      console.log('Step 2: Uploading to S3...');
+      await knowledgeBaseManager.uploadToS3(
+        selectedFile, 
+        presignedResponse.presigned_url, 
         uploadMetadata as DocumentMetadata,
         (progress) => setUploadProgress(progress)
       );
-
+      console.log('S3 upload completed');
+      
+      // Step 3: Update progress to completion
+      setUploadProgress(100);
+      
       setSuccess(`Document "${uploadMetadata.title}" uploaded successfully!`);
       setSelectedFile(null);
       setUploadMetadata({

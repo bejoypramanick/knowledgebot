@@ -13,7 +13,7 @@ export interface Document {
   name: string;
   type: 'pdf' | 'docx' | 'txt' | 'video' | 'url' | 'html';
   status: 'uploaded' | 'processing' | 'processed' | 'failed';
-  chunks?: any[];
+  chunks?: unknown[];
   metadata: DocumentMetadata;
   createdAt: string;
   updatedAt: string;
@@ -32,7 +32,7 @@ export interface ScrapeResponse {
 }
 
 export interface DocumentsListResponse {
-  documents: any[];
+  documents: unknown[];
   count: number;
 }
 
@@ -134,14 +134,14 @@ export class KnowledgeBaseManager {
     return response.data;
   }
 
-  async uploadToS3(file: File, presignedUrl: string, metadata: Partial<DocumentMetadata> = {}): Promise<void> {
+  async uploadToS3(file: File, presignedUrl: string, metadata: Partial<DocumentMetadata> = {}, onProgress?: (progress: number) => void): Promise<void> {
     console.log('Starting S3 upload with presigned URL');
     console.log('File:', file.name, 'Size:', file.size, 'Type:', file.type);
     console.log('Presigned URL:', presignedUrl.substring(0, 100) + '...');
 
     // The presigned URL only includes content-type and host in its signature
     // We should not send any metadata headers as they're not in the signed headers
-    let headers: Record<string, string> = {
+    const headers: Record<string, string> = {
       'Content-Type': file.type || 'application/octet-stream'
     };
 
@@ -152,8 +152,16 @@ export class KnowledgeBaseManager {
         headers,
         timeout: 300000, // 5 minute timeout for large files
         onUploadProgress: (progressEvent) => {
-          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total!);
-          console.log(`Upload progress: ${percentCompleted}%`);
+          if (progressEvent.total) {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            console.log(`Upload progress: ${percentCompleted}%`);
+            // Call progress callback if provided
+            if (onProgress) {
+              // Map S3 upload progress (30-90%) to overall progress
+              const mappedProgress = 30 + Math.round((percentCompleted * 60) / 100);
+              onProgress(mappedProgress);
+            }
+          }
         }
       });
 
@@ -162,13 +170,19 @@ export class KnowledgeBaseManager {
       }
 
       console.log('S3 upload completed successfully');
+      
+      // Update progress to 90% after S3 upload
+      if (onProgress) {
+        onProgress(90);
+      }
+      
     } catch (error) {
       console.error('S3 upload failed:', error);
       throw error;
     }
   }
 
-  async updateS3ObjectMetadata(s3Key: string, metadata: any): Promise<void> {
+  async updateS3ObjectMetadata(s3Key: string, metadata: Record<string, unknown>): Promise<void> {
     // This would typically be handled by the backend after upload
     // For now, we'll just log the metadata
     console.log('S3 object metadata to be updated:', {
