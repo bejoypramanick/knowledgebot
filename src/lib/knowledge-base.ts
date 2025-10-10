@@ -114,7 +114,6 @@ export class KnowledgeBaseManager {
 
   async getPresignedUploadUrl(file: File, metadata: Partial<DocumentMetadata> = {}): Promise<PresignedUrlResponse> {
     const payload = {
-      action: 'get-upload-url',
       filename: file.name,
       content_type: file.type || 'application/octet-stream',
       metadata: {
@@ -128,8 +127,8 @@ export class KnowledgeBaseManager {
 
     console.log('Requesting presigned URL with payload:', payload);
 
-    // Use the knowledge-base endpoint for presigned URL generation
-    const response = await axios.post(`${this.apiBaseUrl}/knowledge-base`, payload);
+    // Use the dedicated upload-url endpoint
+    const response = await axios.post(`${this.apiBaseUrl}/upload-url`, payload);
     console.log('Presigned URL response:', response.data);
     return response.data;
   }
