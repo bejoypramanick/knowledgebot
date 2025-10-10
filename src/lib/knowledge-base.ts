@@ -37,10 +37,12 @@ export interface DocumentsListResponse {
 }
 
 export interface PresignedUrlResponse {
+  success: boolean;
   presigned_url: string;
-  document_id: string;
-  s3_key: string;
   bucket: string;
+  key: string;
+  operation: string;
+  expiration: number;
 }
 
 export class KnowledgeBaseManager {
@@ -130,6 +132,12 @@ export class KnowledgeBaseManager {
     // Use the dedicated upload-url endpoint
     const response = await axios.post(`${this.apiBaseUrl}/upload-url`, payload);
     console.log('Presigned URL response:', response.data);
+    
+    // Check if the response indicates success
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to generate presigned URL');
+    }
+    
     return response.data;
   }
 
