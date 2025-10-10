@@ -115,11 +115,12 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
   };
 
   return (
-    <Dialog open={isUploadDialogOpen} onOpenChange={handleCloseDialog}>
+    <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
       <DialogTrigger asChild>
         <Button 
           variant="outline" 
           size="sm"
+          onClick={() => setIsUploadDialogOpen(true)}
           className={`bg-white/10 border-white/20 text-white hover:bg-white/20 ${className}`}
           title="Upload Document"
         >
