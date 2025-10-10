@@ -13,6 +13,7 @@ import {
   Check,
   Clock
 } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 import DocumentViewer from './DocumentViewer';
 
 interface DocumentSource {
@@ -50,6 +51,7 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
   const [showDocumentViewer, setShowDocumentViewer] = useState(false);
   const [selectedSource, setSelectedSource] = useState<DocumentSource | null>(null);
   const [copiedText, setCopiedText] = useState<string | null>(null);
+  const isMobile = useIsMobile();
 
   const handleSourceClick = (source: DocumentSource) => {
     setSelectedSource(source);
@@ -107,14 +109,14 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
   return (
     <>
       <div className={`flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-        <div className={`flex items-start space-x-2 max-w-xs lg:max-w-md ${sender === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+        <div className={`flex items-start space-x-2 ${isMobile ? 'max-w-xs' : 'max-w-xs lg:max-w-md'} ${sender === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
           {sender === 'bot' && (
             <div className="w-6 h-6 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0">
               <FileText className="h-3 w-3 text-primary" />
             </div>
           )}
           
-          <div className={`px-4 py-3 rounded-2xl ${
+          <div className={`px-3 sm:px-4 py-3 rounded-2xl ${
             sender === 'user' 
               ? 'bg-primary text-primary-foreground' 
               : 'bg-card/80 backdrop-blur-sm border border-border/20 text-foreground'
@@ -139,7 +141,7 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
             {sources && sources.length > 0 && sender === 'bot' && (
               <div className="mt-3 space-y-2">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+                  <div className={`flex items-center gap-2 ${isMobile ? 'flex-wrap' : ''}`}>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -160,7 +162,7 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
                       onClick={() => setShowDocumentViewer(true)}
                     >
                       <Eye className="h-3 w-3 mr-1" />
-                      View Documents
+                      {!isMobile && "View Documents"}
                     </Button>
                   </div>
                 </div>
@@ -173,10 +175,10 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
                         className="cursor-pointer hover:bg-muted/50 transition-colors"
                         onClick={() => handleSourceClick(source)}
                       >
-                        <CardContent className="p-3">
+                        <CardContent className="p-2 sm:p-3">
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
+                              <div className={`flex items-center gap-2 mb-1 ${isMobile ? 'flex-wrap' : ''}`}>
                                 <span className="text-sm">
                                   {getElementTypeIcon(source.element_type)}
                                 </span>
@@ -191,7 +193,7 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
                                 </Badge>
                               </div>
                               
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <div className={`flex items-center gap-2 text-xs text-muted-foreground ${isMobile ? 'flex-wrap' : ''}`}>
                                 <div className="flex items-center gap-1">
                                   <MapPin className="h-3 w-3" />
                                   Page {source.page_number}
@@ -205,8 +207,8 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
                               </div>
 
                               <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                                {source.content.length > 100
-                                  ? `${source.content.substring(0, 100)}...`
+                                {source.content.length > (isMobile ? 80 : 100)
+                                  ? `${source.content.substring(0, isMobile ? 80 : 100)}...`
                                   : source.content}
                               </p>
                             </div>

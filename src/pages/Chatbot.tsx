@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { MessageCircle, Send, MoreHorizontal, Bot, Loader2, FileText, Layers, Calendar, Trash2 } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { ChatbotAPI, ChatMessage, ChatResponse } from "@/lib/chatbot-api";
 import { AWS_CONFIG } from "@/lib/aws-config";
 import EnhancedChatMessage from "@/components/EnhancedChatMessage";
@@ -20,6 +21,7 @@ import DocumentPreview from "@/components/DocumentPreview";
 import SourceHighlighter from "@/components/SourceHighlighter";
 import StructureSearchPanel from "@/components/StructureSearchPanel";
 import DocumentStructureViewer from "@/components/DocumentStructureViewer";
+import ResponsiveTest from "@/components/ResponsiveTest";
 
 interface DocumentSource {
   chunk_id?: string;
@@ -54,6 +56,7 @@ const Chatbot = () => {
   const [apiClient] = useState(new ChatbotAPI(AWS_CONFIG.endpoints.apiGateway));
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
   
   // Document visualization state
   const [showDocumentViewer, setShowDocumentViewer] = useState(false);
@@ -192,16 +195,16 @@ const Chatbot = () => {
       
       <div className="w-full flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-primary border-b border-border/20 backdrop-blur-sm px-6 py-4 flex-shrink-0">
+        <div className="bg-gradient-primary border-b border-border/20 backdrop-blur-sm px-4 sm:px-6 py-4 flex-shrink-0">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2 sm:space-x-3">
               <div className="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center">
                 <MessageCircle className="h-4 w-4 text-primary-foreground" />
               </div>
-              <h1 className="text-xl font-bold text-primary-foreground">Chat with Mr. Helpful</h1>
+              <h1 className="text-lg sm:text-xl font-bold text-primary-foreground">Chat with Mr. Helpful</h1>
             </div>
             {/* Document Visualization Controls */}
-            <div className="flex items-center gap-2">
+            <div className={`flex items-center gap-1 sm:gap-2 ${isMobile ? 'flex-wrap' : ''}`}>
               <Button
                 variant="outline"
                 size="sm"
@@ -209,8 +212,8 @@ const Chatbot = () => {
                 className="bg-white/10 border-white/20 text-white hover:bg-white/20"
                 title="Clear all chats"
               >
-                <Trash2 className="h-4 w-4 mr-1" />
-                Clear All
+                <Trash2 className="h-4 w-4 sm:mr-1" />
+                {!isMobile && "Clear All"}
               </Button>
               {allSources.length > 0 && (
                 <>
@@ -219,18 +222,20 @@ const Chatbot = () => {
                     size="sm"
                     onClick={() => setShowDocumentViewer(true)}
                     className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                    title="View Sources"
                   >
-                    <FileText className="h-4 w-4 mr-1" />
-                    View Sources
+                    <FileText className="h-4 w-4 sm:mr-1" />
+                    {!isMobile && "View Sources"}
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setShowContextPanel(true)}
                     className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                    title="Structure"
                   >
-                    <Layers className="h-4 w-4 mr-1" />
-                    Structure
+                    <Layers className="h-4 w-4 sm:mr-1" />
+                    {!isMobile && "Structure"}
                   </Button>
                 </>
               )}
@@ -239,9 +244,10 @@ const Chatbot = () => {
                 size="sm"
                 onClick={() => setShowStructureSearch(true)}
                 className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                title="Search"
               >
-                <FileText className="h-4 w-4 mr-1" />
-                Search
+                <FileText className="h-4 w-4 sm:mr-1" />
+                {!isMobile && "Search"}
               </Button>
               {selectedDocumentId && (
                 <Button
@@ -249,9 +255,10 @@ const Chatbot = () => {
                   size="sm"
                   onClick={() => setShowDocumentStructure(true)}
                   className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                  title="Doc Structure"
                 >
-                  <Layers className="h-4 w-4 mr-1" />
-                  Doc Structure
+                  <Layers className="h-4 w-4 sm:mr-1" />
+                  {!isMobile && "Doc Structure"}
                 </Button>
               )}
             </div>
@@ -260,7 +267,7 @@ const Chatbot = () => {
 
         {/* Error Message */}
         {error && (
-          <div className="px-6 py-2 flex-shrink-0">
+          <div className="px-4 sm:px-6 py-2 flex-shrink-0">
             <div className="bg-red-100 border border-red-300 text-red-700 px-4 py-3 rounded">
               {error}
             </div>
@@ -268,7 +275,12 @@ const Chatbot = () => {
         )}
 
         {/* Chat History */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+          {/* Responsive Test Component - Remove this in production */}
+          <div className="flex justify-center mb-4">
+            <ResponsiveTest />
+          </div>
+          
           {messages.map((message, index) => (
             <EnhancedChatMessage
               key={message.id}
@@ -287,7 +299,7 @@ const Chatbot = () => {
           {/* Loading Indicator */}
           {isLoading && (
             <div className="flex justify-start">
-              <div className="flex items-start space-x-2 max-w-xs lg:max-w-md">
+              <div className={`flex items-start space-x-2 ${isMobile ? 'max-w-xs' : 'max-w-xs lg:max-w-md'}`}>
                 <div className="w-6 h-6 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0">
                   <Bot className="h-3 w-3 text-primary" />
                 </div>
@@ -306,12 +318,12 @@ const Chatbot = () => {
         </div>
 
         {/* Input Area */}
-        <div className="border-t border-border/20 bg-card/50 backdrop-blur-sm p-4 flex-shrink-0">
-          <div className="flex items-center space-x-3">
+        <div className="border-t border-border/20 bg-card/50 backdrop-blur-sm p-3 sm:p-4 flex-shrink-0">
+          <div className="flex items-center space-x-2 sm:space-x-3">
             <Button 
               variant="ghost" 
               size="sm" 
-              className="w-10 h-10 p-0 hover:bg-muted/50"
+              className="w-8 h-8 sm:w-10 sm:h-10 p-0 hover:bg-muted/50"
             >
               <MoreHorizontal className="h-4 w-4" />
             </Button>
@@ -321,13 +333,13 @@ const Chatbot = () => {
               onKeyPress={handleKeyPress}
               placeholder={isLoading ? "Please wait..." : "Type here..."}
               disabled={isLoading || !sessionId}
-              className="flex-1 bg-background/50 border-border/20 focus:border-primary/50 disabled:opacity-50"
+              className="flex-1 bg-background/50 border-border/20 focus:border-primary/50 disabled:opacity-50 text-sm sm:text-base"
             />
             <Button 
               onClick={handleSendMessage}
               size="sm" 
               disabled={isLoading || !newMessage.trim() || !sessionId}
-              className="w-10 h-10 p-0 bg-gradient-primary border-0 shadow-glow hover:shadow-glow/80 disabled:opacity-50"
+              className="w-8 h-8 sm:w-10 sm:h-10 p-0 bg-gradient-primary border-0 shadow-glow hover:shadow-glow/80 disabled:opacity-50"
             >
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -339,7 +351,7 @@ const Chatbot = () => {
         </div>
         
         {/* Demo Disclaimer */}
-        <div className="bg-muted/30 border-t border-border/20 px-6 py-3 flex-shrink-0">
+        <div className="bg-muted/30 border-t border-border/20 px-4 sm:px-6 py-3 flex-shrink-0">
           <div className="text-center text-xs text-muted-foreground">
             <p className="mb-1">
               <strong>⚠️ Demo Notice:</strong> This is a demonstration version only.

@@ -1,0 +1,1 @@
+{"httpMethod":"POST","body":"{\"action\":\"get-upload-url\",\"filename\":\"test.pdf\",\"content_type\":\"application/pdf\",\"metadata\":{\"title\":\"test\",\"category\":\"general\"}}","headers":{"Content-Type":"application/json"}}
