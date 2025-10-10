@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { MessageCircle, Settings, BarChart3, Database, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -9,6 +9,10 @@ import UploadDocumentButton from "./UploadDocumentButton";
 const Navigation = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const isMobile = useIsMobile();
+  const location = useLocation();
+  
+  // Show upload button only on knowledge-base page
+  const showUploadButton = location.pathname === '/knowledge-base';
   
   const navItems = [
     {
@@ -78,14 +82,14 @@ const Navigation = () => {
                 </NavLink>
               ))}
             </div>
-            <UploadDocumentButton />
+            {showUploadButton && <UploadDocumentButton />}
           </div>
         )}
 
         {/* Mobile Menu Button and Upload */}
         {isMobile && (
           <div className="flex items-center space-x-2">
-            <UploadDocumentButton />
+            {showUploadButton && <UploadDocumentButton />}
             <Button
               variant="ghost"
               size="sm"
