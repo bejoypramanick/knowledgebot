@@ -21,7 +21,6 @@ import DocumentPreview from "@/components/DocumentPreview";
 import SourceHighlighter from "@/components/SourceHighlighter";
 import StructureSearchPanel from "@/components/StructureSearchPanel";
 import DocumentStructureViewer from "@/components/DocumentStructureViewer";
-import ResponsiveTest from "@/components/ResponsiveTest";
 
 interface DocumentSource {
   chunk_id?: string;
@@ -276,11 +275,6 @@ const Chatbot = () => {
 
         {/* Chat History */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
-          {/* Responsive Test Component - Remove this in production */}
-          <div className="flex justify-center mb-4">
-            <ResponsiveTest />
-          </div>
-          
           {messages.map((message, index) => (
             <EnhancedChatMessage
               key={message.id}
