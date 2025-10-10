@@ -150,7 +150,7 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
               />
               <label
                 htmlFor="file-upload"
-                className="flex-1 cursor-pointer border border-dashed border-gray-300 rounded-lg p-4 text-center hover:bg-gray-50 transition-colors"
+                className="flex-1 cursor-pointer border border-dashed border-gray-300 rounded-lg p-4 text-center hover:bg-gray-50 transition-colors bg-white"
               >
                 {selectedFile ? (
                   <div className="flex items-center justify-center space-x-2">
@@ -170,10 +170,10 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
                     </Button>
                   </div>
                 ) : (
-                  <div className="text-gray-500">
-                    <Upload className="h-8 w-8 mx-auto mb-2" />
-                    <p className="text-sm">Click to select a document</p>
-                    <p className="text-xs text-gray-400">PDF, TXT, DOC, DOCX, MD</p>
+                  <div className="text-gray-700">
+                    <Upload className="h-8 w-8 mx-auto mb-2 text-gray-600" />
+                    <p className="text-sm text-gray-800">Click to select a document</p>
+                    <p className="text-xs text-gray-600">PDF, TXT, DOC, DOCX, MD</p>
                   </div>
                 )}
               </label>
@@ -191,7 +191,7 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
                   value={uploadMetadata.title || ''}
                   onChange={(e) => setUploadMetadata(prev => ({ ...prev, title: e.target.value }))}
                   placeholder="Enter document title"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black bg-white"
                   disabled={isUploading}
                 />
               </div>
@@ -202,7 +202,7 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
                   id="category"
                   value={uploadMetadata.category || 'general'}
                   onChange={(e) => setUploadMetadata(prev => ({ ...prev, category: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black bg-white"
                   disabled={isUploading}
                 >
                   <option value="general">General</option>
@@ -221,7 +221,7 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
                   value={uploadMetadata.author || ''}
                   onChange={(e) => setUploadMetadata(prev => ({ ...prev, author: e.target.value }))}
                   placeholder="Enter author name"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black bg-white"
                   disabled={isUploading}
                 />
               </div>
@@ -234,6 +234,7 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
                   onChange={(e) => setUploadMetadata(prev => ({ ...prev, description: e.target.value }))}
                   placeholder="Enter document description"
                   rows={3}
+                  className="text-black bg-white"
                   disabled={isUploading}
                 />
               </div>
@@ -243,7 +244,7 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
           {/* Upload Progress */}
           {isUploading && (
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center justify-between text-sm text-black">
                 <span>Uploading...</span>
                 <span>{uploadProgress}%</span>
               </div>
