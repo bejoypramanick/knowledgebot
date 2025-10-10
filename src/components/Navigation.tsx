@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
+import UploadDocumentButton from "./UploadDocumentButton";
 
 const Navigation = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -56,42 +57,48 @@ const Navigation = () => {
         
         {/* Desktop Navigation */}
         {!isMobile && (
-          <div className="flex space-x-2">
-            {navItems.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={({ isActive }) =>
-                  cn(
-                    "flex items-center space-x-2 px-4 py-2 rounded-xl transition-all duration-300",
-                    "backdrop-blur-sm border border-white/10",
-                    isActive
-                      ? "bg-white/20 text-primary-foreground shadow-glow"
-                      : "text-primary-foreground/70 hover:text-primary-foreground hover:bg-white/10"
-                  )
-                }
-              >
-                <item.icon className="h-4 w-4" />
-                <span className="font-medium text-sm">{item.label}</span>
-              </NavLink>
-            ))}
+          <div className="flex items-center space-x-2">
+            <div className="flex space-x-2">
+              {navItems.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex items-center space-x-2 px-4 py-2 rounded-xl transition-all duration-300",
+                      "backdrop-blur-sm border border-white/10",
+                      isActive
+                        ? "bg-white/20 text-primary-foreground shadow-glow"
+                        : "text-primary-foreground/70 hover:text-primary-foreground hover:bg-white/10"
+                    )
+                  }
+                >
+                  <item.icon className="h-4 w-4" />
+                  <span className="font-medium text-sm">{item.label}</span>
+                </NavLink>
+              ))}
+            </div>
+            <UploadDocumentButton />
           </div>
         )}
 
-        {/* Mobile Menu Button */}
+        {/* Mobile Menu Button and Upload */}
         {isMobile && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={toggleMobileMenu}
-            className="text-primary-foreground hover:bg-white/10 p-2"
-          >
-            {isMobileMenuOpen ? (
-              <X className="h-5 w-5" />
-            ) : (
-              <Menu className="h-5 w-5" />
-            )}
-          </Button>
+          <div className="flex items-center space-x-2">
+            <UploadDocumentButton />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleMobileMenu}
+              className="text-primary-foreground hover:bg-white/10 p-2"
+            >
+              {isMobileMenuOpen ? (
+                <X className="h-5 w-5" />
+              ) : (
+                <Menu className="h-5 w-5" />
+              )}
+            </Button>
+          </div>
         )}
       </div>
 

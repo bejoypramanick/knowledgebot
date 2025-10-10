@@ -3,11 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Progress } from "@/components/ui/progress";
-import { Search, Plus, Edit, Trash2, Filter, FileText, Database as DatabaseIcon, Upload, X, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { Search, Plus, Edit, Trash2, Filter, FileText, Database as DatabaseIcon, Loader2 } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -22,17 +18,7 @@ import { AWS_CONFIG } from "@/lib/aws-config";
 const KnowledgeBaseManagement = () => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploadMetadata, setUploadMetadata] = useState<Partial<DocumentMetadata>>({
-    title: '',
-    category: 'general',
-    tags: [],
-    author: ''
-  });
-  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -81,95 +67,6 @@ const KnowledgeBaseManagement = () => {
     }
   };
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-      setUploadMetadata(prev => ({
-        ...prev,
-        title: file.name.split('.')[0] // Use filename without extension as default title
-      }));
-    }
-  };
-
-  const handleUpload = async () => {
-    if (!selectedFile) return;
-
-    try {
-      setIsUploading(true);
-      setUploadProgress(0);
-      setError(null);
-      setSuccess(null);
-
-      console.log('Starting document upload process...');
-      console.log('File:', selectedFile.name, 'Size:', selectedFile.size, 'Type:', selectedFile.type);
-      console.log('Metadata:', uploadMetadata);
-
-      // Step 1: Get presigned URL
-      setUploadProgress(10);
-      console.log('Step 1: Requesting presigned URL...');
-      const presignedResponse = await knowledgeBaseManager.getPresignedUploadUrl(selectedFile, uploadMetadata);
-      console.log('Presigned URL received:', presignedResponse);
-      
-      // Step 2: Upload to S3
-      setUploadProgress(30);
-      console.log('Step 2: Uploading to S3...');
-      await knowledgeBaseManager.uploadToS3(selectedFile, presignedResponse.presigned_url, uploadMetadata);
-      console.log('S3 upload completed');
-      
-      // Step 2.5: Update S3 object metadata (if needed)
-      if (presignedResponse.metadata) {
-        console.log('Step 2.5: Updating S3 metadata...');
-        await knowledgeBaseManager.updateS3ObjectMetadata(presignedResponse.s3_key, presignedResponse.metadata);
-      }
-      
-      // Step 3: Wait for processing (simulate progress)
-      console.log('Step 3: Document processing initiated...');
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return prev;
-          }
-          return prev + 10;
-        });
-      }, 500);
-
-      // Wait a bit for processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      clearInterval(progressInterval);
-      setUploadProgress(100);
-      
-      setSuccess(`Document "${selectedFile.name}" uploaded successfully! Processing will begin shortly.`);
-      console.log('Upload process completed successfully');
-      
-      // Reset form
-      setSelectedFile(null);
-      setUploadMetadata({
-        title: '',
-        category: 'general',
-        tags: [],
-        author: ''
-      });
-      
-      // Reload documents
-      await loadDocuments();
-      
-      // Close dialog after a delay
-      setTimeout(() => {
-        setIsUploadDialogOpen(false);
-        setSuccess(null);
-        setUploadProgress(0);
-      }, 2000);
-
-    } catch (err) {
-      console.error('Error uploading document:', err);
-      setError(`Failed to upload document: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again.`);
-    } finally {
-      setIsUploading(false);
-    }
-  };
 
   const filteredDocuments = documents.filter(doc => {
     if (!doc) return false;
@@ -187,132 +84,6 @@ const KnowledgeBaseManagement = () => {
             <h1 className="text-3xl font-bold text-foreground mb-2">Knowledge-base Management</h1>
             <p className="text-muted-foreground">Manage your AI assistant's knowledge and training data</p>
           </div>
-          <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-gradient-primary border-0 shadow-glow">
-                <Upload className="h-4 w-4 mr-2" />
-                Upload Document
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>Upload Document to Knowledge Base</DialogTitle>
-                <DialogDescription>
-                  Upload documents to enhance your chatbot's knowledge base
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                {/* File Selection */}
-                <div className="space-y-2">
-                  <Label htmlFor="file">Select Document</Label>
-                  <Input
-                    id="file"
-                    type="file"
-                    accept=".pdf,.docx,.txt,.md"
-                    onChange={handleFileSelect}
-                    className="cursor-pointer"
-                  />
-                  {selectedFile && (
-                    <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                      <FileText className="h-4 w-4" />
-                      <span>{selectedFile.name}</span>
-                      <span className="text-xs">({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Metadata Fields */}
-                <div className="space-y-2">
-                  <Label htmlFor="title">Title</Label>
-                  <Input
-                    id="title"
-                    value={uploadMetadata.title || ''}
-                    onChange={(e) => setUploadMetadata(prev => ({ ...prev, title: e.target.value }))}
-                    placeholder="Document title"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="category">Category</Label>
-                  <Input
-                    id="category"
-                    value={uploadMetadata.category || ''}
-                    onChange={(e) => setUploadMetadata(prev => ({ ...prev, category: e.target.value }))}
-                    placeholder="e.g., Documentation, FAQ, Policy"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="author">Author</Label>
-                  <Input
-                    id="author"
-                    value={uploadMetadata.author || ''}
-                    onChange={(e) => setUploadMetadata(prev => ({ ...prev, author: e.target.value }))}
-                    placeholder="Author name"
-                  />
-                </div>
-
-                {/* Progress Bar */}
-                {isUploading && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span>
-                        {uploadProgress < 10 ? 'Requesting upload URL...' :
-                         uploadProgress < 30 ? 'Uploading to S3...' :
-                         uploadProgress < 90 ? 'Processing document...' :
-                         'Upload complete!'}
-                      </span>
-                      <span>{uploadProgress}%</span>
-                    </div>
-                    <Progress value={uploadProgress} className="w-full" />
-                  </div>
-                )}
-
-                {/* Success/Error Messages */}
-                {success && (
-                  <div className="flex items-center space-x-2 text-green-600 bg-green-50 p-3 rounded-lg">
-                    <CheckCircle className="h-4 w-4" />
-                    <span className="text-sm">{success}</span>
-                  </div>
-                )}
-
-                {error && (
-                  <div className="flex items-center space-x-2 text-red-600 bg-red-50 p-3 rounded-lg">
-                    <AlertCircle className="h-4 w-4" />
-                    <span className="text-sm">{error}</span>
-                  </div>
-                )}
-
-                {/* Action Buttons */}
-                <div className="flex justify-end space-x-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsUploadDialogOpen(false)}
-                    disabled={isUploading}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleUpload}
-                    disabled={!selectedFile || isUploading}
-                    className="bg-gradient-primary"
-                  >
-                    {isUploading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Uploading...
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="h-4 w-4 mr-2" />
-                        Upload
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
         </div>
 
         {/* Search and Filters */}
