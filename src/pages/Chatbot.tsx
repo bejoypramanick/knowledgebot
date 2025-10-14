@@ -85,7 +85,11 @@ const Chatbot = () => {
         setSessionId(session.id);
         
         // Connect to WebSocket
-        await apiClient.connect();
+        try {
+          await apiClient.connect();
+        } catch (error) {
+          console.warn('WebSocket connection failed, will retry automatically:', error);
+        }
         
         // Set up connection status handler
         apiClient.onConnectionChange((connected) => {

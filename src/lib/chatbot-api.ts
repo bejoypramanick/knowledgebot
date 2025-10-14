@@ -158,7 +158,8 @@ export class ChatbotAPI {
         
         this.websocket.onerror = (error) => {
           console.error('WebSocket error:', error);
-          reject(error);
+          // Don't reject immediately, let it try to reconnect
+          console.log('WebSocket connection failed, will attempt to reconnect...');
         };
         
       } catch (error) {
