@@ -351,14 +351,14 @@ const Chatbot = () => {
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder={isLoading ? "Please wait..." : !isConnected ? "Connecting..." : "Type here..."}
-              disabled={isLoading || !sessionId || !isConnected}
+              placeholder={isLoading ? "Please wait..." : "Type here..."}
+              disabled={isLoading || !sessionId}
               className="flex-1 bg-background/50 border-border/20 focus:border-primary/50 disabled:opacity-50 text-sm sm:text-base"
             />
             <Button 
               onClick={handleSendMessage}
               size="sm" 
-              disabled={isLoading || !newMessage.trim() || !sessionId || !isConnected}
+              disabled={isLoading || !newMessage.trim() || !sessionId}
               className="w-8 h-8 sm:w-10 sm:h-10 p-0 bg-gradient-primary border-0 shadow-glow hover:shadow-glow/80 disabled:opacity-50"
             >
               {isLoading ? (

@@ -107,6 +107,9 @@ export class ChatbotAPI {
   private isConnected: boolean = false;
   private messageHandlers: Map<string, (response: ChatResponse) => void> = new Map();
   private connectionHandlers: ((connected: boolean) => void)[] = [];
+  private reconnectAttempts: number = 0;
+  private maxReconnectAttempts: number = 5;
+  private reconnectTimeout: NodeJS.Timeout | null = null;
 
   constructor(websocketUrl: string) {
     this.websocketUrl = websocketUrl;
@@ -125,11 +128,13 @@ export class ChatbotAPI {
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
+        console.log(`Attempting to connect to WebSocket: ${this.websocketUrl}`);
         this.websocket = new WebSocket(this.websocketUrl);
         
         this.websocket.onopen = () => {
-          console.log('WebSocket connected');
+          console.log('WebSocket connected successfully');
           this.isConnected = true;
+          this.reconnectAttempts = 0; // Reset reconnection attempts on successful connection
           this.connectionHandlers.forEach(handler => handler(true));
           resolve();
         };
@@ -143,23 +148,36 @@ export class ChatbotAPI {
           }
         };
         
-        this.websocket.onclose = () => {
-          console.log('WebSocket disconnected');
+        this.websocket.onclose = (event) => {
+          console.log('WebSocket disconnected', event.code, event.reason);
           this.isConnected = false;
           this.connectionHandlers.forEach(handler => handler(false));
           
-          // Attempt to reconnect after 3 seconds
-          setTimeout(() => {
-            if (!this.isConnected) {
-              this.connect().catch(console.error);
-            }
-          }, 3000);
+          // Only attempt to reconnect if we haven't exceeded max attempts
+          if (this.reconnectAttempts < this.maxReconnectAttempts) {
+            this.reconnectAttempts++;
+            console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+            
+            this.reconnectTimeout = setTimeout(() => {
+              if (!this.isConnected) {
+                this.connect().catch((error) => {
+                  console.error('Reconnection failed:', error);
+                });
+              }
+            }, 3000);
+          } else {
+            console.error('Max reconnection attempts reached. WebSocket connection failed permanently.');
+          }
         };
         
         this.websocket.onerror = (error) => {
           console.error('WebSocket error:', error);
-          // Don't reject immediately, let it try to reconnect
-          console.log('WebSocket connection failed, will attempt to reconnect...');
+          console.log(`WebSocket connection failed (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
+          
+          // If this is the first connection attempt and it fails, reject the promise
+          if (this.reconnectAttempts === 0) {
+            reject(new Error('WebSocket connection failed'));
+          }
         };
         
       } catch (error) {
@@ -238,11 +256,18 @@ export class ChatbotAPI {
   }
 
   disconnect() {
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+    
     if (this.websocket) {
       this.websocket.close();
       this.websocket = null;
       this.isConnected = false;
     }
+    
+    this.reconnectAttempts = 0;
   }
 
   async getOrderStatus(orderId: string, customerEmail?: string): Promise<OrderStatus> {
