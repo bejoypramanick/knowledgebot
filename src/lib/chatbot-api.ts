@@ -1,5 +1,3 @@
-import axios from 'axios';
-
 export interface ChatMessage {
   id: string;
   text: string;
@@ -95,15 +93,27 @@ export interface OrderStatus {
   last_updated: string;
 }
 
-export class ChatbotAPI {
-  private apiBaseUrl: string;
+export interface WebSocketMessage {
+  type: 'typing' | 'response' | 'error';
+  message: string;
+  conversation_id?: string;
+  metadata?: any;
+  timestamp: string;
+}
 
-  constructor(apiBaseUrl: string) {
-    this.apiBaseUrl = apiBaseUrl;
+export class ChatbotAPI {
+  private websocketUrl: string;
+  private websocket: WebSocket | null = null;
+  private isConnected: boolean = false;
+  private messageHandlers: Map<string, (response: ChatResponse) => void> = new Map();
+  private connectionHandlers: ((connected: boolean) => void)[] = [];
+
+  constructor(websocketUrl: string) {
+    this.websocketUrl = websocketUrl;
   }
 
   async createChatSession(): Promise<ChatSession> {
-    // Generate a session ID on the frontend since backend doesn't have a session creation endpoint
+    // Generate a session ID on the frontend
     const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     return {
       id: sessionId,
@@ -112,23 +122,126 @@ export class ChatbotAPI {
     };
   }
 
+  connect(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      try {
+        this.websocket = new WebSocket(this.websocketUrl);
+        
+        this.websocket.onopen = () => {
+          console.log('WebSocket connected');
+          this.isConnected = true;
+          this.connectionHandlers.forEach(handler => handler(true));
+          resolve();
+        };
+        
+        this.websocket.onmessage = (event) => {
+          try {
+            const data: WebSocketMessage = JSON.parse(event.data);
+            this.handleWebSocketMessage(data);
+          } catch (error) {
+            console.error('Error parsing WebSocket message:', error);
+          }
+        };
+        
+        this.websocket.onclose = () => {
+          console.log('WebSocket disconnected');
+          this.isConnected = false;
+          this.connectionHandlers.forEach(handler => handler(false));
+          
+          // Attempt to reconnect after 3 seconds
+          setTimeout(() => {
+            if (!this.isConnected) {
+              this.connect().catch(console.error);
+            }
+          }, 3000);
+        };
+        
+        this.websocket.onerror = (error) => {
+          console.error('WebSocket error:', error);
+          reject(error);
+        };
+        
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  private handleWebSocketMessage(data: WebSocketMessage) {
+    switch (data.type) {
+      case 'response':
+        // Find the handler for this message
+        const messageId = data.conversation_id || 'default';
+        const handler = this.messageHandlers.get(messageId);
+        
+        if (handler) {
+          const chatResponse: ChatResponse = {
+            response: data.message,
+            session_id: data.conversation_id || '',
+            timestamp: data.timestamp,
+            sources: data.metadata?.sources || []
+          };
+          handler(chatResponse);
+          this.messageHandlers.delete(messageId);
+        }
+        break;
+        
+      case 'error':
+        console.error('WebSocket error message:', data.message);
+        break;
+        
+      case 'typing':
+        // Handle typing indicator if needed
+        break;
+    }
+  }
+
   async sendMessage(message: string, sessionId: string): Promise<ChatResponse> {
-    const payload = { 
-      action: 'chat',
-      message, 
-      conversation_id: sessionId,
-      use_rag: true
-    };
-    const response = await axios.post(`${this.apiBaseUrl}/chat`, payload);
-    
-    // Map Lambda response to frontend expected format
-    const data = response.data;
-    return {
-      response: data.response,
-      session_id: data.conversation_id,
-      timestamp: data.timestamp,
-      sources: data.sources || []
-    };
+    if (!this.isConnected || !this.websocket) {
+      throw new Error('WebSocket not connected');
+    }
+
+    return new Promise((resolve, reject) => {
+      const messageId = sessionId;
+      
+      // Set up handler for this specific message
+      this.messageHandlers.set(messageId, resolve);
+      
+      // Send message via WebSocket
+      const payload = {
+        action: 'message',
+        query: message,
+        conversation_history: [] // You might want to pass conversation history here
+      };
+      
+      try {
+        this.websocket!.send(JSON.stringify(payload));
+        
+        // Set timeout for response
+        setTimeout(() => {
+          if (this.messageHandlers.has(messageId)) {
+            this.messageHandlers.delete(messageId);
+            reject(new Error('Message timeout - no response received'));
+          }
+        }, 30000); // 30 second timeout
+        
+      } catch (error) {
+        this.messageHandlers.delete(messageId);
+        reject(error);
+      }
+    });
+  }
+
+  onConnectionChange(handler: (connected: boolean) => void) {
+    this.connectionHandlers.push(handler);
+  }
+
+  disconnect() {
+    if (this.websocket) {
+      this.websocket.close();
+      this.websocket = null;
+      this.isConnected = false;
+    }
   }
 
   async getOrderStatus(orderId: string, customerEmail?: string): Promise<OrderStatus> {

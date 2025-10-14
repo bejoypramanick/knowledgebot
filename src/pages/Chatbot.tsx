@@ -52,7 +52,8 @@ const Chatbot = () => {
   const [newMessage, setNewMessage] = useState('');
   const [sessionId, setSessionId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
-  const [apiClient] = useState(new ChatbotAPI(AWS_CONFIG.endpoints.apiGateway));
+  const [isConnected, setIsConnected] = useState(false);
+  const [apiClient] = useState(new ChatbotAPI(AWS_CONFIG.endpoints.websocket));
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
@@ -76,12 +77,25 @@ const Chatbot = () => {
     scrollToBottom();
   }, [messages, isLoading]);
 
-  // Initialize session on component mount
+  // Initialize session and WebSocket connection on component mount
   useEffect(() => {
     const initializeSession = async () => {
       try {
         const session = await apiClient.createChatSession();
         setSessionId(session.id);
+        
+        // Connect to WebSocket
+        await apiClient.connect();
+        
+        // Set up connection status handler
+        apiClient.onConnectionChange((connected) => {
+          setIsConnected(connected);
+          if (!connected) {
+            setError('Connection lost. Attempting to reconnect...');
+          } else {
+            setError(null);
+          }
+        });
         
         // Add welcome message
         const welcomeMessage: Message = {
@@ -98,10 +112,15 @@ const Chatbot = () => {
     };
 
     initializeSession();
+
+    // Cleanup on unmount
+    return () => {
+      apiClient.disconnect();
+    };
   }, [apiClient]);
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !sessionId || isLoading) return;
+    if (!newMessage.trim() || !sessionId || isLoading || !isConnected) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -200,7 +219,10 @@ const Chatbot = () => {
               <div className="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center">
                 <MessageCircle className="h-4 w-4 text-primary-foreground" />
               </div>
-              <h1 className="text-lg sm:text-xl font-bold text-primary-foreground">Chat with Mr. Helpful</h1>
+              <div className="flex items-center space-x-2">
+                <h1 className="text-lg sm:text-xl font-bold text-primary-foreground">Chat with Mr. Helpful</h1>
+                <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-400'}`} title={isConnected ? 'Connected' : 'Disconnected'}></div>
+              </div>
             </div>
             {/* Document Visualization Controls */}
             <div className={`flex items-center gap-1 sm:gap-2 ${isMobile ? 'flex-wrap' : ''}`}>
@@ -325,14 +347,14 @@ const Chatbot = () => {
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder={isLoading ? "Please wait..." : "Type here..."}
-              disabled={isLoading || !sessionId}
+              placeholder={isLoading ? "Please wait..." : !isConnected ? "Connecting..." : "Type here..."}
+              disabled={isLoading || !sessionId || !isConnected}
               className="flex-1 bg-background/50 border-border/20 focus:border-primary/50 disabled:opacity-50 text-sm sm:text-base"
             />
             <Button 
               onClick={handleSendMessage}
               size="sm" 
-              disabled={isLoading || !newMessage.trim() || !sessionId}
+              disabled={isLoading || !newMessage.trim() || !sessionId || !isConnected}
               className="w-8 h-8 sm:w-10 sm:h-10 p-0 bg-gradient-primary border-0 shadow-glow hover:shadow-glow/80 disabled:opacity-50"
             >
               {isLoading ? (
