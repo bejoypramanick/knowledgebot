@@ -53,7 +53,7 @@ const Chatbot = () => {
   const [sessionId, setSessionId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
-  const [apiClient] = useState(new ChatbotAPI(AWS_CONFIG.endpoints.websocket));
+  const [apiClient] = useState(new ChatbotAPI(AWS_CONFIG.endpoints.websocket, AWS_CONFIG.endpoints.apiGateway));
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
@@ -124,7 +124,7 @@ const Chatbot = () => {
   }, [apiClient]);
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !sessionId || isLoading || !isConnected) return;
+    if (!newMessage.trim() || !sessionId || isLoading) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),

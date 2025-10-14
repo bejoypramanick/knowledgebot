@@ -93,6 +93,8 @@ export interface OrderStatus {
   last_updated: string;
 }
 
+import axios from 'axios';
+
 export interface WebSocketMessage {
   type: 'typing' | 'response' | 'error';
   message: string;
@@ -103,6 +105,7 @@ export interface WebSocketMessage {
 
 export class ChatbotAPI {
   private websocketUrl: string;
+  private apiBaseUrl: string;
   private websocket: WebSocket | null = null;
   private isConnected: boolean = false;
   private messageHandlers: Map<string, (response: ChatResponse) => void> = new Map();
@@ -111,8 +114,9 @@ export class ChatbotAPI {
   private maxReconnectAttempts: number = 5;
   private reconnectTimeout: NodeJS.Timeout | null = null;
 
-  constructor(websocketUrl: string) {
+  constructor(websocketUrl: string, apiBaseUrl?: string) {
     this.websocketUrl = websocketUrl;
+    this.apiBaseUrl = apiBaseUrl || 'https://a1kn0j91k8.execute-api.ap-south-1.amazonaws.com/prod';
   }
 
   async createChatSession(): Promise<ChatSession> {
@@ -217,7 +221,13 @@ export class ChatbotAPI {
 
   async sendMessage(message: string, sessionId: string): Promise<ChatResponse> {
     if (!this.isConnected || !this.websocket) {
-      throw new Error('WebSocket not connected');
+      // Return a fallback response when websocket is not connected
+      return {
+        response: "I'm currently unable to connect to the server. Please check your internet connection and try again later.",
+        session_id: sessionId,
+        timestamp: new Date().toISOString(),
+        sources: []
+      };
     }
 
     return new Promise((resolve, reject) => {
