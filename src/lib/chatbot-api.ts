@@ -198,6 +198,13 @@ export class ChatbotAPI {
         const handler = this.messageHandlers.get(messageId);
         
         if (handler) {
+          // Clear the timeout for this message
+          const timeoutId = this.messageHandlers.get(`${messageId}_timeout`);
+          if (timeoutId) {
+            clearTimeout(timeoutId as any);
+            this.messageHandlers.delete(`${messageId}_timeout`);
+          }
+          
           const chatResponse: ChatResponse = {
             response: data.message,
             session_id: data.conversation_id || '',
@@ -211,10 +218,18 @@ export class ChatbotAPI {
         
       case 'error':
         console.error('WebSocket error message:', data.message);
+        // Clear any pending timeouts for error messages
+        this.messageHandlers.forEach((value, key) => {
+          if (key.endsWith('_timeout')) {
+            clearTimeout(value as any);
+            this.messageHandlers.delete(key);
+          }
+        });
         break;
         
       case 'typing':
         // Handle typing indicator if needed
+        console.log('Bot is typing...');
         break;
     }
   }
@@ -238,7 +253,6 @@ export class ChatbotAPI {
       
       // Send message via WebSocket
       const payload = {
-        action: 'message',
         query: message,
         conversation_history: [] // You might want to pass conversation history here
       };
@@ -247,15 +261,24 @@ export class ChatbotAPI {
         this.websocket!.send(JSON.stringify(payload));
         
         // Set timeout for response
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
           if (this.messageHandlers.has(messageId)) {
             this.messageHandlers.delete(messageId);
-            reject(new Error('Message timeout - no response received'));
+            reject(new Error('Request timed out. The server is taking longer than expected to respond. Please try again with a simpler question.'));
           }
         }, 30000); // 30 second timeout
         
+        // Store timeout ID for potential cleanup
+        this.messageHandlers.set(`${messageId}_timeout`, timeoutId as any);
+        
       } catch (error) {
+        // Clean up handlers and timeouts
         this.messageHandlers.delete(messageId);
+        const timeoutId = this.messageHandlers.get(`${messageId}_timeout`);
+        if (timeoutId) {
+          clearTimeout(timeoutId as any);
+          this.messageHandlers.delete(`${messageId}_timeout`);
+        }
         reject(error);
       }
     });
@@ -270,6 +293,14 @@ export class ChatbotAPI {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
     }
+    
+    // Clear all message timeouts
+    this.messageHandlers.forEach((value, key) => {
+      if (key.endsWith('_timeout')) {
+        clearTimeout(value as any);
+      }
+    });
+    this.messageHandlers.clear();
     
     if (this.websocket) {
       this.websocket.close();
