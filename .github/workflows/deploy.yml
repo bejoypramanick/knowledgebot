@@ -6,24 +6,12 @@ on:
     paths:
       - 'backend/lambda/**'
       - 'backend/base-images/**'
-      - 'src/**'
-      - 'public/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'vite.config.ts'
-      - 'tsconfig.json'
       - '.github/workflows/deploy.yml'
   pull_request:
     branches: [ main ]
     paths:
       - 'backend/lambda/**'
       - 'backend/base-images/**'
-      - 'src/**'
-      - 'public/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'vite.config.ts'
-      - 'tsconfig.json'
       - '.github/workflows/deploy.yml'
   workflow_dispatch:
 
