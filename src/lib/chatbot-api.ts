@@ -96,11 +96,14 @@ export interface OrderStatus {
 import axios from 'axios';
 
 export interface WebSocketMessage {
-  type: 'typing' | 'response' | 'error';
+  type: 'typing' | 'response' | 'error' | 'progress';
   message: string;
   conversation_id?: string;
   metadata?: any;
   timestamp: string;
+  phase?: string;
+  status?: 'starting' | 'in_progress' | 'completed' | 'failed' | 'timeout' | 'skipped';
+  dismissible?: boolean;
 }
 
 export class ChatbotAPI {
@@ -110,6 +113,7 @@ export class ChatbotAPI {
   private isConnected: boolean = false;
   private messageHandlers: Map<string, (response: ChatResponse) => void> = new Map();
   private connectionHandlers: ((connected: boolean) => void)[] = [];
+  private progressHandlers: ((status: WebSocketMessage) => void)[] = [];
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 5;
   private reconnectTimeout: NodeJS.Timeout | null = null;
@@ -216,6 +220,12 @@ export class ChatbotAPI {
         }
         break;
         
+      case 'progress':
+        // Handle progress updates
+        console.log('Progress update:', data.message, data.phase, data.status);
+        this.progressHandlers.forEach(handler => handler(data));
+        break;
+        
       case 'error':
         console.error('WebSocket error message:', data.message);
         // Clear any pending timeouts for error messages
@@ -225,6 +235,8 @@ export class ChatbotAPI {
             this.messageHandlers.delete(key);
           }
         });
+        // Also notify progress handlers for error messages
+        this.progressHandlers.forEach(handler => handler(data));
         break;
         
       case 'typing':
@@ -286,6 +298,10 @@ export class ChatbotAPI {
 
   onConnectionChange(handler: (connected: boolean) => void) {
     this.connectionHandlers.push(handler);
+  }
+
+  onProgressUpdate(handler: (status: WebSocketMessage) => void) {
+    this.progressHandlers.push(handler);
   }
 
   disconnect() {

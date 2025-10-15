@@ -21,6 +21,7 @@ import DocumentPreview from "@/components/DocumentPreview";
 import SourceHighlighter from "@/components/SourceHighlighter";
 import StructureSearchPanel from "@/components/StructureSearchPanel";
 import DocumentStructureViewer from "@/components/DocumentStructureViewer";
+import ProgressStatusComponent, { ProgressStatus } from "@/components/ProgressStatus";
 
 interface DocumentSource {
   chunk_id?: string;
@@ -67,6 +68,10 @@ const Chatbot = () => {
   const [selectedSource, setSelectedSource] = useState<DocumentSource | null>(null);
   const [allSources, setAllSources] = useState<DocumentSource[]>([]);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
+  
+  // Progress status state
+  const [progressStatuses, setProgressStatuses] = useState<ProgressStatus[]>([]);
+  const [showProgress, setShowProgress] = useState(false);
 
   // Auto-scroll to bottom when messages change
   const scrollToBottom = () => {
@@ -101,6 +106,31 @@ const Chatbot = () => {
           }
         });
         
+        // Set up progress status handler
+        apiClient.onProgressUpdate((status) => {
+          const progressStatus: ProgressStatus = {
+            id: `progress_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            type: status.type as 'progress' | 'error',
+            message: status.message,
+            phase: status.phase || 'unknown',
+            status: status.status || 'in_progress',
+            timestamp: status.timestamp,
+            dismissible: status.dismissible || false
+          };
+          
+          setProgressStatuses(prev => [...prev, progressStatus]);
+          setShowProgress(true);
+          
+          // Auto-dismiss completed statuses after 3 seconds
+          if (status.status === 'completed') {
+            setTimeout(() => {
+              setProgressStatuses(prev => 
+                prev.filter(p => p.id !== progressStatus.id)
+              );
+            }, 3000);
+          }
+        });
+        
         // Add welcome message
         const welcomeMessage: Message = {
           id: 'welcome',
@@ -123,6 +153,13 @@ const Chatbot = () => {
     };
   }, [apiClient]);
 
+  const handleDismissProgress = (id: string) => {
+    setProgressStatuses(prev => prev.filter(p => p.id !== id));
+    if (progressStatuses.length === 1) {
+      setShowProgress(false);
+    }
+  };
+
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !sessionId || isLoading) return;
 
@@ -137,6 +174,10 @@ const Chatbot = () => {
     setNewMessage('');
     setIsLoading(true);
     setError(null);
+    
+    // Clear previous progress statuses when starting new query
+    setProgressStatuses([]);
+    setShowProgress(true);
 
     try {
       const response: ChatResponse = await apiClient.sendMessage(newMessage, sessionId);
@@ -295,6 +336,21 @@ const Chatbot = () => {
           <div className="px-4 sm:px-6 py-2 flex-shrink-0">
             <div className="bg-red-100 border border-red-300 text-red-700 px-4 py-3 rounded">
               {error}
+            </div>
+          </div>
+        )}
+
+        {/* Progress Status */}
+        {showProgress && progressStatuses.length > 0 && (
+          <div className="px-4 sm:px-6 py-2 flex-shrink-0">
+            <div className="space-y-2">
+              {progressStatuses.map((status) => (
+                <ProgressStatusComponent
+                  key={status.id}
+                  status={status}
+                  onDismiss={handleDismissProgress}
+                />
+              ))}
             </div>
           </div>
         )}
