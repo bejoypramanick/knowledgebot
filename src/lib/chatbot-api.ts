@@ -428,12 +428,20 @@ export class ChatbotAPI {
         mode
       });
 
-      // Transform the response to match ChatResponse format
+      console.log('RAG API Response:', response.data);
+
+      // Handle nested result structure
+      // The API response wraps the actual data in a 'result' object
+      const result = response.data.result || response.data;
+      const answer = result.answer || result.response || 'No response received.';
+      const sources = result.sources || response.data.sources || [];
+      
+      // Ensure we don't fall back to the question (query field)
       const chatResponse: ChatResponse = {
-        response: response.data.answer || response.data.query || 'No response received.',
+        response: answer,
         session_id: '', // Will be set by calling code
-        timestamp: response.data.timing ? new Date().toISOString() : new Date().toISOString(),
-        sources: response.data.sources || []
+        timestamp: result.timing ? new Date().toISOString() : new Date().toISOString(),
+        sources: sources
       };
 
       return chatResponse;
