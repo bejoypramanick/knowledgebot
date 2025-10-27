@@ -412,6 +412,36 @@ export class ChatbotAPI {
     const response = await axios.post(`${this.apiBaseUrl}/rag-search`, payload);
     return response.data;
   }
+
+  /**
+   * Query RAG system using the pharma backend endpoint
+   * @param query - The question to ask
+   * @param mode - Query mode: 'hybrid' (default), 'naive', or 'local'
+   * @returns Chat response with answer and sources
+   */
+  async queryRAG(query: string, mode: 'hybrid' | 'naive' | 'local' = 'hybrid'): Promise<ChatResponse> {
+    const ragEndpoint = import.meta.env.VITE_RAG_API_URL || 'http://pharma-rag-alb-dev-2054947644.us-east-1.elb.amazonaws.com';
+    
+    try {
+      const response = await axios.post(`${ragEndpoint}/query`, {
+        query,
+        mode
+      });
+
+      // Transform the response to match ChatResponse format
+      const chatResponse: ChatResponse = {
+        response: response.data.answer || response.data.query || 'No response received.',
+        session_id: '', // Will be set by calling code
+        timestamp: response.data.timing ? new Date().toISOString() : new Date().toISOString(),
+        sources: response.data.sources || []
+      };
+
+      return chatResponse;
+    } catch (error: any) {
+      console.error('RAG query error:', error);
+      throw new Error(error.response?.data?.error || 'Failed to query RAG system');
+    }
+  }
 }
 
 

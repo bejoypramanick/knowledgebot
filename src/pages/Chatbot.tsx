@@ -56,6 +56,7 @@ const Chatbot = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [apiClient] = useState(new ChatbotAPI(AWS_CONFIG.endpoints.websocket, AWS_CONFIG.endpoints.apiGateway));
   const [error, setError] = useState<string | null>(null);
+  const [useRAGQuery, setUseRAGQuery] = useState(true); // Toggle between WebSocket and RAG query
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
   
@@ -161,7 +162,7 @@ const Chatbot = () => {
   };
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !sessionId || isLoading) return;
+    if (!newMessage.trim() || isLoading) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -180,7 +181,20 @@ const Chatbot = () => {
     setShowProgress(true);
 
     try {
-      const response: ChatResponse = await apiClient.sendMessage(newMessage, sessionId);
+      let response: ChatResponse;
+      
+      // Use RAG query endpoint if toggle is enabled
+      if (useRAGQuery) {
+        console.log('Using RAG query endpoint...');
+        response = await apiClient.queryRAG(newMessage, 'hybrid');
+      } else {
+        // Use WebSocket if available
+        if (!sessionId) {
+          const session = await apiClient.createChatSession();
+          setSessionId(session.id);
+        }
+        response = await apiClient.sendMessage(newMessage, sessionId);
+      }
       
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -205,7 +219,7 @@ const Chatbot = () => {
       }
     } catch (err: any) {
       console.error('Error sending message:', err);
-      setError(err.response?.data?.message || 'Failed to send message. Please try again.');
+      setError(err.response?.data?.message || err.message || 'Failed to send message. Please try again.');
       
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -271,6 +285,16 @@ const Chatbot = () => {
             </div>
             {/* Document Visualization Controls */}
             <div className={`flex items-center gap-1 sm:gap-2 ${isMobile ? 'flex-wrap' : ''}`}>
+              {/* RAG Query Toggle */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setUseRAGQuery(!useRAGQuery)}
+                className={`${useRAGQuery ? 'bg-green-600/20 border-green-400/50 text-green-100' : 'bg-white/10 border-white/20 text-white'} hover:bg-white/20`}
+                title={useRAGQuery ? 'Using RAG Query' : 'Using WebSocket'}
+              >
+                {useRAGQuery ? '✓ RAG' : '○ WS'}
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
