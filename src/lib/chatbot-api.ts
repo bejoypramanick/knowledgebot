@@ -414,16 +414,16 @@ export class ChatbotAPI {
   }
 
   /**
-   * Query RAG system using the pharma backend endpoint
+   * Query RAG system using the pharma backend API Gateway endpoint
    * @param query - The question to ask
    * @param mode - Query mode: 'hybrid' (default), 'naive', or 'local'
    * @returns Chat response with answer and sources
    */
   async queryRAG(query: string, mode: 'hybrid' | 'naive' | 'local' = 'hybrid'): Promise<ChatResponse> {
-    const ragEndpoint = import.meta.env.VITE_RAG_API_URL || 'http://pharma-rag-alb-dev-2054947644.us-east-1.elb.amazonaws.com';
+    const apiGatewayUrl = import.meta.env.VITE_RAG_API_URL || 'https://h51u75mco5.execute-api.us-east-1.amazonaws.com/dev';
     
     try {
-      const response = await axios.post(`${ragEndpoint}/query`, {
+      const response = await axios.post(`${apiGatewayUrl}/rag-query`, {
         query,
         mode
       });
