@@ -41,21 +41,26 @@ const KnowledgeBaseManagement = () => {
       // Transform the response data to match our Document interface
       const transformedDocuments = (response.documents || []).map((doc: any) => {
         console.log('Processing document:', doc);
+        
+        // Use original_name from Pharma backend API response
+        const originalName = doc.original_name || doc.filename || 'Unknown Document';
+        
         return {
-          id: doc.chunk_id || doc.document_id || Math.random().toString(),
-          name: doc.title || doc.metadata?.source || doc.original_filename || 'Unknown Document',
+          id: doc.key || doc.chunk_id || doc.document_id || Math.random().toString(),
+          name: originalName, // Use the original filename
           type: doc.metadata?.document_type || 'txt',
           status: doc.status || 'processed',
           chunks: doc.chunks_count ? [doc] : [],
           metadata: {
-            title: doc.title || doc.metadata?.source || doc.original_filename,
+            title: originalName,
             category: doc.metadata?.category || 'general',
             tags: doc.metadata?.tags || [],
             author: doc.metadata?.author || 'unknown',
-            sourceUrl: doc.metadata?.sourceUrl
+            sourceUrl: doc.metadata?.sourceUrl,
+            key: doc.key // Store S3 key for deletion
           },
-          createdAt: doc.created_at || doc.processed_at || new Date().toISOString(),
-          updatedAt: doc.created_at || doc.processed_at || new Date().toISOString()
+          createdAt: doc.last_modified || doc.created_at || doc.processed_at || new Date().toISOString(),
+          updatedAt: doc.last_modified || doc.created_at || doc.processed_at || new Date().toISOString()
         };
       });
       
@@ -64,6 +69,47 @@ const KnowledgeBaseManagement = () => {
     } catch (err) {
       console.error('Error loading documents:', err);
       setError('Failed to load documents');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteDocument = async (documentKey: string, documentName: string) => {
+    if (!window.confirm(`Are you sure you want to delete "${documentName}"?`)) {
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Call delete-document API
+      const response = await fetch(`${AWS_CONFIG.endpoints.pharmaApiGateway}/delete-document`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ document_key: documentKey })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to delete document: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log('Delete result:', result);
+      
+      setSuccess(`Document "${documentName}" deleted successfully!`);
+      
+      // Reload documents
+      await loadDocuments();
+      
+      setTimeout(() => {
+        setSuccess(null);
+      }, 2000);
+    } catch (err: any) {
+      console.error('Error deleting document:', err);
+      setError(err.message || 'Failed to delete document');
     } finally {
       setIsLoading(false);
     }
@@ -311,10 +357,23 @@ const KnowledgeBaseManagement = () => {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end space-x-2">
-                            <Button variant="ghost" size="sm" className="hover:bg-primary/10">
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="hover:bg-primary/10"
+                              title="Edit document"
+                              disabled={isLoading}
+                            >
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="sm" className="hover:bg-destructive/10 hover:text-destructive">
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="hover:bg-destructive/10 hover:text-destructive"
+                              title="Delete document"
+                              onClick={() => handleDeleteDocument(doc.metadata?.key, doc.name)}
+                              disabled={isLoading}
+                            >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
