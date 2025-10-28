@@ -194,17 +194,20 @@ export class KnowledgeBaseManager {
   }
 
   async triggerDocumentProcessing(bucket: string, key: string): Promise<{status: string, message: string}> {
-    // S3 upload triggers Lambda automatically, but we manually trigger processing to ensure it runs
-    const albUrl = import.meta.env.VITE_PHARMA_ALB_URL || 'http://pharma-rag-alb-dev-2054947644.us-east-1.elb.amazonaws.com';
+    // Use HTTPS API Gateway endpoint for secure document processing
+    const apiUrl = import.meta.env.VITE_API_GATEWAY_URL || 'https://h51u75mco5.execute-api.us-east-1.amazonaws.com/dev';
     
     try {
-      // Trigger processing on ECS
-      const response = await axios.post(`${albUrl}/process`, {
+      // Extract document name from key (filename)
+      const documentName = key.split('/').pop() || key;
+      
+      // Trigger processing via API Gateway
+      const response = await axios.post(`${apiUrl}/process`, {
         bucket,
-        key: key,
-        s3_key: key,
-        use_llm_chunking: false  // Use fast native chunking
+        document_key: key,
+        document_name: documentName
       });
+      
       return {
         status: response.data.status || 'accepted',
         message: response.data.message || 'Document processing started'
