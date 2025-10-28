@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import { KnowledgeBaseManager, Document, DocumentMetadata } from "@/lib/knowledge-base";
 import { AWS_CONFIG } from "@/lib/aws-config";
+import UploadDocumentButton from "@/components/UploadDocumentButton";
 
 const KnowledgeBaseManagement = () => {
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -138,17 +139,10 @@ const KnowledgeBaseManagement = () => {
         setUploadProgress(progress);
       });
 
-      // Step 3: Trigger processing (90-95% progress)
-      setUploadProgress(90);
-      const processResult = await knowledgeBaseManager.triggerDocumentProcessing(
-        presignedUrlData.bucket,
-        presignedUrlData.key
-      );
-      console.log('Processing triggered:', processResult);
-
-      // Step 4: Complete (95-100%)
+      // Note: Processing should be triggered via WebSocket from the UploadDocumentButton component
+      // This simple upload handler just uploads to S3
       setUploadProgress(100);
-      setSuccess(`Document "${file.name}" uploaded and processing started!`);
+      setSuccess(`Document "${file.name}" uploaded successfully! Please use the Upload Document button for full processing.`);
       
       // Reload documents list after 2 seconds
       setTimeout(() => {
@@ -184,31 +178,9 @@ const KnowledgeBaseManagement = () => {
             <p className="text-muted-foreground">Manage your AI assistant's knowledge and training data</p>
           </div>
           <div className="flex items-center space-x-2">
-            <input
-              type="file"
-              accept=".pdf,.docx,.txt"
-              onChange={handleFileUpload}
-              disabled={isUploading}
-              className="hidden"
-              id="file-upload"
+            <UploadDocumentButton
+              onUploadSuccess={loadDocuments}
             />
-            <Button
-              onClick={() => document.getElementById('file-upload')?.click()}
-              disabled={isUploading}
-              className="backdrop-blur-sm bg-primary hover:bg-primary/90"
-            >
-              {isUploading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Uploading...
-                </>
-              ) : (
-                <>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Upload Document
-                </>
-              )}
-            </Button>
           </div>
         </div>
 
