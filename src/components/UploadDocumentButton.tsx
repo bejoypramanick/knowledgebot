@@ -152,7 +152,7 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
         
         // If WebSocket completes, resolve immediately
         const checkCompletion = setInterval(() => {
-          if (currentStep === 'completed' || currentStep === 'error') {
+          if (currentStep === 'completed' || currentStep === 'complete' || currentStep === 'error') {
             clearTimeout(timeoutId);
             clearInterval(checkCompletion);
             resolve();
