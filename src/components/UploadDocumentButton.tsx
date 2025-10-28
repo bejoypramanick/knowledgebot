@@ -126,12 +126,12 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
       }
       
       // Extract original filename from key (format: uuid_originalname.pdf)
-      const originalFilename = key.split('/').pop() || key;
+      const originalFilename = presignedResponse.key.split('/').pop() || presignedResponse.key;
       
       // Send processing request via WebSocket
       const messageSent = sendMessage({
         action: 'process_document',
-        document_key: key,
+        document_key: presignedResponse.key,
         bucket: presignedResponse.bucket,
         document_name: uploadMetadata.title || selectedFile.name
       });
