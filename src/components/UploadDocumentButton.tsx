@@ -54,7 +54,8 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
     error: wsError,
     connect, 
     disconnect, 
-    resetProgress 
+    resetProgress,
+    sendMessage
   } = useWebSocket({ 
     endpoint: websocketEndpoint,
     autoConnect: true 
@@ -116,28 +117,47 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
       );
       console.log('S3 upload completed');
       
-      // Step 3: Trigger processing with WebSocket connection ID
-      setUploadProgress(90);
-      console.log('Step 3: Triggering document processing...');
-      await knowledgeBaseManager.triggerDocumentProcessing(
-        presignedResponse.bucket,
-        presignedResponse.key,
-        connectionId || undefined // Pass connection_id for progress tracking
-      );
+      // Step 3: Trigger processing via WebSocket (instead of REST API)
+      console.log('Step 3: Sending document processing request via WebSocket...');
       
-      // Wait for WebSocket to complete (or timeout)
-      let timeoutId;
+      if (!isConnected || !sendMessage) {
+        console.error('WebSocket not connected, cannot send processing request');
+        throw new Error('WebSocket connection required for document processing');
+      }
+      
+      // Extract original filename from key (format: uuid_originalname.pdf)
+      const originalFilename = key.split('/').pop() || key;
+      
+      // Send processing request via WebSocket
+      const messageSent = sendMessage({
+        action: 'process_document',
+        document_key: key,
+        bucket: presignedResponse.bucket,
+        document_name: uploadMetadata.title || selectedFile.name
+      });
+      
+      if (!messageSent) {
+        throw new Error('Failed to send processing request via WebSocket');
+      }
+      
+      console.log('Document processing request sent via WebSocket');
+      
+      // Wait for WebSocket to complete or timeout after 5 minutes
+      let timeoutId: NodeJS.Timeout;
       const waitForCompletion = new Promise<void>((resolve) => {
         timeoutId = setTimeout(() => {
-          console.log('Processing initiated, waiting for WebSocket completion...');
+          console.log('Waiting for processing to complete...');
           resolve();
-        }, 5000); // 5 second timeout
+        }, 300000); // 5 minute timeout for processing
         
         // If WebSocket completes, resolve immediately
-        if (currentStep === 'completed') {
-          clearTimeout(timeoutId);
-          resolve();
-        }
+        const checkCompletion = setInterval(() => {
+          if (currentStep === 'completed' || currentStep === 'error') {
+            clearTimeout(timeoutId);
+            clearInterval(checkCompletion);
+            resolve();
+          }
+        }, 100);
       });
       
       await waitForCompletion;
@@ -316,12 +336,14 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
           {isUploading && (
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm text-black">
-                <span>{currentStep ? `Processing: ${currentStep}` : 'Uploading...'}</span>
+                <span>{currentStep || 'Uploading...'}</span>
                 <span>{uploadProgress}%</span>
               </div>
               <Progress value={uploadProgress} className="w-full" />
-              {!isConnected && (
-                <p className="text-xs text-gray-500">Connected to WebSocket for real-time updates</p>
+              {isConnected ? (
+                <p className="text-xs text-green-600">✓ Connected to WebSocket for real-time updates</p>
+              ) : (
+                <p className="text-xs text-gray-500">Connecting to WebSocket...</p>
               )}
             </div>
           )}

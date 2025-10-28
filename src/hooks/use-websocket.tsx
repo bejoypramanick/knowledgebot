@@ -51,18 +51,35 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
 
           if (data.type === 'connection') {
             setConnectionId(data.connectionId);
-          } else if (data.type === 'progress') {
-            setProgress(prev => [...prev, data as ProgressUpdate]);
+          } else if (data.action === 'progressUpdate') {
+            // Handle progress updates from document processing
+            console.log(`Progress update: ${data.data?.progress}% - ${data.message}`);
+            setProgress(prev => [...prev, {
+              type: 'progress',
+              step: data.step,
+              message: data.message,
+              data: data.data
+            } as ProgressUpdate]);
             setCurrentStep(data.step || '');
             setCurrentProgress(data.data?.progress || 0);
-          } else if (data.type === 'complete') {
-            setProgress(prev => [...prev, data as ProgressUpdate]);
+          } else if (data.action === 'processingComplete') {
+            // Handle completion notification
+            console.log('Processing completed:', data.success);
+            setProgress(prev => [...prev, {
+              type: 'complete',
+              success: data.success,
+              error: data.error
+            } as ProgressUpdate]);
             setCurrentProgress(100);
             if (data.success) {
               setCurrentStep('completed');
             } else {
               setError(data.error || 'Processing failed');
             }
+          } else if (data.action === 'error') {
+            // Handle errors
+            console.error('WebSocket error:', data.message);
+            setError(data.message || 'An error occurred');
           }
         } catch (err) {
           console.error('Error parsing WebSocket message:', err);
@@ -102,6 +119,17 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     setError(null);
   }, []);
 
+  const sendMessage = useCallback((message: Record<string, unknown>) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(message));
+      console.log('WebSocket message sent:', message);
+      return true;
+    } else {
+      console.warn('WebSocket is not connected. Cannot send message:', message);
+      return false;
+    }
+  }, []);
+
   useEffect(() => {
     if (autoConnect && endpoint) {
       connect();
@@ -122,6 +150,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     connect,
     disconnect,
     resetProgress,
+    sendMessage,
   };
 };
 
