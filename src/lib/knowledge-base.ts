@@ -200,7 +200,7 @@ export class KnowledgeBaseManager {
     connectionId?: string
   ): Promise<{status: string, message: string}> {
     // Use HTTPS API Gateway endpoint for secure document processing
-    const apiUrl = import.meta.env.VITE_API_GATEWAY_URL || 'https://h51u75mco5.execute-api.us-east-1.amazonaws.com/dev';
+    const apiUrl = import.meta.env.VITE_API_GATEWAY_URL || this.apiBaseUrl;
     
     try {
       // Extract document name from key (filename)
