@@ -181,12 +181,14 @@ const Chatbot = () => {
     setShowProgress(true);
 
     try {
-      // Always use WebSocket for queries
+      // Use RAG API for queries instead of WebSocket
       if (!sessionId) {
         const session = await apiClient.createChatSession();
         setSessionId(session.id);
       }
-      const response = await apiClient.sendMessage(newMessage, sessionId);
+      
+      // Use RAG query API instead of WebSocket
+      const response = await apiClient.queryRAG(newMessage, 'hybrid');
       
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
