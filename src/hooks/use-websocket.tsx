@@ -74,12 +74,14 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
             if (data.success) {
               setCurrentStep('completed');
             } else {
+              setCurrentStep('error');
               setError(data.error || 'Processing failed');
             }
           } else if (data.action === 'error') {
             // Handle errors
             console.error('WebSocket error:', data.message);
             setError(data.message || 'An error occurred');
+            setCurrentStep('error');
           }
         } catch (err) {
           console.error('Error parsing WebSocket message:', err);

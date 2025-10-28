@@ -68,6 +68,27 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
     }
   }, [wsProgress, isUploading]);
 
+  // Close dialog when processing completes successfully
+  useEffect(() => {
+    if ((currentStep === 'completed' || currentStep === 'complete') && isUploading && uploadProgress === 100) {
+      console.log('Upload completed successfully, closing dialog...');
+      setTimeout(() => {
+        setSuccess('Document uploaded and processed successfully!');
+        setIsUploading(false);
+        setUploadProgress(0);
+        setIsUploadDialogOpen(false);
+        setSelectedFile(null);
+        setUploadMetadata({
+          title: '',
+          category: 'general',
+          tags: [],
+          author: ''
+        });
+        onUploadSuccess?.();
+      }, 1500);
+    }
+  }, [currentStep, isUploading, uploadProgress]);
+
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
