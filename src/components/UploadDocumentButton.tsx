@@ -42,11 +42,10 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
   const [success, setSuccess] = useState<string | null>(null);
   const isMobile = useIsMobile();
 
-  const knowledgeBaseManager = new KnowledgeBaseManager(AWS_CONFIG.endpoints.apiGateway);
+  const knowledgeBaseManager = new KnowledgeBaseManager(AWS_CONFIG.endpoints.pharmaApiGateway);
   
-  // WebSocket for real-time progress updates
-  // TODO: Get WebSocket endpoint from environment variable or API
-  const websocketEndpoint = import.meta.env.VITE_WEBSOCKET_ENDPOINT || 'wss://your-websocket-endpoint.execute-api.us-east-1.amazonaws.com/dev';
+  // WebSocket for real-time progress updates - using Pharma WebSocket endpoint
+  const websocketEndpoint = import.meta.env.VITE_PHARMA_WEBSOCKET_URL || AWS_CONFIG.endpoints.pharmaWebSocket || 'wss://6dkgg5u5s7.execute-api.us-east-1.amazonaws.com/dev';
   const { 
     connectionId, 
     isConnected, 
