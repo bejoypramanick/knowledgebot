@@ -5,6 +5,8 @@ export const AWS_CONFIG = {
     websocket: import.meta.env.VITE_WEBSOCKET_URL || 'wss://mu2mzsqwni.execute-api.ap-south-1.amazonaws.com/prod',
     // Fallback HTTP API Gateway endpoint for non-chat operations
     apiGateway: import.meta.env.VITE_API_GATEWAY_URL || 'https://a1kn0j91k8.execute-api.ap-south-1.amazonaws.com/prod',
+    // Pharma RAG Backend API Gateway (for document upload)
+    pharmaApiGateway: import.meta.env.VITE_PHARMA_API_URL || 'https://h51u75mco5.execute-api.us-east-1.amazonaws.com/dev',
   },
   s3: {
     mainBucket: 'chatbot-storage-ap-south-1',

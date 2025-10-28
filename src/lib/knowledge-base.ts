@@ -115,30 +115,25 @@ export class KnowledgeBaseManager {
   }
 
   async getPresignedUploadUrl(file: File, metadata: Partial<DocumentMetadata> = {}): Promise<PresignedUrlResponse> {
-    const payload = {
-      filename: file.name,
-      content_type: file.type || 'application/octet-stream',
-      metadata: {
-        title: metadata.title || file.name,
-        category: metadata.category || 'general',
-        tags: metadata.tags || [],
-        author: metadata.author || 'unknown',
-        sourceUrl: metadata.sourceUrl
-      }
-    };
-
-    console.log('Requesting presigned URL with payload:', payload);
-
-    // Use the dedicated upload-url endpoint
-    const response = await axios.post(`${this.apiBaseUrl}/upload-url`, payload);
-    console.log('Presigned URL response:', response.data);
+    console.log('Requesting presigned URL from API Gateway:', this.apiBaseUrl);
     
-    // Check if the response indicates success
-    if (!response.data.success) {
-      throw new Error(response.data.error || 'Failed to generate presigned URL');
+    try {
+      const response = await axios.get(`${this.apiBaseUrl}/presigned-url`);
+      console.log('Presigned URL response:', response.data);
+      
+      // Transform response to match our interface
+      return {
+        success: true,
+        presigned_url: response.data.presigned_url,
+        bucket: response.data.bucket,
+        key: response.data.key,
+        operation: 'PUT',
+        expiration: response.data.expires_in || 300
+      };
+    } catch (error) {
+      console.error('Error getting presigned URL:', error);
+      throw new Error('Failed to generate presigned URL');
     }
-    
-    return response.data;
   }
 
   async uploadToS3(file: File, presignedUrl: string, metadata: Partial<DocumentMetadata> = {}, onProgress?: (progress: number) => void): Promise<void> {
@@ -196,6 +191,28 @@ export class KnowledgeBaseManager {
       s3Key,
       metadata
     });
+  }
+
+  async triggerDocumentProcessing(bucket: string, key: string): Promise<{status: string, message: string}> {
+    // S3 upload triggers Lambda automatically, but we manually trigger processing to ensure it runs
+    const albUrl = import.meta.env.VITE_PHARMA_ALB_URL || 'http://pharma-rag-alb-dev-2054947644.us-east-1.elb.amazonaws.com';
+    
+    try {
+      // Trigger processing on ECS
+      const response = await axios.post(`${albUrl}/process`, {
+        bucket,
+        key: key,
+        s3_key: key,
+        use_llm_chunking: false  // Use fast native chunking
+      });
+      return {
+        status: response.data.status || 'accepted',
+        message: response.data.message || 'Document processing started'
+      };
+    } catch (error) {
+      console.error('Error triggering document processing:', error);
+      throw new Error('Failed to trigger document processing');
+    }
   }
 }
 

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Edit, Trash2, Filter, FileText, Database as DatabaseIcon, Loader2 } from "lucide-react";
+import { Search, Plus, Edit, Trash2, Filter, FileText, Database as DatabaseIcon, Loader2, Upload } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -21,8 +21,10 @@ const KnowledgeBaseManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
-  const knowledgeBaseManager = new KnowledgeBaseManager(AWS_CONFIG.endpoints.apiGateway);
+  const knowledgeBaseManager = new KnowledgeBaseManager(AWS_CONFIG.endpoints.pharmaApiGateway);
 
   // Load documents on component mount
   useEffect(() => {
@@ -67,6 +69,57 @@ const KnowledgeBaseManagement = () => {
     }
   };
 
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsUploading(true);
+      setUploadProgress(0);
+      setError(null);
+      setSuccess(null);
+
+      console.log(`Starting upload for ${file.name}`);
+
+      // Step 1: Get presigned URL (10% progress)
+      setUploadProgress(10);
+      const presignedUrlData = await knowledgeBaseManager.getPresignedUploadUrl(file);
+      console.log('Got presigned URL:', presignedUrlData);
+
+      // Step 2: Upload to S3 (10-90% progress)
+      setUploadProgress(20);
+      await knowledgeBaseManager.uploadToS3(file, presignedUrlData.presigned_url, {}, (progress) => {
+        setUploadProgress(progress);
+      });
+
+      // Step 3: Trigger processing (90-95% progress)
+      setUploadProgress(90);
+      const processResult = await knowledgeBaseManager.triggerDocumentProcessing(
+        presignedUrlData.bucket,
+        presignedUrlData.key
+      );
+      console.log('Processing triggered:', processResult);
+
+      // Step 4: Complete (95-100%)
+      setUploadProgress(100);
+      setSuccess(`Document "${file.name}" uploaded and processing started!`);
+      
+      // Reload documents list after 2 seconds
+      setTimeout(() => {
+        loadDocuments();
+      }, 2000);
+
+    } catch (err: any) {
+      console.error('Upload error:', err);
+      setError(err.message || 'Failed to upload document');
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+      // Reset file input
+      event.target.value = '';
+    }
+  };
+
 
   const filteredDocuments = documents.filter(doc => {
     if (!doc) return false;
@@ -84,7 +137,72 @@ const KnowledgeBaseManagement = () => {
             <h1 className="text-3xl font-bold text-foreground mb-2">Knowledge-base Management</h1>
             <p className="text-muted-foreground">Manage your AI assistant's knowledge and training data</p>
           </div>
+          <div className="flex items-center space-x-2">
+            <input
+              type="file"
+              accept=".pdf,.docx,.txt"
+              onChange={handleFileUpload}
+              disabled={isUploading}
+              className="hidden"
+              id="file-upload"
+            />
+            <Button
+              onClick={() => document.getElementById('file-upload')?.click()}
+              disabled={isUploading}
+              className="backdrop-blur-sm bg-primary hover:bg-primary/90"
+            >
+              {isUploading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Upload Document
+                </>
+              )}
+            </Button>
+          </div>
         </div>
+
+        {/* Upload Progress Bar */}
+        {isUploading && uploadProgress > 0 && (
+          <Card className="backdrop-blur-sm bg-card/80 border-border/20">
+            <CardContent className="p-4">
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Uploading document...</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div
+                    className="bg-primary h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Success Message */}
+        {success && (
+          <Card className="backdrop-blur-sm bg-green-500/10 border-green-500/20">
+            <CardContent className="p-4">
+              <p className="text-green-500">{success}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Error Message */}
+        {error && (
+          <Card className="backdrop-blur-sm bg-red-500/10 border-red-500/20">
+            <CardContent className="p-4">
+              <p className="text-red-500">{error}</p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Search and Filters */}
         <Card className="backdrop-blur-sm bg-card/80 border-border/20 shadow-card">
