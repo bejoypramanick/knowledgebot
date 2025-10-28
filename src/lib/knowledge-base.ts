@@ -178,18 +178,8 @@ export class KnowledgeBaseManager {
         onProgress(90);
       }
       
-    } catch (error: any) {
+    } catch (error) {
       console.error('S3 upload failed:', error);
-      
-      // Check if it's a CORS error (403 on OPTIONS request)
-      if (error.response?.status === 403 || error.code === 'ERR_NETWORK') {
-        throw new Error(
-          'Upload failed due to CORS configuration. ' +
-          'The S3 bucket needs CORS configuration to allow browser uploads. ' +
-          'Please see S3_CORS_CONFIGURATION.md for setup instructions.'
-        );
-      }
-      
       throw error;
     }
   }
