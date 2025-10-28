@@ -72,8 +72,13 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
   useEffect(() => {
     if ((currentStep === 'completed' || currentStep === 'complete') && isUploading && uploadProgress === 100) {
       console.log('Upload completed successfully, closing dialog...');
+      
+      // Call success callback to refresh document list
+      onUploadSuccess?.();
+      
+      // Show success message and close dialog after a short delay
+      setSuccess('Document uploaded and processed successfully!');
       setTimeout(() => {
-        setSuccess('Document uploaded and processed successfully!');
         setIsUploading(false);
         setUploadProgress(0);
         setIsUploadDialogOpen(false);
@@ -84,10 +89,11 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
           tags: [],
           author: ''
         });
-        onUploadSuccess?.();
-      }, 1500);
+        resetProgress(); // Reset WebSocket progress
+        setSuccess(null);
+      }, 2000);
     }
-  }, [currentStep, isUploading, uploadProgress]);
+  }, [currentStep, isUploading, uploadProgress, onUploadSuccess, resetProgress]);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -183,24 +189,12 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
       
       await waitForCompletion;
       
-      setSuccess(`Document "${uploadMetadata.title}" uploaded successfully!`);
-      setSelectedFile(null);
-      setUploadMetadata({
-        title: '',
-        category: 'general',
-        tags: [],
-        author: ''
-      });
-      setUploadProgress(0);
-
-      // Call success callback
-      onUploadSuccess?.();
-
-      // Close dialog after a short delay
-      setTimeout(() => {
-        setIsUploadDialogOpen(false);
-        setSuccess(null);
-      }, 2000);
+      // Note: Dialog closing and callback are handled by the useEffect above
+      // Just set success message here if not already handled
+      if (uploadProgress < 100) {
+        setSuccess(`Document "${uploadMetadata.title}" uploaded successfully!`);
+        setUploadProgress(100);
+      }
 
     } catch (err: any) {
       console.error('Upload error:', err);
