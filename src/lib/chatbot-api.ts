@@ -420,7 +420,7 @@ export class ChatbotAPI {
    * @returns Chat response with answer and sources
    */
   async queryRAG(query: string, mode: 'hybrid' | 'naive' | 'local' = 'hybrid'): Promise<ChatResponse> {
-    const apiGatewayUrl = import.meta.env.VITE_RAG_API_URL || 'https://h51u75mco5.execute-api.us-east-1.amazonaws.com/dev';
+    const apiGatewayUrl = import.meta.env.VITE_PHARMA_API_URL || import.meta.env.VITE_RAG_API_URL || 'https://ghpiq7asg3.execute-api.us-east-1.amazonaws.com/dev';
     
     try {
       const response = await axios.post(`${apiGatewayUrl}/rag-query`, {
