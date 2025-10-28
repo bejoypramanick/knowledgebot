@@ -13,10 +13,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { Upload, FileText, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { KnowledgeBaseManager, DocumentMetadata } from '@/lib/knowledge-base';
 import { AWS_CONFIG } from '@/lib/aws-config';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useWebSocket } from '@/hooks/use-websocket';
 
 interface UploadDocumentButtonProps {
   onUploadSuccess?: () => void;
@@ -42,6 +43,30 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
   const isMobile = useIsMobile();
 
   const knowledgeBaseManager = new KnowledgeBaseManager(AWS_CONFIG.endpoints.apiGateway);
+  
+  // WebSocket for real-time progress updates
+  // TODO: Get WebSocket endpoint from environment variable or API
+  const websocketEndpoint = import.meta.env.VITE_WEBSOCKET_ENDPOINT || 'wss://your-websocket-endpoint.execute-api.us-east-1.amazonaws.com/dev';
+  const { 
+    connectionId, 
+    isConnected, 
+    currentStep, 
+    currentProgress: wsProgress, 
+    error: wsError,
+    connect, 
+    disconnect, 
+    resetProgress 
+  } = useWebSocket({ 
+    endpoint: websocketEndpoint,
+    autoConnect: true 
+  });
+
+  // Update UI progress from WebSocket
+  useEffect(() => {
+    if (wsProgress > 0 && isUploading) {
+      setUploadProgress(wsProgress);
+    }
+  }, [wsProgress, isUploading]);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -64,6 +89,7 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
       setIsUploading(true);
       setError(null);
       setUploadProgress(0);
+      resetProgress(); // Clear previous WebSocket progress
 
       console.log('Starting presigned URL upload process...');
       
@@ -83,12 +109,39 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
         selectedFile, 
         presignedResponse.presigned_url, 
         uploadMetadata as DocumentMetadata,
-        (progress) => setUploadProgress(progress)
+        (progress) => {
+          // Only update if WebSocket hasn't taken over
+          if (uploadProgress < wsProgress) return;
+          setUploadProgress(progress);
+        }
       );
       console.log('S3 upload completed');
       
-      // Step 3: Update progress to completion
-      setUploadProgress(100);
+      // Step 3: Trigger processing with WebSocket connection ID
+      setUploadProgress(90);
+      console.log('Step 3: Triggering document processing...');
+      await knowledgeBaseManager.triggerDocumentProcessing(
+        presignedResponse.bucket,
+        presignedResponse.key,
+        connectionId || undefined // Pass connection_id for progress tracking
+      );
+      
+      // Wait for WebSocket to complete (or timeout)
+      let timeoutId;
+      const waitForCompletion = new Promise<void>((resolve) => {
+        timeoutId = setTimeout(() => {
+          console.log('Processing initiated, waiting for WebSocket completion...');
+          resolve();
+        }, 5000); // 5 second timeout
+        
+        // If WebSocket completes, resolve immediately
+        if (currentStep === 'completed') {
+          clearTimeout(timeoutId);
+          resolve();
+        }
+      });
+      
+      await waitForCompletion;
       
       setSuccess(`Document "${uploadMetadata.title}" uploaded successfully!`);
       setSelectedFile(null);
@@ -264,10 +317,13 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
           {isUploading && (
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm text-black">
-                <span>Uploading...</span>
+                <span>{currentStep ? `Processing: ${currentStep}` : 'Uploading...'}</span>
                 <span>{uploadProgress}%</span>
               </div>
               <Progress value={uploadProgress} className="w-full" />
+              {!isConnected && (
+                <p className="text-xs text-gray-500">Connected to WebSocket for real-time updates</p>
+              )}
             </div>
           )}
 

@@ -118,7 +118,8 @@ export class KnowledgeBaseManager {
     console.log('Requesting presigned URL from API Gateway:', this.apiBaseUrl);
     
     try {
-      const response = await axios.get(`${this.apiBaseUrl}/presigned-url`);
+      // Pass filename as query parameter to preserve original filename
+      const response = await axios.get(`${this.apiBaseUrl}/presigned-url?filename=${encodeURIComponent(file.name)}`);
       console.log('Presigned URL response:', response.data);
       
       // Transform response to match our interface
@@ -193,7 +194,11 @@ export class KnowledgeBaseManager {
     });
   }
 
-  async triggerDocumentProcessing(bucket: string, key: string): Promise<{status: string, message: string}> {
+  async triggerDocumentProcessing(
+    bucket: string, 
+    key: string, 
+    connectionId?: string
+  ): Promise<{status: string, message: string}> {
     // Use HTTPS API Gateway endpoint for secure document processing
     const apiUrl = import.meta.env.VITE_API_GATEWAY_URL || 'https://h51u75mco5.execute-api.us-east-1.amazonaws.com/dev';
     
@@ -201,12 +206,20 @@ export class KnowledgeBaseManager {
       // Extract document name from key (filename)
       const documentName = key.split('/').pop() || key;
       
-      // Trigger processing via API Gateway
-      const response = await axios.post(`${apiUrl}/process`, {
+      // Prepare request payload
+      const payload: any = {
         bucket,
         document_key: key,
         document_name: documentName
-      });
+      };
+      
+      // Include connection_id if provided (for WebSocket progress updates)
+      if (connectionId) {
+        payload.connection_id = connectionId;
+      }
+      
+      // Trigger processing via API Gateway
+      const response = await axios.post(`${apiUrl}/process`, payload);
       
       return {
         status: response.data.status || 'accepted',
