@@ -70,14 +70,16 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
 
   // Close dialog when processing completes successfully
   useEffect(() => {
-    if ((currentStep === 'completed' || currentStep === 'complete') && isUploading && uploadProgress === 100) {
+    if ((currentStep === 'completed' || currentStep === 'complete') && isUploading) {
       console.log('Upload completed successfully, closing dialog...');
       
-      // Call success callback to refresh document list
+      // Call success callback to refresh document list immediately
       onUploadSuccess?.();
       
       // Show success message and close dialog after a short delay
       setSuccess('Document uploaded and processed successfully!');
+      setUploadProgress(100);
+      
       setTimeout(() => {
         setIsUploading(false);
         setUploadProgress(0);
@@ -93,7 +95,7 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
         setSuccess(null);
       }, 2000);
     }
-  }, [currentStep, isUploading, uploadProgress, onUploadSuccess, resetProgress]);
+  }, [currentStep, isUploading, onUploadSuccess, resetProgress]);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -189,17 +191,12 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
       
       await waitForCompletion;
       
-      // Note: Dialog closing and callback are handled by the useEffect above
-      // Just set success message here if not already handled
-      if (uploadProgress < 100) {
-        setSuccess(`Document "${uploadMetadata.title}" uploaded successfully!`);
-        setUploadProgress(100);
-      }
+      // Processing completed - let the useEffect handle dialog closing
+      console.log('Processing completed, waiting for dialog to close...');
 
     } catch (err: any) {
       console.error('Upload error:', err);
       setError(err.message || 'Failed to upload document');
-    } finally {
       setIsUploading(false);
     }
   };
