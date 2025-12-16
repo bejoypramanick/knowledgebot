@@ -24,6 +24,44 @@ const KnowledgeBaseManagement = () => {
   const [success, setSuccess] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [scrapeUrl, setScrapeUrl] = useState('');
+  const [isScraping, setIsScraping] = useState(false);
+
+  const handleScrape = async () => {
+    if (!scrapeUrl) return;
+
+    // Basic URL validation
+    try {
+      new URL(scrapeUrl);
+    } catch (_) {
+      setError('Please enter a valid URL (e.g., https://example.com)');
+      return;
+    }
+
+    try {
+      setIsScraping(true);
+      setError(null);
+      setSuccess(null);
+
+      console.log(`Starting scrape for ${scrapeUrl}`);
+      const response = await knowledgeBaseManager.scrapeWebsite(scrapeUrl);
+      console.log('Scrape started:', response);
+
+      setSuccess(`Scraping started for ${scrapeUrl}. Content will appear in the list once processed.`);
+      setScrapeUrl('');
+
+      // Reload documents list after 2 seconds
+      setTimeout(() => {
+        loadDocuments();
+      }, 2000);
+
+    } catch (err: any) {
+      console.error('Scrape error:', err);
+      setError(err.message || 'Failed to start scraping');
+    } finally {
+      setIsScraping(false);
+    }
+  };
 
   const knowledgeBaseManager = new KnowledgeBaseManager(AWS_CONFIG.endpoints.pharmaApiGateway);
 
@@ -38,14 +76,14 @@ const KnowledgeBaseManagement = () => {
       console.log('Loading documents...');
       const response = await knowledgeBaseManager.getDocuments();
       console.log('Raw API response:', response);
-      
+
       // Transform the response data to match our Document interface
       const transformedDocuments = (response.documents || []).map((doc: any) => {
         console.log('Processing document:', doc);
-        
+
         // Use original_name from Pharma backend API response
         const originalName = doc.original_name || doc.filename || 'Unknown Document';
-        
+
         return {
           id: doc.key || doc.chunk_id || doc.document_id || Math.random().toString(),
           name: originalName, // Use the original filename
@@ -64,7 +102,7 @@ const KnowledgeBaseManagement = () => {
           updatedAt: doc.last_modified || doc.created_at || doc.processed_at || new Date().toISOString()
         };
       });
-      
+
       console.log('Transformed documents:', transformedDocuments);
       setDocuments(transformedDocuments);
     } catch (err) {
@@ -83,7 +121,7 @@ const KnowledgeBaseManagement = () => {
     try {
       setIsLoading(true);
       setError(null);
-      
+
       // Call delete-document API
       const response = await fetch(`${AWS_CONFIG.endpoints.pharmaApiGateway}/delete-document`, {
         method: 'POST',
@@ -99,12 +137,12 @@ const KnowledgeBaseManagement = () => {
 
       const result = await response.json();
       console.log('Delete result:', result);
-      
+
       setSuccess(`Document "${documentName}" deleted successfully!`);
-      
+
       // Reload documents
       await loadDocuments();
-      
+
       setTimeout(() => {
         setSuccess(null);
       }, 2000);
@@ -143,7 +181,7 @@ const KnowledgeBaseManagement = () => {
       // This simple upload handler just uploads to S3
       setUploadProgress(100);
       setSuccess(`Document "${file.name}" uploaded successfully! Please use the Upload Document button for full processing.`);
-      
+
       // Reload documents list after 2 seconds
       setTimeout(() => {
         loadDocuments();
@@ -204,6 +242,46 @@ const KnowledgeBaseManagement = () => {
           </Card>
         )}
 
+        {/* Web Scraping Input */}
+        <Card className="backdrop-blur-sm bg-card/80 border-border/20">
+          <CardContent className="p-6">
+            <h3 className="text-lg font-semibold mb-4 flex items-center">
+              <span className="mr-2">🌐</span> Add Knowledge from Website
+            </h3>
+            <div className="flex gap-4 items-end">
+              <div className="flex-1 space-y-2">
+                <Input
+                  placeholder="Enter website URL (e.g., https://docs.example.com)"
+                  value={scrapeUrl}
+                  onChange={(e) => setScrapeUrl(e.target.value)}
+                  className="bg-muted/30 border-border/20 text-black border-gray-300"
+                  disabled={isScraping}
+                />
+              </div>
+              <Button
+                onClick={handleScrape}
+                disabled={!scrapeUrl || isScraping}
+                className="bg-gradient-primary border-0 shadow-glow"
+              >
+                {isScraping ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Scraping...
+                  </>
+                ) : (
+                  <>
+                    <Search className="h-4 w-4 mr-2" />
+                    Scrape Website
+                  </>
+                )}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              The crawler will extract text content from the URL and add it to the knowledge base. Max depth: 2, Max pages: 10.
+            </p>
+          </CardContent>
+        </Card>
+
         {/* Success Message */}
         {success && (
           <Card className="backdrop-blur-sm bg-green-500/10 border-green-500/20">
@@ -228,16 +306,16 @@ const KnowledgeBaseManagement = () => {
             <div className="flex items-center space-x-4">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input 
-                  placeholder="Search knowledge base articles..." 
+                <Input
+                  placeholder="Search knowledge base articles..."
                   className="pl-10 bg-muted/30 border-border/20 focus:border-primary/50"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 className="backdrop-blur-sm border-border/20"
                 onClick={loadDocuments}
                 disabled={isLoading}
@@ -315,13 +393,13 @@ const KnowledgeBaseManagement = () => {
                           {doc.metadata?.author || 'Unknown'}
                         </TableCell>
                         <TableCell>
-                          <Badge 
+                          <Badge
                             variant={doc.status === "processed" ? "default" : "secondary"}
-                            className={doc.status === "processed" 
-                              ? "bg-green-500/20 text-green-500 border-green-500/20" 
+                            className={doc.status === "processed"
+                              ? "bg-green-500/20 text-green-500 border-green-500/20"
                               : doc.status === "processing"
-                              ? "bg-yellow-500/20 text-yellow-500 border-yellow-500/20"
-                              : "bg-red-500/20 text-red-500 border-red-500/20"
+                                ? "bg-yellow-500/20 text-yellow-500 border-yellow-500/20"
+                                : "bg-red-500/20 text-red-500 border-red-500/20"
                             }
                           >
                             {doc.status}
@@ -329,18 +407,18 @@ const KnowledgeBaseManagement = () => {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end space-x-2">
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               className="hover:bg-primary/10"
                               title="Edit document"
                               disabled={isLoading}
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               className="hover:bg-destructive/10 hover:text-destructive"
                               title="Delete document"
                               onClick={() => handleDeleteDocument(doc.metadata?.key, doc.name)}
@@ -373,7 +451,7 @@ const KnowledgeBaseManagement = () => {
               <div className="text-sm text-muted-foreground">Total Documents</div>
             </CardContent>
           </Card>
-          
+
           <Card className="backdrop-blur-sm bg-card/80 border-border/20 shadow-card hover:shadow-glow transition-all duration-300 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-accent opacity-10 rounded-full -mr-8 -mt-8"></div>
             <CardContent className="p-6 text-center">
@@ -388,7 +466,7 @@ const KnowledgeBaseManagement = () => {
               <div className="text-sm text-muted-foreground">Processed Documents</div>
             </CardContent>
           </Card>
-          
+
           <Card className="backdrop-blur-sm bg-card/80 border-border/20 shadow-card hover:shadow-glow transition-all duration-300 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-primary opacity-10 rounded-full -mr-8 -mt-8"></div>
             <CardContent className="p-6 text-center">

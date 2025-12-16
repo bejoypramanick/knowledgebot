@@ -7,6 +7,7 @@ export interface DocumentMetadata {
   author?: string;
   sourceUrl?: string;
   description?: string;
+  key?: string;
 }
 
 export interface Document {
