@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { 
-  FileText, 
-  ExternalLink, 
-  MapPin, 
-  Eye, 
-  ChevronDown, 
+import {
+  FileText,
+  ExternalLink,
+  MapPin,
+  Eye,
+  ChevronDown,
   ChevronRight,
   Copy,
   Check,
@@ -71,7 +71,7 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
 
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp);
-    
+
     // Format as DDD dd/MM/yyyy HH:mm:SS
     const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'short' });
     const day = String(date.getDate()).padStart(2, '0');
@@ -80,12 +80,12 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
     const hours = String(date.getHours()).padStart(2, '0');
     const minutes = String(date.getMinutes()).padStart(2, '0');
     const seconds = String(date.getSeconds()).padStart(2, '0');
-    
+
     return `${dayOfWeek} ${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
   };
 
   const getElementTypeIcon = (elementType: string) => {
-    const type = elementType.toLowerCase();
+    const type = (elementType || '').toLowerCase();
     if (type.includes('title') || type.includes('heading')) return '📄';
     if (type.includes('table')) return '📊';
     if (type.includes('figure') || type.includes('image')) return '🖼️';
@@ -115,12 +115,11 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
               <FileText className="h-3 w-3 text-primary" />
             </div>
           )}
-          
-          <div className={`px-3 sm:px-4 py-3 rounded-2xl ${
-            sender === 'user' 
-              ? 'bg-primary text-primary-foreground' 
-              : 'bg-card/80 backdrop-blur-sm border border-border/20 text-foreground'
-          }`}>
+
+          <div className={`px-3 sm:px-4 py-3 rounded-2xl ${sender === 'user'
+            ? 'bg-primary text-primary-foreground'
+            : 'bg-card/80 backdrop-blur-sm border border-border/20 text-foreground'
+            }`}>
             <div className="flex items-start justify-between gap-2">
               <p className="text-sm flex-1">{text}</p>
               <Button
@@ -180,7 +179,7 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
                             <div className="flex-1 min-w-0">
                               <div className={`flex items-center gap-2 mb-1 ${isMobile ? 'flex-wrap' : ''}`}>
                                 <span className="text-sm">
-                                  {getElementTypeIcon(source.element_type)}
+                                  {getElementTypeIcon(source.element_type || '')}
                                 </span>
                                 <span className="text-xs font-medium truncate">
                                   {source.original_filename}
@@ -192,14 +191,14 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
                                   {Math.round(source.similarity_score * 100)}%
                                 </Badge>
                               </div>
-                              
+
                               <div className={`flex items-center gap-2 text-xs text-muted-foreground ${isMobile ? 'flex-wrap' : ''}`}>
                                 <div className="flex items-center gap-1">
                                   <MapPin className="h-3 w-3" />
                                   Page {source.page_number}
                                 </div>
                                 <Badge variant="outline" className="text-xs">
-                                  {source.element_type}
+                                  {source.element_type || 'Unknown'}
                                 </Badge>
                                 <Badge variant="outline" className="text-xs">
                                   Level {source.hierarchy_level}
@@ -222,14 +221,13 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
               </div>
             )}
 
-            <div className={`flex items-center gap-1 mt-2 ${
-              sender === 'user' 
-                ? 'text-primary-foreground/70' 
-                : 'text-muted-foreground'
-            }`}>
+            <div className={`flex items-center gap-1 mt-2 ${sender === 'user'
+              ? 'text-primary-foreground/70'
+              : 'text-muted-foreground'
+              }`}>
               <Clock className="h-3 w-3" />
-              <span 
-                className="text-xs cursor-help" 
+              <span
+                className="text-xs cursor-help"
                 title={`Full timestamp: ${formatTimestamp(timestamp)}`}
               >
                 {formatTimestamp(timestamp)}
