@@ -17,7 +17,7 @@ import { useState, useEffect } from 'react';
 import { KnowledgeBaseManager, DocumentMetadata } from '@/lib/knowledge-base';
 import { AWS_CONFIG } from '@/lib/aws-config';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useWebSocket } from '@/hooks/use-websocket';
+
 
 interface UploadDocumentButtonProps {
   onUploadSuccess?: () => void;
@@ -43,59 +43,16 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
   const isMobile = useIsMobile();
 
   const knowledgeBaseManager = new KnowledgeBaseManager(AWS_CONFIG.endpoints.pharmaApiGateway);
-  
-  // WebSocket for real-time progress updates - using Pharma WebSocket endpoint
-  const websocketEndpoint = import.meta.env.VITE_PHARMA_WEBSOCKET_URL || AWS_CONFIG.endpoints.pharmaWebSocket || 'wss://6dkgg5u5s7.execute-api.us-east-1.amazonaws.com/dev';
+
+  // No WebSocket needed
+  const isConnected = true;
+  /*
   const { 
-    connectionId, 
-    isConnected, 
-    currentStep, 
-    currentProgress: wsProgress, 
-    error: wsError,
-    connect, 
-    disconnect, 
-    resetProgress,
-    sendMessage
-  } = useWebSocket({ 
-    endpoint: websocketEndpoint,
-    autoConnect: true 
-  });
+    // ... removed ...
+  } = useWebSocket({...}); 
+  */
 
-  // Update UI progress from WebSocket
-  useEffect(() => {
-    if (wsProgress > 0 && isUploading) {
-      setUploadProgress(wsProgress);
-    }
-  }, [wsProgress, isUploading]);
 
-  // Close dialog when processing completes successfully
-  useEffect(() => {
-    if ((currentStep === 'completed' || currentStep === 'complete') && isUploading) {
-      console.log('Upload completed successfully, closing dialog...');
-      
-      // Call success callback to refresh document list immediately
-      onUploadSuccess?.();
-      
-      // Show success message and close dialog after a short delay
-      setSuccess('Document uploaded and processed successfully!');
-      setUploadProgress(100);
-      
-      setTimeout(() => {
-        setIsUploading(false);
-        setUploadProgress(0);
-        setIsUploadDialogOpen(false);
-        setSelectedFile(null);
-        setUploadMetadata({
-          title: '',
-          category: 'general',
-          tags: [],
-          author: ''
-        });
-        resetProgress(); // Reset WebSocket progress
-        setSuccess(null);
-      }, 2000);
-    }
-  }, [currentStep, isUploading, onUploadSuccess, resetProgress]);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -117,82 +74,24 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
     try {
       setIsUploading(true);
       setError(null);
-      setUploadProgress(0);
-      resetProgress(); // Clear previous WebSocket progress
-
-      console.log('Starting presigned URL upload process...');
-      
-      // Step 1: Get presigned URL
       setUploadProgress(10);
-      console.log('Step 1: Requesting presigned URL...');
-      const presignedResponse = await knowledgeBaseManager.getPresignedUploadUrl(
-        selectedFile,
-        uploadMetadata as DocumentMetadata
-      );
-      console.log('Presigned URL received:', presignedResponse);
-      
-      // Step 2: Upload to S3 using presigned URL
-      setUploadProgress(30);
-      console.log('Step 2: Uploading to S3...');
-      await knowledgeBaseManager.uploadToS3(
-        selectedFile, 
-        presignedResponse.presigned_url, 
-        uploadMetadata as DocumentMetadata,
-        (progress) => {
-          // Only update if WebSocket hasn't taken over
-          if (uploadProgress < wsProgress) return;
-          setUploadProgress(progress);
-        }
-      );
-      console.log('S3 upload completed');
-      
-      // Step 3: Trigger processing via WebSocket (instead of REST API)
-      console.log('Step 3: Sending document processing request via WebSocket...');
-      
-      if (!isConnected || !sendMessage) {
-        console.error('WebSocket not connected, cannot send processing request');
-        throw new Error('WebSocket connection required for document processing');
-      }
-      
-      // Extract original filename from key (format: uuid_originalname.pdf)
-      const originalFilename = presignedResponse.key.split('/').pop() || presignedResponse.key;
-      
-      // Send processing request via WebSocket
-      const messageSent = sendMessage({
-        action: 'process_document',
-        document_key: presignedResponse.key,
-        bucket: presignedResponse.bucket,
-        document_name: uploadMetadata.title || selectedFile.name
-      });
-      
-      if (!messageSent) {
-        throw new Error('Failed to send processing request via WebSocket');
-      }
-      
-      console.log('Document processing request sent via WebSocket');
-      
-      // Wait for WebSocket to complete or timeout after 5 minutes
-      let timeoutId: NodeJS.Timeout;
-      const waitForCompletion = new Promise<void>((resolve) => {
-        timeoutId = setTimeout(() => {
-          console.log('Waiting for processing to complete...');
-          resolve();
-        }, 300000); // 5 minute timeout for processing
-        
-        // If WebSocket completes, resolve immediately
-        const checkCompletion = setInterval(() => {
-          if (currentStep === 'completed' || currentStep === 'complete' || currentStep === 'error') {
-            clearTimeout(timeoutId);
-            clearInterval(checkCompletion);
-            resolve();
-          }
-        }, 100);
-      });
-      
-      await waitForCompletion;
-      
-      // Processing completed - let the useEffect handle dialog closing
-      console.log('Processing completed, waiting for dialog to close...');
+
+      console.log('Starting upload...');
+
+      // Simplified upload process using single API endpoint
+      const response = await knowledgeBaseManager.uploadDocument(selectedFile, uploadMetadata);
+
+      console.log('Upload completed:', response);
+      setUploadProgress(100);
+      setSuccess('Document uploaded successfully!');
+
+      // Call success callback immediately
+      onUploadSuccess?.();
+
+      // Close dialog after delay
+      setTimeout(() => {
+        handleCloseDialog();
+      }, 2000);
 
     } catch (err: any) {
       console.error('Upload error:', err);
@@ -220,8 +119,8 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
   return (
     <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
       <DialogTrigger asChild>
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           size="sm"
           onClick={() => setIsUploadDialogOpen(true)}
           className={`bg-white/10 border-white/20 text-white hover:bg-white/20 ${className}`}
@@ -348,15 +247,10 @@ const UploadDocumentButton: React.FC<UploadDocumentButtonProps> = ({
           {isUploading && (
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm text-black">
-                <span>{currentStep || 'Uploading...'}</span>
+                <span>{'Uploading...'}</span>
                 <span>{uploadProgress}%</span>
               </div>
               <Progress value={uploadProgress} className="w-full" />
-              {isConnected ? (
-                <p className="text-xs text-green-600">✓ Connected to WebSocket for real-time updates</p>
-              ) : (
-                <p className="text-xs text-gray-500">Connecting to WebSocket...</p>
-              )}
             </div>
           )}
 

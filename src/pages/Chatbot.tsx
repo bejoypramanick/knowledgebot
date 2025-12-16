@@ -59,7 +59,7 @@ const Chatbot = () => {
   // Always use WebSocket for queries (removed RAG toggle)
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
-  
+
   // Document visualization state
   const [showDocumentViewer, setShowDocumentViewer] = useState(false);
   const [showContextPanel, setShowContextPanel] = useState(false);
@@ -69,7 +69,7 @@ const Chatbot = () => {
   const [selectedSource, setSelectedSource] = useState<DocumentSource | null>(null);
   const [allSources, setAllSources] = useState<DocumentSource[]>([]);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
-  
+
   // Progress status state
   const [progressStatuses, setProgressStatuses] = useState<ProgressStatus[]>([]);
   const [showProgress, setShowProgress] = useState(false);
@@ -83,55 +83,16 @@ const Chatbot = () => {
     scrollToBottom();
   }, [messages, isLoading]);
 
-  // Initialize session and WebSocket connection on component mount
+  // Initialize session on component mount
   useEffect(() => {
     const initializeSession = async () => {
       try {
         const session = await apiClient.createChatSession();
         setSessionId(session.id);
-        
-        // Connect to WebSocket
-        try {
-          await apiClient.connect();
-        } catch (error) {
-          console.warn('WebSocket connection failed, will retry automatically:', error);
-        }
-        
-        // Set up connection status handler
-        apiClient.onConnectionChange((connected) => {
-          setIsConnected(connected);
-          if (!connected) {
-            setError('Connection lost. Attempting to reconnect...');
-          } else {
-            setError(null);
-          }
-        });
-        
-        // Set up progress status handler
-        apiClient.onProgressUpdate((status) => {
-          const progressStatus: ProgressStatus = {
-            id: `progress_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            type: status.type as 'progress' | 'error',
-            message: status.message,
-            phase: status.phase || 'unknown',
-            status: status.status || 'in_progress',
-            timestamp: status.timestamp,
-            dismissible: status.dismissible || false
-          };
-          
-          setProgressStatuses(prev => [...prev, progressStatus]);
-          setShowProgress(true);
-          
-          // Auto-dismiss completed statuses after 3 seconds
-          if (status.status === 'completed') {
-            setTimeout(() => {
-              setProgressStatuses(prev => 
-                prev.filter(p => p.id !== progressStatus.id)
-              );
-            }, 3000);
-          }
-        });
-        
+
+        // Since we are using HTTP, we are always "connected"
+        setIsConnected(true);
+
         // Add welcome message
         const welcomeMessage: Message = {
           id: 'welcome',
@@ -148,10 +109,8 @@ const Chatbot = () => {
 
     initializeSession();
 
-    // Cleanup on unmount
-    return () => {
-      apiClient.disconnect();
-    };
+    // No WebSocket cleanup needed
+    return () => { };
   }, [apiClient]);
 
   const handleDismissProgress = (id: string) => {
@@ -175,7 +134,7 @@ const Chatbot = () => {
     setNewMessage('');
     setIsLoading(true);
     setError(null);
-    
+
     // Clear previous progress statuses when starting new query
     setProgressStatuses([]);
     setShowProgress(true);
@@ -186,10 +145,10 @@ const Chatbot = () => {
         const session = await apiClient.createChatSession();
         setSessionId(session.id);
       }
-      
+
       // Use RAG query API instead of WebSocket
-      const response = await apiClient.queryRAG(newMessage, 'hybrid');
-      
+      const response = await apiClient.queryRAG(newMessage, sessionId, 'hybrid');
+
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
         text: response.response,
@@ -201,11 +160,11 @@ const Chatbot = () => {
       };
 
       setMessages(prev => [...prev, botMessage]);
-      
+
       // Update all sources for document visualization
       if (response.sources && response.sources.length > 0) {
         setAllSources(prev => [...prev, ...response.sources]);
-        
+
         // Set selected document ID if we have sources
         if (response.sources.length > 0 && !selectedDocumentId) {
           setSelectedDocumentId(response.sources[0].document_id);
@@ -214,7 +173,7 @@ const Chatbot = () => {
     } catch (err: any) {
       console.error('Error sending message:', err);
       setError(err.response?.data?.message || err.message || 'Failed to send message. Please try again.');
-      
+
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         text: "I'm sorry, I encountered an error. Please try again or check your connection.",
@@ -240,7 +199,7 @@ const Chatbot = () => {
     setSelectedSource(null);
     setSelectedDocumentId(null);
     setError(null);
-    
+
     // Add welcome message back
     const welcomeMessage: Message = {
       id: 'welcome',
@@ -263,7 +222,7 @@ const Chatbot = () => {
           NOT FOR PROD USE
         </div>
       </div>
-      
+
       <div className="w-full flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <div className="bg-gradient-primary border-b border-border/20 backdrop-blur-sm px-4 sm:px-6 py-4 flex-shrink-0">
@@ -396,7 +355,7 @@ const Chatbot = () => {
               </div>
             </div>
           )}
-          
+
           {/* Auto-scroll target */}
           <div ref={messagesEndRef} />
         </div>
@@ -404,9 +363,9 @@ const Chatbot = () => {
         {/* Input Area */}
         <div className="border-t border-border/20 bg-card/50 backdrop-blur-sm p-3 sm:p-4 flex-shrink-0">
           <div className="flex items-center space-x-2 sm:space-x-3">
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               className="w-8 h-8 sm:w-10 sm:h-10 p-0 hover:bg-muted/50"
             >
               <MoreHorizontal className="h-4 w-4" />
@@ -419,9 +378,9 @@ const Chatbot = () => {
               disabled={isLoading || !sessionId}
               className="flex-1 bg-background/50 border-border/20 focus:border-primary/50 disabled:opacity-50 text-sm sm:text-base"
             />
-            <Button 
+            <Button
               onClick={handleSendMessage}
-              size="sm" 
+              size="sm"
               disabled={isLoading || !newMessage.trim() || !sessionId}
               className="w-8 h-8 sm:w-10 sm:h-10 p-0 bg-gradient-primary border-0 shadow-glow hover:shadow-glow/80 disabled:opacity-50"
             >
@@ -433,7 +392,7 @@ const Chatbot = () => {
             </Button>
           </div>
         </div>
-        
+
         {/* Demo Disclaimer */}
         <div className="bg-muted/30 border-t border-border/20 px-4 sm:px-6 py-3 flex-shrink-0">
           <div className="text-center text-xs text-muted-foreground">

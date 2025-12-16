@@ -6,6 +6,7 @@ export interface DocumentMetadata {
   tags?: string[];
   author?: string;
   sourceUrl?: string;
+  description?: string;
 }
 
 export interface Document {
@@ -52,183 +53,86 @@ export class KnowledgeBaseManager {
     this.apiBaseUrl = apiBaseUrl;
   }
 
-  private async fileToBase64(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => {
-        const base64 = reader.result as string;
-        // Remove the data URL prefix (e.g., "data:application/pdf;base64,")
-        const base64Content = base64.split(',')[1];
-        resolve(base64Content);
-      };
-      reader.onerror = error => reject(error);
-    });
-  }
-
   async uploadDocument(file: File, metadata: Partial<DocumentMetadata> = {}): Promise<DocumentUploadResponse> {
-    // Convert file to base64 as expected by backend
-    const base64Content = await this.fileToBase64(file);
-    
-    const payload = {
-      action: 'upload',
-      filename: file.name,
-      content: base64Content,
-      document_type: file.type.split('/')[1] || 'txt',
-      metadata: {
-        title: metadata.title || file.name,
-        category: metadata.category || 'general',
-        tags: metadata.tags || [],
-        author: metadata.author || 'unknown',
-        sourceUrl: metadata.sourceUrl
-      }
-    };
+    const formData = new FormData();
+    formData.append('file', file);
+    if (metadata.title) {
+      formData.append('display_name', metadata.title);
+    }
 
-    const response = await axios.post(`${this.apiBaseUrl}/knowledge-base`, payload);
-    return response.data;
+    // Explicitly add other metadata as needed by your backend, 
+    // though the swagger showed only file and display_name.
+
+    try {
+      const response = await axios.post(`${this.apiBaseUrl}/api/v1/knowledgebase/upload`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      return {
+        message: response.data.message || 'Upload successful',
+        chunks_created: 0,
+        filename: response.data.filename || file.name
+      };
+    } catch (error) {
+      console.error('Upload failed:', error);
+      throw error;
+    }
   }
 
   async scrapeWebsite(url: string, scrapeType: string = 'faq'): Promise<ScrapeResponse> {
-    const payload = { 
-      action: 'scrape',
-      url, 
-      scrape_type: scrapeType,
-      metadata: {}
+    const payload = {
+      url: url,
+      max_depth: 2,
+      max_pages: 10
     };
-    const response = await axios.post(`${this.apiBaseUrl}/knowledge-base`, payload);
-    return response.data;
+    try {
+      const response = await axios.post(`${this.apiBaseUrl}/api/v1/scrape`, payload);
+      return {
+        message: response.data.message || 'Scraping started',
+        chunks_created: response.data.total_files_uploaded || 0,
+        url: url
+      };
+    } catch (error) {
+      console.error('Scrape failed:', error);
+      throw error;
+    }
   }
 
   async getDocuments(): Promise<DocumentsListResponse> {
     try {
-      const response = await axios.post(`${this.apiBaseUrl}/knowledge-base`, { action: 'list' });
-      return response.data;
-    } catch (error) {
+      const response = await axios.get(`${this.apiBaseUrl}/api/v1/knowledgebase/files`);
+      // Response is { files: FileMetadata[] }
+      return {
+        documents: response.data.files || [],
+        count: (response.data.files || []).length
+      };
+    } catch (error: any) {
       console.error('Error in getDocuments:', error);
-      if (error.response) {
-        console.error('Response data:', error.response.data);
-        console.error('Response status:', error.response.status);
-        console.error('Response headers:', error.response.headers);
-      }
       throw error;
     }
   }
 
+  // Legacy/Unused methods kept for interface compatibility (or could be removed if we update all callers)
   async getPresignedUploadUrl(file: File, metadata: Partial<DocumentMetadata> = {}): Promise<PresignedUrlResponse> {
-    console.log('Requesting presigned URL from API Gateway:', this.apiBaseUrl);
-    
-    try {
-      // Pass filename as query parameter to preserve original filename
-      const response = await axios.get(`${this.apiBaseUrl}/presigned-url?filename=${encodeURIComponent(file.name)}`);
-      console.log('Presigned URL response:', response.data);
-      
-      // Transform response to match our interface
-      return {
-        success: true,
-        presigned_url: response.data.presigned_url,
-        bucket: response.data.bucket,
-        key: response.data.key,
-        operation: 'PUT',
-        expiration: response.data.expires_in || 300
-      };
-    } catch (error) {
-      console.error('Error getting presigned URL:', error);
-      throw new Error('Failed to generate presigned URL');
-    }
+    throw new Error('Method not supported by this backend. Use uploadDocument instead.');
   }
 
   async uploadToS3(file: File, presignedUrl: string, metadata: Partial<DocumentMetadata> = {}, onProgress?: (progress: number) => void): Promise<void> {
-    console.log('Starting S3 upload with presigned URL');
-    console.log('File:', file.name, 'Size:', file.size, 'Type:', file.type);
-    console.log('Presigned URL:', presignedUrl.substring(0, 100) + '...');
-
-    // The presigned URL only includes content-type and host in its signature
-    // We should not send any metadata headers as they're not in the signed headers
-    const headers: Record<string, string> = {
-      'Content-Type': file.type || 'application/octet-stream'
-    };
-
-    console.log('Upload headers:', headers);
-
-    try {
-      const response = await axios.put(presignedUrl, file, { 
-        headers,
-        timeout: 300000, // 5 minute timeout for large files
-        onUploadProgress: (progressEvent) => {
-          if (progressEvent.total) {
-            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-            console.log(`Upload progress: ${percentCompleted}%`);
-            // Call progress callback if provided
-            if (onProgress) {
-              // Map S3 upload progress (30-90%) to overall progress
-              const mappedProgress = 30 + Math.round((percentCompleted * 60) / 100);
-              onProgress(mappedProgress);
-            }
-          }
-        }
-      });
-
-      if (response.status !== 200) {
-        throw new Error(`Upload failed with status ${response.status}`);
-      }
-
-      console.log('S3 upload completed successfully');
-      
-      // Update progress to 90% after S3 upload
-      if (onProgress) {
-        onProgress(90);
-      }
-      
-    } catch (error) {
-      console.error('S3 upload failed:', error);
-      throw error;
-    }
+    throw new Error('Method not supported by this backend. Use uploadDocument instead.');
   }
 
   async updateS3ObjectMetadata(s3Key: string, metadata: Record<string, unknown>): Promise<void> {
-    // This would typically be handled by the backend after upload
-    // For now, we'll just log the metadata
-    console.log('S3 object metadata to be updated:', {
-      s3Key,
-      metadata
-    });
+    // No-op
   }
 
   async triggerDocumentProcessing(
-    bucket: string, 
-    key: string, 
+    bucket: string,
+    key: string,
     connectionId?: string
-  ): Promise<{status: string, message: string}> {
-    // Use HTTPS API Gateway endpoint for secure document processing
-    const apiUrl = import.meta.env.VITE_API_GATEWAY_URL || this.apiBaseUrl;
-    
-    try {
-      // Extract document name from key (filename)
-      const documentName = key.split('/').pop() || key;
-      
-      // Prepare request payload
-      const payload: any = {
-        bucket,
-        document_key: key,
-        document_name: documentName
-      };
-      
-      // Include connection_id if provided (for WebSocket progress updates)
-      if (connectionId) {
-        payload.connection_id = connectionId;
-      }
-      
-      // Trigger processing via API Gateway
-      const response = await axios.post(`${apiUrl}/process`, payload);
-      
-      return {
-        status: response.data.status || 'accepted',
-        message: response.data.message || 'Document processing started'
-      };
-    } catch (error) {
-      console.error('Error triggering document processing:', error);
-      throw new Error('Failed to trigger document processing');
-    }
+  ): Promise<{ status: string, message: string }> {
+    return { status: 'completed', message: 'Processing handled by upload endpoint' };
   }
 }
 

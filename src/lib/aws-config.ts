@@ -1,14 +1,14 @@
 export const AWS_CONFIG = {
-  region: 'ap-south-1',
+  region: 'us-east-1',
   endpoints: {
-    // WebSocket API Gateway endpoint
-    websocket: import.meta.env.VITE_WEBSOCKET_URL || 'wss://mu2mzsqwni.execute-api.ap-south-1.amazonaws.com/prod',
-    // Fallback HTTP API Gateway endpoint for non-chat operations
-    apiGateway: import.meta.env.VITE_API_GATEWAY_URL || 'https://a1kn0j91k8.execute-api.ap-south-1.amazonaws.com/prod',
+    // WebSocket API Gateway endpoint (legacy - for chatbot)
+    websocket: import.meta.env.VITE_WEBSOCKET_URL || 'wss://api-gateway-production-c4c3.up.railway.app/ws',
+    // Fallback HTTP API Gateway endpoint (legacy - for chatbot)
+    apiGateway: import.meta.env.VITE_API_GATEWAY_URL || 'https://api-gateway-production-c4c3.up.railway.app',
     // Pharma RAG Backend API Gateway (for document upload and processing)
-    pharmaApiGateway: import.meta.env.VITE_PHARMA_API_URL || 'https://yb885ks5xi.execute-api.us-east-1.amazonaws.com/dev',
+    pharmaApiGateway: import.meta.env.VITE_PHARMA_API_URL || 'https://api-gateway-production-c4c3.up.railway.app',
     // Pharma WebSocket endpoint for real-time document processing updates
-    pharmaWebSocket: import.meta.env.VITE_PHARMA_WEBSOCKET_URL || 'wss://qy2gi39djf.execute-api.us-east-1.amazonaws.com/dev',
+    pharmaWebSocket: import.meta.env.VITE_PHARMA_WEBSOCKET_URL || 'wss://api-gateway-production-c4c3.up.railway.app/ws',
   },
   s3: {
     mainBucket: 'chatbot-storage-ap-south-1',

@@ -120,7 +120,7 @@ export class ChatbotAPI {
 
   constructor(websocketUrl: string, apiBaseUrl?: string) {
     this.websocketUrl = websocketUrl;
-    this.apiBaseUrl = apiBaseUrl || 'https://a1kn0j91k8.execute-api.ap-south-1.amazonaws.com/prod';
+    this.apiBaseUrl = apiBaseUrl || 'https://api-gateway-production-c4c3.up.railway.app';
   }
 
   async createChatSession(): Promise<ChatSession> {
@@ -138,7 +138,7 @@ export class ChatbotAPI {
       try {
         console.log(`Attempting to connect to WebSocket: ${this.websocketUrl}`);
         this.websocket = new WebSocket(this.websocketUrl);
-        
+
         this.websocket.onopen = () => {
           console.log('WebSocket connected successfully');
           this.isConnected = true;
@@ -146,7 +146,7 @@ export class ChatbotAPI {
           this.connectionHandlers.forEach(handler => handler(true));
           resolve();
         };
-        
+
         this.websocket.onmessage = (event) => {
           try {
             const data: WebSocketMessage = JSON.parse(event.data);
@@ -155,17 +155,17 @@ export class ChatbotAPI {
             console.error('Error parsing WebSocket message:', error);
           }
         };
-        
+
         this.websocket.onclose = (event) => {
           console.log('WebSocket disconnected', event.code, event.reason);
           this.isConnected = false;
           this.connectionHandlers.forEach(handler => handler(false));
-          
+
           // Only attempt to reconnect if we haven't exceeded max attempts
           if (this.reconnectAttempts < this.maxReconnectAttempts) {
             this.reconnectAttempts++;
             console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
-            
+
             this.reconnectTimeout = setTimeout(() => {
               if (!this.isConnected) {
                 this.connect().catch((error) => {
@@ -177,17 +177,17 @@ export class ChatbotAPI {
             console.error('Max reconnection attempts reached. WebSocket connection failed permanently.');
           }
         };
-        
+
         this.websocket.onerror = (error) => {
           console.error('WebSocket error:', error);
           console.log(`WebSocket connection failed (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
-          
+
           // If this is the first connection attempt and it fails, reject the promise
           if (this.reconnectAttempts === 0) {
             reject(new Error('WebSocket connection failed'));
           }
         };
-        
+
       } catch (error) {
         reject(error);
       }
@@ -200,7 +200,7 @@ export class ChatbotAPI {
         // Find the handler for this message
         const messageId = data.conversation_id || 'default';
         const handler = this.messageHandlers.get(messageId);
-        
+
         if (handler) {
           // Clear the timeout for this message
           const timeoutId = this.messageHandlers.get(`${messageId}_timeout`);
@@ -208,7 +208,7 @@ export class ChatbotAPI {
             clearTimeout(timeoutId as any);
             this.messageHandlers.delete(`${messageId}_timeout`);
           }
-          
+
           const chatResponse: ChatResponse = {
             response: data.message,
             session_id: data.conversation_id || '',
@@ -219,13 +219,13 @@ export class ChatbotAPI {
           this.messageHandlers.delete(messageId);
         }
         break;
-        
+
       case 'progress':
         // Handle progress updates
         console.log('Progress update:', data.message, data.phase, data.status);
         this.progressHandlers.forEach(handler => handler(data));
         break;
-        
+
       case 'error':
         console.error('WebSocket error message:', data.message);
         // Clear any pending timeouts for error messages
@@ -238,7 +238,7 @@ export class ChatbotAPI {
         // Also notify progress handlers for error messages
         this.progressHandlers.forEach(handler => handler(data));
         break;
-        
+
       case 'typing':
         // Handle typing indicator if needed
         console.log('Bot is typing...');
@@ -259,19 +259,19 @@ export class ChatbotAPI {
 
     return new Promise((resolve, reject) => {
       const messageId = sessionId;
-      
+
       // Set up handler for this specific message
       this.messageHandlers.set(messageId, resolve);
-      
+
       // Send message via WebSocket
       const payload = {
         query: message,
         conversation_history: [] // You might want to pass conversation history here
       };
-      
+
       try {
         this.websocket!.send(JSON.stringify(payload));
-        
+
         // Set timeout for response
         const timeoutId = setTimeout(() => {
           if (this.messageHandlers.has(messageId)) {
@@ -279,10 +279,10 @@ export class ChatbotAPI {
             reject(new Error('Request timed out. The server is taking longer than expected to respond. Please try again with a simpler question.'));
           }
         }, 30000); // 30 second timeout
-        
+
         // Store timeout ID for potential cleanup
         this.messageHandlers.set(`${messageId}_timeout`, timeoutId as any);
-        
+
       } catch (error) {
         // Clean up handlers and timeouts
         this.messageHandlers.delete(messageId);
@@ -309,7 +309,7 @@ export class ChatbotAPI {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
     }
-    
+
     // Clear all message timeouts
     this.messageHandlers.forEach((value, key) => {
       if (key.endsWith('_timeout')) {
@@ -317,20 +317,20 @@ export class ChatbotAPI {
       }
     });
     this.messageHandlers.clear();
-    
+
     if (this.websocket) {
       this.websocket.close();
       this.websocket = null;
       this.isConnected = false;
     }
-    
+
     this.reconnectAttempts = 0;
   }
 
   async getOrderStatus(orderId: string, customerEmail?: string): Promise<OrderStatus> {
-    const payload = { 
+    const payload = {
       order_id: orderId,
-      customer_email: customerEmail 
+      customer_email: customerEmail
     };
     const response = await axios.post(`${this.apiBaseUrl}/orders`, payload);
     return response.data;
@@ -359,7 +359,7 @@ export class ChatbotAPI {
   }
 
   async searchByStructure(
-    query: string, 
+    query: string,
     structureType: 'headings' | 'tables' | 'figures' | 'all' = 'all',
     limit: number = 5
   ): Promise<{
@@ -419,35 +419,45 @@ export class ChatbotAPI {
    * @param mode - Query mode: 'hybrid' (default), 'naive', or 'local'
    * @returns Chat response with answer and sources
    */
-  async queryRAG(query: string, mode: 'hybrid' | 'naive' | 'local' = 'hybrid'): Promise<ChatResponse> {
-    const apiGatewayUrl = import.meta.env.VITE_PHARMA_API_URL || import.meta.env.VITE_RAG_API_URL || 'https://yb885ks5xi.execute-api.us-east-1.amazonaws.com/dev';
-    
+  async queryRAG(query: string, sessionId?: string, mode: 'hybrid' | 'naive' | 'local' = 'hybrid'): Promise<ChatResponse> {
+    const apiGatewayUrl = this.apiBaseUrl;
+
     try {
-      const response = await axios.post(`${apiGatewayUrl}/rag-query`, {
-        query,
-        mode
-      });
+      // Use the new Railway API format
+      const payload: any = {
+        message: query,
+        // mode is not supported in the new API, defaulting to use_rag=true
+        use_rag: true,
+        max_results: 5,
+        // passing session_id if available would be good, but here we don't have it easily accesible in arguments unless we change signature
+        // The API seems to treat session_id as optional in request
+      };
+
+      if (sessionId) {
+        payload.session_id = sessionId;
+      }
+
+      const response = await axios.post(`${apiGatewayUrl}/api/v1/chat`, payload);
 
       console.log('RAG API Response:', response.data);
 
-      // Handle nested result structure
-      // The API response wraps the actual data in a 'result' object
-      const result = response.data.result || response.data;
-      const answer = result.answer || result.response || 'No response received.';
-      const sources = result.sources || response.data.sources || [];
-      
-      // Ensure we don't fall back to the question (query field)
+      const result = response.data;
+      const answer = result.response || 'No response received.';
+      // The new API currently doesn't return sources in the schema, using empty array for now
+      // If sources are added to the backend later, we can map them here
+      const sources = result.sources || [];
+
       const chatResponse: ChatResponse = {
         response: answer,
-        session_id: '', // Will be set by calling code
-        timestamp: result.timing ? new Date().toISOString() : new Date().toISOString(),
+        session_id: result.session_id || sessionId || '',
+        timestamp: new Date().toISOString(),
         sources: sources
       };
 
       return chatResponse;
     } catch (error: any) {
       console.error('RAG query error:', error);
-      throw new Error(error.response?.data?.error || 'Failed to query RAG system');
+      throw new Error(error.response?.data?.error || error.response?.data?.detail?.[0]?.msg || 'Failed to query RAG system');
     }
   }
 }
