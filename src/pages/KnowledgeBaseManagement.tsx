@@ -254,7 +254,7 @@ const KnowledgeBaseManagement = () => {
                   placeholder="Enter website URL (e.g., https://docs.example.com)"
                   value={scrapeUrl}
                   onChange={(e) => setScrapeUrl(e.target.value)}
-                  className="bg-muted/30 border-border/20 text-black border-gray-300"
+                  className="bg-white border-border/20 text-black border-gray-300"
                   disabled={isScraping}
                 />
               </div>
