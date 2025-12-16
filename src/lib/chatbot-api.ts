@@ -442,10 +442,22 @@ export class ChatbotAPI {
       console.log('RAG API Response:', response.data);
 
       const result = response.data;
-      const answer = result.response || 'No response received.';
-      // The new API currently doesn't return sources in the schema, using empty array for now
-      // If sources are added to the backend later, we can map them here
-      const sources = result.sources || [];
+
+      // Handle the case where result.response is an object (nested response)
+      let answer = 'No response received.';
+      let sources = result.sources || [];
+
+      if (typeof result.response === 'object' && result.response !== null) {
+        answer = result.response.answer || result.response.response || JSON.stringify(result.response);
+        if (result.response.sources && Array.isArray(result.response.sources)) {
+          sources = [...sources, ...result.response.sources];
+        }
+      } else if (typeof result.response === 'string') {
+        answer = result.response;
+      }
+
+      console.log('Parsed Answer:', answer);
+      console.log('Parsed Sources:', sources);
 
       const chatResponse: ChatResponse = {
         response: answer,
