@@ -6,19 +6,24 @@
  * Commercial use prohibited without explicit written permission.
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
-import { MessageCircle, Send, MoreHorizontal, Bot, Loader2, FileText, Layers, Calendar, Trash2 } from "lucide-react";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { ChatbotAPI, ChatMessage, ChatResponse } from "@/lib/chatbot-api";
+import { MessageCircle, Bot, Loader2, FileText, Layers, Trash2, ArrowDown } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-media-query";
+import { ChatbotAPI, ChatResponse } from "@/lib/chatbot-api";
 import { AWS_CONFIG } from "@/lib/aws-config";
+import { chatbotConfig } from "@/config/chatbot.config";
+import { retryWithBackoff, getRetryStatusMessage } from "@/lib/retry-utils";
+import { notificationService } from "@/lib/notification-service";
+import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import EnhancedChatMessage from "@/components/EnhancedChatMessage";
+import { MultilineInput } from "@/components/MultilineInput";
+import { WelcomeMessage } from "@/components/WelcomeMessage";
+import { SuggestedQuestions } from "@/components/SuggestedQuestions";
+import { ResponsiveLayout } from "@/components/ResponsiveLayout";
 import DocumentViewer from "@/components/DocumentViewer";
 import DocumentContextPanel from "@/components/DocumentContextPanel";
 import DocumentPreview from "@/components/DocumentPreview";
-import SourceHighlighter from "@/components/SourceHighlighter";
 import StructureSearchPanel from "@/components/StructureSearchPanel";
 import DocumentStructureViewer from "@/components/DocumentStructureViewer";
 import ProgressStatusComponent, { ProgressStatus } from "@/components/ProgressStatus";
@@ -56,8 +61,10 @@ const Chatbot = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [apiClient] = useState(new ChatbotAPI(AWS_CONFIG.endpoints.websocket, AWS_CONFIG.endpoints.apiGateway));
   const [error, setError] = useState<string | null>(null);
-  // Always use WebSocket for queries (removed RAG toggle)
+  const [retryStatus, setRetryStatus] = useState<string>('');
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
 
   // Document visualization state
@@ -74,14 +81,67 @@ const Chatbot = () => {
   const [progressStatuses, setProgressStatuses] = useState<ProgressStatus[]>([]);
   const [showProgress, setShowProgress] = useState(false);
 
-  // Auto-scroll to bottom when messages change
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  // Infinite scroll state
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  // Request notification permission on mount
+  useEffect(() => {
+    if (chatbotConfig.notifications.enabled) {
+      notificationService.requestPermission();
+    }
+  }, []);
+
+  // Check scroll position for scroll-to-bottom button
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 200;
+      setShowScrollToBottom(!isNearBottom);
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Auto-scroll to bottom when messages change (only if near bottom)
+  const scrollToBottom = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < 200;
+
+    if (isNearBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, []);
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, isLoading]);
+  }, [messages, isLoading, scrollToBottom]);
+
+  // Infinite scroll handler
+  const loadMoreMessages = useCallback(async () => {
+    if (isLoadingMore || !hasMoreMessages) return;
+
+    setIsLoadingMore(true);
+    // In a real implementation, you would fetch older messages from your backend
+    // For now, we'll simulate it
+    setTimeout(() => {
+      setIsLoadingMore(false);
+      setHasMoreMessages(false); // Set to false when no more messages
+    }, 1000);
+  }, [isLoadingMore, hasMoreMessages]);
+
+  const { sentinelRef } = useInfiniteScroll({
+    hasMore: hasMoreMessages,
+    loadMore: loadMoreMessages,
+    threshold: chatbotConfig.infiniteScroll.threshold,
+  });
 
   // Initialize session on component mount
   useEffect(() => {
@@ -89,18 +149,7 @@ const Chatbot = () => {
       try {
         const session = await apiClient.createChatSession();
         setSessionId(session.id);
-
-        // Since we are using HTTP, we are always "connected"
         setIsConnected(true);
-
-        // Add welcome message
-        const welcomeMessage: Message = {
-          id: 'welcome',
-          text: "Hello! I'm your AI assistant. How can I help you today?",
-          sender: 'bot',
-          timestamp: new Date().toISOString()
-        };
-        setMessages([welcomeMessage]);
       } catch (err) {
         console.error('Error initializing session:', err);
         setError('Failed to initialize chat session. Please refresh the page.');
@@ -108,9 +157,6 @@ const Chatbot = () => {
     };
 
     initializeSession();
-
-    // No WebSocket cleanup needed
-    return () => { };
   }, [apiClient]);
 
   const handleDismissProgress = (id: string) => {
@@ -131,24 +177,40 @@ const Chatbot = () => {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const messageToSend = newMessage;
     setNewMessage('');
     setIsLoading(true);
     setError(null);
+    setRetryStatus('Sending...');
 
     // Clear previous progress statuses when starting new query
     setProgressStatuses([]);
     setShowProgress(true);
 
-    try {
-      // Use RAG API for queries instead of WebSocket
-      if (!sessionId) {
-        const session = await apiClient.createChatSession();
-        setSessionId(session.id);
+    // Use retry mechanism with exponential backoff
+    let attemptCount = 0;
+    const result = await retryWithBackoff(
+      async () => {
+        attemptCount++;
+        setRetryStatus(getRetryStatusMessage(attemptCount, chatbotConfig.retry.maxAttempts));
+
+        if (!sessionId) {
+          const session = await apiClient.createChatSession();
+          setSessionId(session.id);
+        }
+
+        return await apiClient.queryRAG(messageToSend, sessionId, 'hybrid');
+      },
+      {
+        maxAttempts: chatbotConfig.retry.maxAttempts,
+        initialDelay: chatbotConfig.retry.initialDelay,
+        backoffMultiplier: chatbotConfig.retry.backoffMultiplier,
+        maxDelay: chatbotConfig.retry.maxDelay,
       }
+    );
 
-      // Use RAG query API instead of WebSocket
-      const response = await apiClient.queryRAG(newMessage, sessionId, 'hybrid');
-
+    if (result.success && result.data) {
+      const response = result.data;
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
         text: response.response,
@@ -161,18 +223,28 @@ const Chatbot = () => {
 
       setMessages(prev => [...prev, botMessage]);
 
+      // Show notification if enabled
+      if (chatbotConfig.notifications.enabled) {
+        notificationService.notify({
+          title: chatbotConfig.welcome.botName,
+          body: response.response.substring(0, 50) + (response.response.length > 50 ? '...' : ''),
+          tag: botMessage.id,
+        });
+      }
+
       // Update all sources for document visualization
       if (response.sources && response.sources.length > 0) {
         setAllSources(prev => [...prev, ...response.sources]);
 
-        // Set selected document ID if we have sources
         if (response.sources.length > 0 && !selectedDocumentId) {
           setSelectedDocumentId(response.sources[0].document_id);
         }
       }
-    } catch (err: any) {
-      console.error('Error sending message:', err);
-      setError(err.response?.data?.message || err.message || 'Failed to send message. Please try again.');
+
+      setRetryStatus('');
+    } else {
+      console.error('Error sending message:', result.error);
+      setError(result.error?.response?.data?.message || result.error?.message || 'Failed to send message. Please try again.');
 
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -181,16 +253,16 @@ const Chatbot = () => {
         timestamp: new Date().toISOString()
       };
       setMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
+      setRetryStatus('Failed to send. Retry manually?');
     }
+
+    setIsLoading(false);
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
+  const handleQuestionClick = (question: string) => {
+    setNewMessage(question);
+    // Auto-send or just populate input - you can change this behavior
+    // handleSendMessage();
   };
 
   const handleClearAllChats = () => {
@@ -199,110 +271,110 @@ const Chatbot = () => {
     setSelectedSource(null);
     setSelectedDocumentId(null);
     setError(null);
-
-    // Add welcome message back
-    const welcomeMessage: Message = {
-      id: 'welcome',
-      text: "Hello! I'm your AI assistant. How can I help you today?",
-      sender: 'bot',
-      timestamp: new Date().toISOString()
-    };
-    setMessages([welcomeMessage]);
+    notificationService.markAsRead();
   };
 
-  return (
-    <div className="h-full bg-gradient-secondary flex flex-col overflow-hidden">
-      {/* Demo Only Banner */}
-      <div className="bg-red-600 text-white py-1 px-3 text-xs font-bold flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="text-lg">✗</span>
-          <span>DEMO ONLY</span>
+  const handleScrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const header = (
+    <div className="flex items-center justify-between w-full">
+      <div className="flex items-center space-x-2 sm:space-x-3">
+        <div className="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center">
+          <MessageCircle className="h-4 w-4 text-primary" />
         </div>
-        <div className="text-xs text-red-100 mt-0.5">
-          NOT FOR PROD USE
+        <div className="flex items-center space-x-2">
+          <h1 className="text-lg sm:text-xl font-bold text-foreground">
+            Chat with {chatbotConfig.welcome.botName}
+          </h1>
+          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-400'}`} 
+               title={isConnected ? 'Connected' : 'Disconnected'} />
         </div>
       </div>
+      <div className={`flex items-center gap-1 sm:gap-2 ${isMobile ? 'flex-wrap' : ''}`}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleClearAllChats}
+          className="bg-background/50 border-border/20 hover:bg-background"
+          title="Clear all chats"
+        >
+          <Trash2 className="h-4 w-4 sm:mr-1" />
+          {!isMobile && "Clear All"}
+        </Button>
+        {allSources.length > 0 && (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDocumentViewer(true)}
+              className="bg-background/50 border-border/20 hover:bg-background"
+              title="View Sources"
+            >
+              <FileText className="h-4 w-4 sm:mr-1" />
+              {!isMobile && "View Sources"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowContextPanel(true)}
+              className="bg-background/50 border-border/20 hover:bg-background"
+              title="Structure"
+            >
+              <Layers className="h-4 w-4 sm:mr-1" />
+              {!isMobile && "Structure"}
+            </Button>
+          </>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowStructureSearch(true)}
+          className="bg-background/50 border-border/20 hover:bg-background"
+          title="Search"
+        >
+          <FileText className="h-4 w-4 sm:mr-1" />
+          {!isMobile && "Search"}
+        </Button>
+        {selectedDocumentId && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowDocumentStructure(true)}
+            className="bg-background/50 border-border/20 hover:bg-background"
+            title="Doc Structure"
+          >
+            <Layers className="h-4 w-4 sm:mr-1" />
+            {!isMobile && "Doc Structure"}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
 
-      <div className="w-full flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="bg-gradient-primary border-b border-border/20 backdrop-blur-sm px-4 sm:px-6 py-4 flex-shrink-0">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2 sm:space-x-3">
-              <div className="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center">
-                <MessageCircle className="h-4 w-4 text-primary-foreground" />
-              </div>
-              <div className="flex items-center space-x-2">
-                <h1 className="text-lg sm:text-xl font-bold text-primary-foreground">Chat with Mr. Helpful</h1>
-                <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-400'}`} title={isConnected ? 'Connected' : 'Disconnected'}></div>
-              </div>
-            </div>
-            {/* Document Visualization Controls */}
-            <div className={`flex items-center gap-1 sm:gap-2 ${isMobile ? 'flex-wrap' : ''}`}>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleClearAllChats}
-                className="bg-white/10 border-white/20 text-white hover:bg-white/20"
-                title="Clear all chats"
-              >
-                <Trash2 className="h-4 w-4 sm:mr-1" />
-                {!isMobile && "Clear All"}
-              </Button>
-              {allSources.length > 0 && (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowDocumentViewer(true)}
-                    className="bg-white/10 border-white/20 text-white hover:bg-white/20"
-                    title="View Sources"
-                  >
-                    <FileText className="h-4 w-4 sm:mr-1" />
-                    {!isMobile && "View Sources"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowContextPanel(true)}
-                    className="bg-white/10 border-white/20 text-white hover:bg-white/20"
-                    title="Structure"
-                  >
-                    <Layers className="h-4 w-4 sm:mr-1" />
-                    {!isMobile && "Structure"}
-                  </Button>
-                </>
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowStructureSearch(true)}
-                className="bg-white/10 border-white/20 text-white hover:bg-white/20"
-                title="Search"
-              >
-                <FileText className="h-4 w-4 sm:mr-1" />
-                {!isMobile && "Search"}
-              </Button>
-              {selectedDocumentId && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowDocumentStructure(true)}
-                  className="bg-white/10 border-white/20 text-white hover:bg-white/20"
-                  title="Doc Structure"
-                >
-                  <Layers className="h-4 w-4 sm:mr-1" />
-                  {!isMobile && "Doc Structure"}
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-
+  return (
+    <ResponsiveLayout header={header} className="bg-white dark:bg-gray-900">
+      <div className="h-full flex flex-col overflow-hidden">
         {/* Error Message */}
         {error && (
           <div className="px-4 sm:px-6 py-2 flex-shrink-0">
-            <div className="bg-red-100 border border-red-300 text-red-700 px-4 py-3 rounded">
+            <div className="bg-red-100 dark:bg-red-900/20 border border-red-300 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded">
               {error}
+            </div>
+          </div>
+        )}
+
+        {/* Retry Status */}
+        {retryStatus && (
+          <div className="px-4 sm:px-6 py-2 flex-shrink-0">
+            <div className="bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-800 text-yellow-700 dark:text-yellow-300 px-4 py-3 rounded flex items-center justify-between">
+              <span>{retryStatus}</span>
+              {retryStatus.includes('Retry manually') && (
+                <Button size="sm" onClick={handleSendMessage} variant="outline">
+                  Retry
+                </Button>
+              )}
             </div>
           </div>
         )}
@@ -323,30 +395,63 @@ const Chatbot = () => {
         )}
 
         {/* Chat History */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+        <div
+          ref={messagesContainerRef}
+          className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 scroll-smooth"
+          style={{
+            paddingBottom: isMobile ? 'env(safe-area-inset-bottom)' : undefined,
+          }}
+        >
+          {/* Infinite scroll sentinel */}
+          {hasMoreMessages && (
+            <div ref={sentinelRef} className="flex justify-center py-4">
+              {isLoadingMore ? (
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              ) : (
+                <div className="text-sm text-muted-foreground">No more messages</div>
+              )}
+            </div>
+          )}
+
+          {/* Welcome Message */}
+          {messages.length === 0 && (
+            <WelcomeMessage onQuestionClick={handleQuestionClick} />
+          )}
+
+          {/* Messages */}
           {messages.map((message, index) => (
-            <EnhancedChatMessage
-              key={message.id}
-              id={message.id}
-              text={message.text}
-              sender={message.sender}
-              timestamp={message.timestamp}
-              sources={message.metadata?.sources}
-              onSourceClick={(source) => {
-                setSelectedSource(source);
-                setShowDocumentPreview(true);
-              }}
-            />
+            <div key={message.id}>
+              <EnhancedChatMessage
+                id={message.id}
+                text={message.text}
+                sender={message.sender}
+                timestamp={message.timestamp}
+                sources={message.metadata?.sources}
+                onSourceClick={(source) => {
+                  setSelectedSource(source);
+                  setShowDocumentPreview(true);
+                }}
+              />
+              {/* Show suggested questions after bot's last message */}
+              {message.sender === 'bot' && index === messages.length - 1 && (
+                <div className="mt-3 ml-12 sm:ml-14">
+                  <SuggestedQuestions
+                    messages={messages}
+                    onQuestionClick={handleQuestionClick}
+                  />
+                </div>
+              )}
+            </div>
           ))}
 
           {/* Loading Indicator */}
           {isLoading && (
             <div className="flex justify-start">
-              <div className={`flex items-start space-x-2 ${isMobile ? 'max-w-xs' : 'max-w-xs lg:max-w-md'}`}>
+              <div className={`flex items-start space-x-2 ${isMobile ? 'max-w-[85%]' : 'max-w-[70%]'}`}>
                 <div className="w-6 h-6 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0">
                   <Bot className="h-3 w-3 text-primary" />
                 </div>
-                <div className="px-4 py-3 rounded-2xl bg-card/80 backdrop-blur-sm border border-border/20 text-foreground">
+                <div className="px-4 py-3 rounded-2xl bg-gray-100 dark:bg-gray-800 border border-border/20">
                   <div className="flex items-center space-x-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     <p className="text-sm">Thinking...</p>
@@ -360,49 +465,32 @@ const Chatbot = () => {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Area */}
-        <div className="border-t border-border/20 bg-card/50 backdrop-blur-sm p-3 sm:p-4 flex-shrink-0">
-          <div className="flex items-center space-x-2 sm:space-x-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-8 h-8 sm:w-10 sm:h-10 p-0 hover:bg-muted/50"
-            >
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-            <Input
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder={isLoading ? "Please wait..." : "Type here..."}
-              disabled={isLoading || !sessionId}
-              className="flex-1 bg-background/50 border-border/20 focus:border-primary/50 disabled:opacity-50 text-sm sm:text-base"
-            />
-            <Button
-              onClick={handleSendMessage}
-              size="sm"
-              disabled={isLoading || !newMessage.trim() || !sessionId}
-              className="w-8 h-8 sm:w-10 sm:h-10 p-0 bg-gradient-primary border-0 shadow-glow hover:shadow-glow/80 disabled:opacity-50"
-            >
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
-        </div>
+        {/* Scroll to Bottom FAB */}
+        {showScrollToBottom && (
+          <Button
+            onClick={handleScrollToBottom}
+            size="icon"
+            className="fixed bottom-20 right-4 sm:right-6 h-12 w-12 rounded-full shadow-lg z-10 bg-primary hover:bg-primary/90"
+          >
+            <ArrowDown className="h-5 w-5" />
+          </Button>
+        )}
 
-        {/* Demo Disclaimer */}
-        <div className="bg-muted/30 border-t border-border/20 px-4 sm:px-6 py-3 flex-shrink-0">
-          <div className="text-center text-xs text-muted-foreground">
-            <p className="mb-1">
-              <strong>⚠️ Demo Notice:</strong> This is a demonstration version only.
-            </p>
-            <p>
-              Not intended for production use. Features may be incomplete or unstable.
-            </p>
-          </div>
+        {/* Input Area */}
+        <div
+          className="border-t border-border/20 bg-white dark:bg-gray-900 p-3 sm:p-4 flex-shrink-0"
+          style={{
+            paddingBottom: isMobile ? `calc(1rem + env(safe-area-inset-bottom))` : undefined,
+          }}
+        >
+          <MultilineInput
+            value={newMessage}
+            onChange={setNewMessage}
+            onSend={handleSendMessage}
+            disabled={isLoading || !sessionId}
+            placeholder={isLoading ? "Please wait..." : "Type your message..."}
+            isLoading={isLoading}
+          />
         </div>
       </div>
 
@@ -453,9 +541,8 @@ const Chatbot = () => {
         documentId={selectedDocumentId || ''}
         apiBaseUrl={AWS_CONFIG.endpoints.apiGateway}
       />
-    </div>
+    </ResponsiveLayout>
   );
 };
 
 export default Chatbot;
-

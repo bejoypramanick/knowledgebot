@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,7 +13,10 @@ import {
   Check,
   Clock
 } from 'lucide-react';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobile } from '@/hooks/use-media-query';
+import { formatTimestamp, getFullTimestamp } from '@/lib/timezone-utils';
+import { chatbotConfig } from '@/config/chatbot.config';
+import { Avatar } from './Avatar';
 import DocumentViewer from './DocumentViewer';
 
 interface DocumentSource {
@@ -51,7 +54,20 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
   const [showDocumentViewer, setShowDocumentViewer] = useState(false);
   const [selectedSource, setSelectedSource] = useState<DocumentSource | null>(null);
   const [copiedText, setCopiedText] = useState<string | null>(null);
+  const [displayTimestamp, setDisplayTimestamp] = useState<string>('');
   const isMobile = useIsMobile();
+
+  // Update timestamp periodically for relative format
+  useEffect(() => {
+    const updateTimestamp = () => {
+      setDisplayTimestamp(formatTimestamp(timestamp, { format: chatbotConfig.timestamps.format }));
+    };
+
+    updateTimestamp();
+    const interval = setInterval(updateTimestamp, chatbotConfig.timestamps.updateInterval);
+
+    return () => clearInterval(interval);
+  }, [timestamp]);
 
   const handleSourceClick = (source: DocumentSource) => {
     setSelectedSource(source);
@@ -67,21 +83,6 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
     } catch (err) {
       console.error('Failed to copy text: ', err);
     }
-  };
-
-  const formatTimestamp = (timestamp: string) => {
-    const date = new Date(timestamp);
-
-    // Format as DDD dd/MM/yyyy HH:mm:SS
-    const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'short' });
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const year = date.getFullYear();
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    const seconds = String(date.getSeconds()).padStart(2, '0');
-
-    return `${dayOfWeek} ${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
   };
 
   const getElementTypeIcon = (elementType: string) => {
@@ -108,30 +109,32 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
 
   return (
     <>
-      <div className={`flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-        <div className={`flex items-start space-x-2 ${isMobile ? 'max-w-xs' : 'max-w-xs lg:max-w-md'} ${sender === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-          {sender === 'bot' && (
-            <div className="w-6 h-6 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0">
-              <FileText className="h-3 w-3 text-primary" />
-            </div>
-          )}
+      <div className={`flex ${sender === 'user' ? 'justify-end' : 'justify-start'} mb-4 animate-fade-in`}>
+        <div className={`flex items-start gap-2 sm:gap-3 ${isMobile ? 'max-w-[85%]' : 'max-w-[70%]'} ${sender === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+          <Avatar 
+            type={sender} 
+            size="sm" 
+            className="flex-shrink-0 mt-1" 
+          />
 
-          <div className={`px-3 sm:px-4 py-3 rounded-2xl ${sender === 'user'
-            ? 'bg-primary text-primary-foreground'
-            : 'bg-card/80 backdrop-blur-sm border border-border/20 text-foreground'
+          <div className={`px-4 py-3 rounded-2xl shadow-sm ${sender === 'user'
+            ? 'bg-[#4F46E5] text-white rounded-tr-sm'
+            : 'bg-[#F3F4F6] dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-tl-sm'
             }`}>
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-sm flex-1">{text}</p>
+            <div className="flex items-start justify-between gap-2 group">
+              <p className="text-[15px] leading-relaxed flex-1 whitespace-pre-wrap break-words">{text}</p>
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                className={`h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity ${
+                  sender === 'user' ? 'hover:bg-white/20' : 'hover:bg-gray-200 dark:hover:bg-gray-700'
+                }`}
                 onClick={() => copyToClipboard(text)}
               >
                 {copiedText === text ? (
-                  <Check className="h-3 w-3 text-green-600" />
+                  <Check className={`h-3 w-3 ${sender === 'user' ? 'text-white' : 'text-green-600'}`} />
                 ) : (
-                  <Copy className="h-3 w-3" />
+                  <Copy className={`h-3 w-3 ${sender === 'user' ? 'text-white/70' : 'text-gray-500'}`} />
                 )}
               </Button>
             </div>
@@ -222,15 +225,15 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
             )}
 
             <div className={`flex items-center gap-1 mt-2 ${sender === 'user'
-              ? 'text-primary-foreground/70'
-              : 'text-muted-foreground'
+              ? 'text-white/60'
+              : 'text-gray-500 dark:text-gray-400'
               }`}>
               <Clock className="h-3 w-3" />
               <span
                 className="text-xs cursor-help"
-                title={`Full timestamp: ${formatTimestamp(timestamp)}`}
+                title={getFullTimestamp(timestamp)}
               >
-                {formatTimestamp(timestamp)}
+                {displayTimestamp || formatTimestamp(timestamp, { format: chatbotConfig.timestamps.format })}
               </span>
             </div>
           </div>
