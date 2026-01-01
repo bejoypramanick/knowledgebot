@@ -374,6 +374,19 @@ const Chatbot = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  const handleScrollToMessage = (messageId: string) => {
+    // Find the message element by data attribute
+    const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Add a highlight effect
+      messageElement.classList.add('highlight-message');
+      setTimeout(() => {
+        messageElement.classList.remove('highlight-message');
+      }, 2000);
+    }
+  };
+
   const header = (
     <div className="flex items-center justify-between w-full">
         <div className="flex items-center space-x-2 sm:space-x-3">
@@ -516,7 +529,7 @@ const Chatbot = () => {
 
           {/* Messages */}
           {messages.map((message, index) => (
-            <div key={message.id}>
+            <div key={message.id} data-message-id={message.id}>
               <EnhancedChatMessage
                 id={message.id}
                 text={message.text}
@@ -525,6 +538,7 @@ const Chatbot = () => {
                 sources={message.metadata?.sources}
                 replyTo={message.replyTo}
                 onReply={handleReply}
+                onScrollToMessage={handleScrollToMessage}
                 onSourceClick={(source) => {
                   setSelectedSource(source);
                   setShowDocumentPreview(true);

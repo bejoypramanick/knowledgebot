@@ -42,6 +42,7 @@ interface EnhancedChatMessageProps {
   sources?: DocumentSource[];
   onSourceClick?: (source: DocumentSource) => void;
   onReply?: (messageId: string, messageText: string) => void;
+  onScrollToMessage?: (messageId: string) => void;
   replyTo?: {
     id: string;
     text: string;
@@ -57,6 +58,7 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
   sources = [],
   onSourceClick,
   onReply,
+  onScrollToMessage,
   replyTo
 }) => {
   const [showSources, setShowSources] = useState(false);
@@ -120,12 +122,20 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
             }`}>
             {/* Reply To Preview */}
             {replyTo && (
-              <div className={`mb-2 pb-2 border-b ${sender === 'user' ? 'border-gray-300' : 'border-gray-300'} text-xs opacity-75`}>
-                <div className="flex items-center gap-1">
-                  <Reply className="h-3 w-3" />
-                  <span className="font-medium">{replyTo.sender === 'user' ? 'You' : chatbotConfig.welcome.botName}</span>
+              <div 
+                className={`mb-2 pb-2 border-l-4 pl-2 pr-2 py-1 rounded cursor-pointer transition-colors ${
+                  sender === 'user' 
+                    ? 'border-gray-400 bg-gray-50 hover:bg-gray-100' 
+                    : 'border-gray-400 bg-gray-50 hover:bg-gray-100'
+                } text-xs overflow-hidden`}
+                onClick={() => onScrollToMessage?.(replyTo.id)}
+                title="Click to jump to original message"
+              >
+                <div className="flex items-center gap-1 min-w-0">
+                  <Reply className="h-3 w-3 text-gray-500 flex-shrink-0" />
+                  <span className="font-medium text-gray-700 truncate">{replyTo.sender === 'user' ? 'You' : chatbotConfig.welcome.botName}</span>
                 </div>
-                <p className="truncate mt-1">{replyTo.text}</p>
+                <p className="mt-1 text-gray-600 break-words line-clamp-2 overflow-hidden">{replyTo.text}</p>
               </div>
             )}
             <div className="flex items-start justify-between gap-2 group">

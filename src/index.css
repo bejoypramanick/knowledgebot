@@ -247,4 +247,18 @@ All colors MUST be HSL.
       z-index: 50 !important;
     }
   }
+
+  /* Message highlight animation */
+  .highlight-message {
+    animation: highlight-pulse 2s ease-in-out;
+  }
+
+  @keyframes highlight-pulse {
+    0%, 100% {
+      background-color: transparent;
+    }
+    50% {
+      background-color: rgba(59, 130, 246, 0.1);
+    }
+  }
 }
