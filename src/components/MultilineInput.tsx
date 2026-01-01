@@ -129,7 +129,7 @@ export const MultilineInput: React.FC<MultilineInputProps> = ({
       {replyTo && (
         <div className="bg-gray-100 border border-gray-300 rounded-lg p-2 flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-medium text-indigo-700 mb-1">
+            <div className="text-xs font-medium text-black mb-1">
               Replying to {replyTo.sender === 'user' ? 'you' : chatbotConfig.welcome.botName}
             </div>
             <p className="text-xs text-gray-600 truncate">{replyTo.text}</p>

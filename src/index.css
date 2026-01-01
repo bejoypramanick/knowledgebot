@@ -237,4 +237,14 @@ All colors MUST be HSL.
   .safe-area-right {
     padding-right: env(safe-area-inset-right);
   }
+
+  /* Mobile input area fix */
+  @media (max-width: 768px) {
+    [data-input-area] {
+      position: sticky !important;
+      bottom: 0 !important;
+      background: white !important;
+      z-index: 50 !important;
+    }
+  }
 }

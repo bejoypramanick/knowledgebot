@@ -303,9 +303,35 @@ const Chatbot = () => {
         text: messageText,
         sender: message.sender,
       });
-      // Scroll to input area
+      // Scroll to input area and ensure it's visible on mobile
       setTimeout(() => {
-        document.querySelector('textarea')?.focus();
+        const inputArea = document.querySelector('[data-input-area]') as HTMLElement;
+        const textarea = document.querySelector('textarea') as HTMLElement;
+        
+        if (inputArea && isMobile) {
+          // On mobile, scroll the entire page to show input area
+          inputArea.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' });
+          
+          // Also scroll the messages container if needed
+          if (messagesContainerRef.current) {
+            messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+          }
+        } else if (inputArea) {
+          inputArea.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        
+        // Focus textarea after scroll completes
+        setTimeout(() => {
+          if (textarea) {
+            textarea.focus();
+            // On mobile, ensure textarea is visible after keyboard appears
+            if (isMobile) {
+              setTimeout(() => {
+                textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }, 400);
+            }
+          }
+        }, 300);
       }, 100);
     }
   };
@@ -566,10 +592,11 @@ const Chatbot = () => {
 
         {/* Input Area */}
         <div
-          className="border-t border-gray-200 bg-white p-3 sm:p-4 flex-shrink-0 relative z-10"
+          data-input-area
+          className="border-t border-gray-200 bg-white p-3 sm:p-4 flex-shrink-0 relative z-50"
           style={{
             paddingBottom: isMobile ? `calc(1rem + env(safe-area-inset-bottom))` : undefined,
-            touchAction: 'manipulation'
+            touchAction: 'manipulation',
           }}
         >
           <MultilineInput
