@@ -8,7 +8,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { MessageCircle, Bot, Loader2, FileText, Layers, Trash2, ArrowDown } from "lucide-react";
+import { MessageCircle, Bot, Loader2, FileText, Layers, Trash2, ArrowDown, X } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-media-query";
 import { ChatbotAPI, ChatResponse } from "@/lib/chatbot-api";
 import { AWS_CONFIG } from "@/lib/aws-config";
@@ -42,11 +42,26 @@ interface DocumentSource {
   metadata: any;
 }
 
+interface MessageAttachment {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  file: File;
+  url?: string;
+}
+
 interface Message {
   id: string;
   text: string;
   sender: 'user' | 'bot';
   timestamp: string;
+  replyTo?: {
+    id: string;
+    text: string;
+    sender: 'user' | 'bot';
+  };
+  attachments?: MessageAttachment[];
   metadata?: {
     sources?: DocumentSource[];
     orderStatus?: any;
@@ -57,6 +72,8 @@ const Chatbot = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [sessionId, setSessionId] = useState<string>('');
+  const [replyToMessage, setReplyToMessage] = useState<{ id: string; text: string; sender: 'user' | 'bot' } | null>(null);
+  const [attachments, setAttachments] = useState<File[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [apiClient] = useState(new ChatbotAPI(AWS_CONFIG.endpoints.websocket, AWS_CONFIG.endpoints.apiGateway));
@@ -170,16 +187,28 @@ const Chatbot = () => {
     const messageToSend = messageOverride || newMessage;
     if (!messageToSend.trim() || isLoading) return;
 
+    const messageAttachments: MessageAttachment[] = attachments.map((file, index) => ({
+      id: `${Date.now()}-${index}`,
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      file: file,
+    }));
+
     const userMessage: Message = {
       id: Date.now().toString(),
       text: messageToSend,
       sender: 'user',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      replyTo: replyToMessage || undefined,
+      attachments: messageAttachments.length > 0 ? messageAttachments : undefined,
     };
 
     setMessages(prev => [...prev, userMessage]);
     if (!messageOverride) {
       setNewMessage('');
+      setReplyToMessage(null);
+      setAttachments([]);
     }
     setIsLoading(true);
     setError(null);
@@ -266,12 +295,45 @@ const Chatbot = () => {
     await handleSendMessage(question);
   };
 
+  const handleReply = (messageId: string, messageText: string) => {
+    const message = messages.find(m => m.id === messageId);
+    if (message) {
+      setReplyToMessage({
+        id: messageId,
+        text: messageText,
+        sender: message.sender,
+      });
+      // Scroll to input area
+      setTimeout(() => {
+        document.querySelector('textarea')?.focus();
+      }, 100);
+    }
+  };
+
+  const handleFileUpload = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    
+    const validFiles = Array.from(files).filter(file => {
+      // Accept all file types
+      const maxSize = 50 * 1024 * 1024; // 50MB
+      if (file.size > maxSize) {
+        alert(`File ${file.name} is too large. Maximum size is 50MB.`);
+        return false;
+      }
+      return true;
+    });
+
+    setAttachments(prev => [...prev, ...validFiles]);
+  };
+
   const handleClearAllChats = () => {
     setMessages([]);
     setAllSources([]);
     setSelectedSource(null);
     setSelectedDocumentId(null);
     setError(null);
+    setReplyToMessage(null);
+    setAttachments([]);
     notificationService.markAsRead();
   };
 
@@ -428,11 +490,36 @@ const Chatbot = () => {
                 sender={message.sender}
                 timestamp={message.timestamp}
                 sources={message.metadata?.sources}
+                replyTo={message.replyTo}
+                onReply={handleReply}
                 onSourceClick={(source) => {
                   setSelectedSource(source);
                   setShowDocumentPreview(true);
                 }}
               />
+              {/* Display attachments */}
+              {message.attachments && message.attachments.length > 0 && (
+                <div className={`mt-2 flex flex-wrap gap-2 ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  {message.attachments.map((attachment) => (
+                    <div
+                      key={attachment.id}
+                      className={`px-3 py-2 rounded-lg text-sm ${
+                        message.sender === 'user'
+                          ? 'bg-white/20 text-white'
+                          : 'bg-gray-200 text-gray-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        <span className="truncate max-w-[200px]">{attachment.name}</span>
+                        <span className="text-xs opacity-75">
+                          {(attachment.size / 1024).toFixed(1)} KB
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
               {/* Show suggested questions after bot's last message */}
               {message.sender === 'bot' && index === messages.length - 1 && (
                 <div className="mt-3 ml-12 sm:ml-14">
@@ -492,6 +579,11 @@ const Chatbot = () => {
             disabled={isLoading || !sessionId}
             placeholder={isLoading ? "Please wait..." : "Type your message..."}
             isLoading={isLoading}
+            onFileSelect={handleFileUpload}
+            attachments={attachments}
+            onRemoveAttachment={(index) => setAttachments(prev => prev.filter((_, i) => i !== index))}
+            replyTo={replyToMessage}
+            onCancelReply={() => setReplyToMessage(null)}
           />
         </div>
       </div>

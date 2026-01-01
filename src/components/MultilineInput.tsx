@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Send, AlertCircle } from 'lucide-react';
+import { Send, AlertCircle, Paperclip, X, FileText } from 'lucide-react';
 import { chatbotConfig } from '@/config/chatbot.config';
 
 interface MultilineInputProps {
@@ -11,6 +11,15 @@ interface MultilineInputProps {
   disabled?: boolean;
   placeholder?: string;
   isLoading?: boolean;
+  onFileSelect?: (files: FileList | null) => void;
+  attachments?: File[];
+  onRemoveAttachment?: (index: number) => void;
+  replyTo?: {
+    id: string;
+    text: string;
+    sender: 'user' | 'bot';
+  } | null;
+  onCancelReply?: () => void;
 }
 
 export const MultilineInput: React.FC<MultilineInputProps> = ({
@@ -20,8 +29,14 @@ export const MultilineInput: React.FC<MultilineInputProps> = ({
   disabled = false,
   placeholder = "Type your message...",
   isLoading = false,
+  onFileSelect,
+  attachments = [],
+  onRemoveAttachment,
+  replyTo,
+  onCancelReply,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [characterCount, setCharacterCount] = useState(0);
   const [rows, setRows] = useState(chatbotConfig.input.minRows);
 
@@ -100,9 +115,91 @@ export const MultilineInput: React.FC<MultilineInputProps> = ({
     return 'border-border';
   };
 
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onFileSelect?.(e.target.files);
+    // Reset input so same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   return (
     <div className="w-full space-y-2">
+      {/* Reply Preview */}
+      {replyTo && (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-2 flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-medium text-indigo-700 mb-1">
+              Replying to {replyTo.sender === 'user' ? 'you' : chatbotConfig.welcome.botName}
+            </div>
+            <p className="text-xs text-gray-600 truncate">{replyTo.text}</p>
+          </div>
+          {onCancelReply && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onCancelReply}
+              className="h-6 w-6 p-0 shrink-0"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Attachments Preview */}
+      {attachments.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {attachments.map((file, index) => (
+            <div
+              key={index}
+              className="flex items-center gap-2 px-2 py-1 bg-gray-100 rounded-lg text-sm"
+            >
+              <FileText className="h-4 w-4 text-gray-600" />
+              <span className="truncate max-w-[150px]">{file.name}</span>
+              <span className="text-xs text-gray-500">
+                {(file.size / 1024).toFixed(1)} KB
+              </span>
+              {onRemoveAttachment && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onRemoveAttachment(index)}
+                  className="h-5 w-5 p-0"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="relative flex items-end gap-2">
+        {/* File Upload Button */}
+        {onFileSelect && (
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              onChange={handleFileInputChange}
+              className="hidden"
+              accept="*/*"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={disabled || isLoading}
+              className="h-10 w-10 shrink-0 touch-manipulation"
+              title="Attach files"
+            >
+              <Paperclip className="h-4 w-4" />
+            </Button>
+          </>
+        )}
         <div className="flex-1 relative">
           <Textarea
             ref={textareaRef}

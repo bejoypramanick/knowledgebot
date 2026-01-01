@@ -11,10 +11,11 @@ import {
   ChevronRight,
   Copy,
   Check,
-  Clock
+  Clock,
+  Reply
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-media-query';
-import { formatTimestamp, getFullTimestamp } from '@/lib/timezone-utils';
+import { formatTimestampDDMMYYYY } from '@/lib/timezone-utils';
 import { chatbotConfig } from '@/config/chatbot.config';
 import { Avatar } from './Avatar';
 import DocumentViewer from './DocumentViewer';
@@ -40,6 +41,12 @@ interface EnhancedChatMessageProps {
   timestamp: string;
   sources?: DocumentSource[];
   onSourceClick?: (source: DocumentSource) => void;
+  onReply?: (messageId: string, messageText: string) => void;
+  replyTo?: {
+    id: string;
+    text: string;
+    sender: 'user' | 'bot';
+  };
 }
 
 const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
@@ -48,26 +55,16 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
   sender,
   timestamp,
   sources = [],
-  onSourceClick
+  onSourceClick,
+  onReply,
+  replyTo
 }) => {
   const [showSources, setShowSources] = useState(false);
   const [showDocumentViewer, setShowDocumentViewer] = useState(false);
   const [selectedSource, setSelectedSource] = useState<DocumentSource | null>(null);
   const [copiedText, setCopiedText] = useState<string | null>(null);
-  const [displayTimestamp, setDisplayTimestamp] = useState<string>('');
+  const displayTimestamp = formatTimestampDDMMYYYY(timestamp);
   const isMobile = useIsMobile();
-
-  // Update timestamp periodically for relative format
-  useEffect(() => {
-    const updateTimestamp = () => {
-      setDisplayTimestamp(formatTimestamp(timestamp, { format: chatbotConfig.timestamps.format }));
-    };
-
-    updateTimestamp();
-    const interval = setInterval(updateTimestamp, chatbotConfig.timestamps.updateInterval);
-
-    return () => clearInterval(interval);
-  }, [timestamp]);
 
   const handleSourceClick = (source: DocumentSource) => {
     setSelectedSource(source);
@@ -121,22 +118,47 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
             ? 'bg-[#4F46E5] text-white rounded-tr-sm'
             : 'bg-[#F3F4F6] text-gray-900 rounded-tl-sm'
             }`}>
+            {/* Reply To Preview */}
+            {replyTo && (
+              <div className={`mb-2 pb-2 border-b ${sender === 'user' ? 'border-white/20' : 'border-gray-300'} text-xs opacity-75`}>
+                <div className="flex items-center gap-1">
+                  <Reply className="h-3 w-3" />
+                  <span className="font-medium">{replyTo.sender === 'user' ? 'You' : chatbotConfig.welcome.botName}</span>
+                </div>
+                <p className="truncate mt-1">{replyTo.text}</p>
+              </div>
+            )}
             <div className="flex items-start justify-between gap-2 group">
               <p className="text-[15px] leading-relaxed flex-1 whitespace-pre-wrap break-words">{text}</p>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={`h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity ${
-                  sender === 'user' ? 'hover:bg-white/20' : 'hover:bg-gray-200'
-                }`}
-                onClick={() => copyToClipboard(text)}
-              >
-                {copiedText === text ? (
-                  <Check className={`h-3 w-3 ${sender === 'user' ? 'text-white' : 'text-green-600'}`} />
-                ) : (
-                  <Copy className={`h-3 w-3 ${sender === 'user' ? 'text-white/70' : 'text-gray-500'}`} />
+              <div className="flex items-center gap-1">
+                {onReply && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={`h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity ${
+                      sender === 'user' ? 'hover:bg-white/20' : 'hover:bg-gray-200'
+                    }`}
+                    onClick={() => onReply(id, text)}
+                    title="Reply to this message"
+                  >
+                    <Reply className={`h-3 w-3 ${sender === 'user' ? 'text-white/70' : 'text-gray-500'}`} />
+                  </Button>
                 )}
-              </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={`h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity ${
+                    sender === 'user' ? 'hover:bg-white/20' : 'hover:bg-gray-200'
+                  }`}
+                  onClick={() => copyToClipboard(text)}
+                >
+                  {copiedText === text ? (
+                    <Check className={`h-3 w-3 ${sender === 'user' ? 'text-white' : 'text-green-600'}`} />
+                  ) : (
+                    <Copy className={`h-3 w-3 ${sender === 'user' ? 'text-white/70' : 'text-gray-500'}`} />
+                  )}
+                </Button>
+              </div>
             </div>
 
             {/* Enhanced Sources Display */}
@@ -229,11 +251,8 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
               : 'text-gray-500'
               }`}>
               <Clock className="h-3 w-3" />
-              <span
-                className="text-xs cursor-help"
-                title={getFullTimestamp(timestamp)}
-              >
-                {displayTimestamp || formatTimestamp(timestamp, { format: chatbotConfig.timestamps.format })}
+              <span className="text-xs">
+                {displayTimestamp}
               </span>
             </div>
           </div>
