@@ -479,9 +479,10 @@ const Chatbot = () => {
 
         {/* Input Area */}
         <div
-          className="border-t border-gray-200 bg-white p-3 sm:p-4 flex-shrink-0"
+          className="border-t border-gray-200 bg-white p-3 sm:p-4 flex-shrink-0 relative z-10"
           style={{
             paddingBottom: isMobile ? `calc(1rem + env(safe-area-inset-bottom))` : undefined,
+            touchAction: 'manipulation'
           }}
         >
           <MultilineInput

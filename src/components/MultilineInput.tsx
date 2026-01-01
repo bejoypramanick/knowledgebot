@@ -75,6 +75,14 @@ export const MultilineInput: React.FC<MultilineInputProps> = ({
     }
   };
 
+  const handleSendClick = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!disabled && !isLoading && value.trim() && !isExceedingLimit) {
+      onSend();
+    }
+  };
+
   const isExceedingLimit = characterCount > maxChars;
   const isNearLimit = characterCount >= maxChars * 0.9;
   const remainingChars = maxChars - characterCount;
@@ -109,7 +117,8 @@ export const MultilineInput: React.FC<MultilineInputProps> = ({
             }`}
             style={{ 
               maxHeight: `${chatbotConfig.input.maxRows * 24}px`,
-              overflowY: value.length > 0 ? 'auto' : 'hidden'
+              overflowY: value.length > 0 ? 'auto' : 'hidden',
+              touchAction: 'manipulation'
             }}
           />
           {chatbotConfig.input.showCounter && (
@@ -119,10 +128,17 @@ export const MultilineInput: React.FC<MultilineInputProps> = ({
           )}
         </div>
         <Button
-          onClick={onSend}
+          onClick={handleSendClick}
+          onTouchEnd={handleSendClick}
+          onTouchStart={(e) => e.stopPropagation()}
           disabled={disabled || isLoading || !value.trim() || isExceedingLimit}
           size="icon"
-          className="h-10 w-10 rounded-full bg-primary hover:bg-primary/90 disabled:opacity-50 shrink-0"
+          type="button"
+          className="h-10 w-10 min-h-[44px] min-w-[44px] rounded-full bg-[#4F46E5] hover:bg-[#4338CA] active:bg-[#3730A3] disabled:opacity-50 shrink-0 touch-manipulation z-10 relative cursor-pointer"
+          style={{ 
+            touchAction: 'manipulation',
+            WebkitTapHighlightColor: 'transparent'
+          }}
         >
           {isLoading ? (
             <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
