@@ -115,12 +115,12 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
           />
 
           <div className={`px-4 py-3 rounded-2xl shadow-sm ${sender === 'user'
-            ? 'bg-black text-white rounded-tr-sm'
+            ? 'bg-gray-100 border border-gray-200 text-black rounded-tr-sm'
             : 'bg-white border border-gray-200 text-black rounded-tl-sm'
             }`}>
             {/* Reply To Preview */}
             {replyTo && (
-              <div className={`mb-2 pb-2 border-b ${sender === 'user' ? 'border-white/20' : 'border-gray-300'} text-xs opacity-75`}>
+              <div className={`mb-2 pb-2 border-b ${sender === 'user' ? 'border-gray-300' : 'border-gray-300'} text-xs opacity-75`}>
                 <div className="flex items-center gap-1">
                   <Reply className="h-3 w-3" />
                   <span className="font-medium">{replyTo.sender === 'user' ? 'You' : chatbotConfig.welcome.botName}</span>
@@ -136,26 +136,26 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
                     variant="ghost"
                     size="sm"
                     className={`h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity ${
-                      sender === 'user' ? 'hover:bg-white/20' : 'hover:bg-gray-200'
+                      sender === 'user' ? 'hover:bg-gray-200' : 'hover:bg-gray-200'
                     }`}
                     onClick={() => onReply(id, text)}
                     title="Reply to this message"
                   >
-                    <Reply className={`h-3 w-3 ${sender === 'user' ? 'text-white/70' : 'text-gray-500'}`} />
+                    <Reply className={`h-3 w-3 ${sender === 'user' ? 'text-gray-500' : 'text-gray-500'}`} />
                   </Button>
                 )}
                 <Button
                   variant="ghost"
                   size="sm"
                   className={`h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity ${
-                    sender === 'user' ? 'hover:bg-white/20' : 'hover:bg-gray-200'
+                    sender === 'user' ? 'hover:bg-gray-200' : 'hover:bg-gray-200'
                   }`}
                   onClick={() => copyToClipboard(text)}
                 >
                   {copiedText === text ? (
-                    <Check className={`h-3 w-3 ${sender === 'user' ? 'text-white' : 'text-green-600'}`} />
+                    <Check className={`h-3 w-3 ${sender === 'user' ? 'text-green-600' : 'text-green-600'}`} />
                   ) : (
-                    <Copy className={`h-3 w-3 ${sender === 'user' ? 'text-white/70' : 'text-gray-500'}`} />
+                    <Copy className={`h-3 w-3 ${sender === 'user' ? 'text-gray-500' : 'text-gray-500'}`} />
                   )}
                 </Button>
               </div>
@@ -247,7 +247,7 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
             )}
 
             <div className={`flex items-center gap-1 mt-2 ${sender === 'user'
-              ? 'text-white/70'
+              ? 'text-gray-500'
               : 'text-gray-500'
               }`}>
               <Clock className="h-3 w-3" />
