@@ -474,19 +474,6 @@ const Chatbot = () => {
           </div>
         )}
 
-        {/* Retry Status */}
-        {retryStatus && (
-          <div className="px-4 sm:px-6 py-2 flex-shrink-0">
-            <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-lg flex items-center justify-between">
-              <span>{retryStatus}</span>
-              {retryStatus.includes('Retry manually') && (
-                <Button size="sm" onClick={() => handleSendMessage()} variant="outline" className="border-yellow-300 hover:bg-yellow-100">
-                  Retry
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* Progress Status */}
         {showProgress && progressStatuses.length > 0 && (
