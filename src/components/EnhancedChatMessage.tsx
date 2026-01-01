@@ -119,7 +119,7 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
 
           <div className={`px-4 py-3 rounded-2xl shadow-sm ${sender === 'user'
             ? 'bg-[#4F46E5] text-white rounded-tr-sm'
-            : 'bg-[#F3F4F6] dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-tl-sm'
+            : 'bg-[#F3F4F6] text-gray-900 rounded-tl-sm'
             }`}>
             <div className="flex items-start justify-between gap-2 group">
               <p className="text-[15px] leading-relaxed flex-1 whitespace-pre-wrap break-words">{text}</p>
@@ -127,7 +127,7 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
                 variant="ghost"
                 size="sm"
                 className={`h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity ${
-                  sender === 'user' ? 'hover:bg-white/20' : 'hover:bg-gray-200 dark:hover:bg-gray-700'
+                  sender === 'user' ? 'hover:bg-white/20' : 'hover:bg-gray-200'
                 }`}
                 onClick={() => copyToClipboard(text)}
               >
@@ -225,8 +225,8 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
             )}
 
             <div className={`flex items-center gap-1 mt-2 ${sender === 'user'
-              ? 'text-white/60'
-              : 'text-gray-500 dark:text-gray-400'
+              ? 'text-white/70'
+              : 'text-gray-500'
               }`}>
               <Clock className="h-3 w-3" />
               <span

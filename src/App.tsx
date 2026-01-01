@@ -31,9 +31,9 @@ const App = () => (
           v7_relativeSplatPath: true
         }}
       >
-        <div className="h-screen flex flex-col overflow-hidden">
+        <div className="h-screen flex flex-col overflow-hidden bg-white">
           <Navigation />
-          <main className="flex-1 overflow-hidden">
+          <main className="flex-1 overflow-hidden bg-white">
             <Routes>
               <Route path="/" element={<Chatbot />} />
               <Route path="/configuration" element={<ChatbotConfiguration />} />

@@ -41,7 +41,7 @@ export const WelcomeMessage: React.FC<WelcomeMessageProps> = ({
     <div className="flex justify-start animate-fade-in">
       <div className="flex items-start space-x-3 max-w-[85%] sm:max-w-[70%]">
         <Avatar type="bot" size="md" isTyping={isTyping} />
-        <div className="px-4 py-3 rounded-2xl bg-gray-100 dark:bg-gray-800 border border-border/20">
+        <div className="px-4 py-3 rounded-2xl bg-[#F3F4F6] border border-gray-200">
           {isTyping ? (
             <div className="flex items-center space-x-2">
               <div className="flex space-x-1">
@@ -52,7 +52,7 @@ export const WelcomeMessage: React.FC<WelcomeMessageProps> = ({
             </div>
           ) : (
             <>
-              <p className="text-sm sm:text-base text-foreground mb-3">
+              <p className="text-sm sm:text-base text-gray-900 dark:text-gray-100 mb-3 leading-relaxed">
                 {chatbotConfig.welcome.message}
               </p>
               <SuggestedQuestions

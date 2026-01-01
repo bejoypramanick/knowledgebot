@@ -28,7 +28,7 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
       <div className={`h-screen flex flex-col overflow-hidden ${className}`}>
         {/* Mobile Header */}
         {header && (
-          <div className="flex-shrink-0 border-b border-border/20 bg-background/95 backdrop-blur-sm">
+          <div className="flex-shrink-0 border-b border-gray-200 bg-white">
             <div className="flex items-center justify-between px-4 py-3">
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 {sidebar && (
@@ -62,7 +62,7 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
     <div className={`h-screen flex flex-col overflow-hidden ${className}`}>
       {/* Desktop Header */}
       {header && (
-        <div className="flex-shrink-0 border-b border-border/20 bg-background/95 backdrop-blur-sm">
+        <div className="flex-shrink-0 border-b border-gray-200 bg-white">
           <div className="max-w-7xl mx-auto px-6 py-4">
             {header}
           </div>
@@ -72,7 +72,7 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
       {/* Desktop Content with Optional Sidebar */}
       <div className="flex-1 overflow-hidden flex">
         {sidebar && showSidebar && (
-          <aside className="w-64 border-r border-border/20 bg-muted/30 flex-shrink-0 overflow-y-auto">
+          <aside className="w-64 border-r border-gray-200 bg-gray-50 flex-shrink-0 overflow-y-auto">
             {sidebar}
           </aside>
         )}

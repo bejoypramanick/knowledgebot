@@ -166,19 +166,21 @@ const Chatbot = () => {
     }
   };
 
-  const handleSendMessage = async () => {
-    if (!newMessage.trim() || isLoading) return;
+  const handleSendMessage = async (messageOverride?: string) => {
+    const messageToSend = messageOverride || newMessage;
+    if (!messageToSend.trim() || isLoading) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
-      text: newMessage,
+      text: messageToSend,
       sender: 'user',
       timestamp: new Date().toISOString()
     };
 
     setMessages(prev => [...prev, userMessage]);
-    const messageToSend = newMessage;
-    setNewMessage('');
+    if (!messageOverride) {
+      setNewMessage('');
+    }
     setIsLoading(true);
     setError(null);
     setRetryStatus('Sending...');
@@ -259,10 +261,9 @@ const Chatbot = () => {
     setIsLoading(false);
   };
 
-  const handleQuestionClick = (question: string) => {
-    setNewMessage(question);
-    // Auto-send or just populate input - you can change this behavior
-    // handleSendMessage();
+  const handleQuestionClick = async (question: string) => {
+    // Automatically send the question
+    await handleSendMessage(question);
   };
 
   const handleClearAllChats = () => {
@@ -280,12 +281,12 @@ const Chatbot = () => {
 
   const header = (
     <div className="flex items-center justify-between w-full">
-      <div className="flex items-center space-x-2 sm:space-x-3">
-        <div className="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center">
-          <MessageCircle className="h-4 w-4 text-primary" />
-        </div>
+        <div className="flex items-center space-x-2 sm:space-x-3">
+          <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
+            <MessageCircle className="h-4 w-4 text-[#4F46E5]" />
+          </div>
         <div className="flex items-center space-x-2">
-          <h1 className="text-lg sm:text-xl font-bold text-foreground">
+          <h1 className="text-lg sm:text-xl font-semibold text-gray-900">
             Chat with {chatbotConfig.welcome.botName}
           </h1>
           <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-400'}`} 
@@ -297,7 +298,7 @@ const Chatbot = () => {
           variant="outline"
           size="sm"
           onClick={handleClearAllChats}
-          className="bg-background/50 border-border/20 hover:bg-background"
+          className="bg-white border-gray-200 hover:bg-gray-50"
           title="Clear all chats"
         >
           <Trash2 className="h-4 w-4 sm:mr-1" />
@@ -309,7 +310,7 @@ const Chatbot = () => {
               variant="outline"
               size="sm"
               onClick={() => setShowDocumentViewer(true)}
-              className="bg-background/50 border-border/20 hover:bg-background"
+              className="bg-white border-gray-200 hover:bg-gray-50"
               title="View Sources"
             >
               <FileText className="h-4 w-4 sm:mr-1" />
@@ -319,7 +320,7 @@ const Chatbot = () => {
               variant="outline"
               size="sm"
               onClick={() => setShowContextPanel(true)}
-              className="bg-background/50 border-border/20 hover:bg-background"
+              className="bg-white border-gray-200 hover:bg-gray-50"
               title="Structure"
             >
               <Layers className="h-4 w-4 sm:mr-1" />
@@ -331,7 +332,7 @@ const Chatbot = () => {
           variant="outline"
           size="sm"
           onClick={() => setShowStructureSearch(true)}
-          className="bg-background/50 border-border/20 hover:bg-background"
+          className="bg-white border-gray-200 hover:bg-gray-50"
           title="Search"
         >
           <FileText className="h-4 w-4 sm:mr-1" />
@@ -342,7 +343,7 @@ const Chatbot = () => {
             variant="outline"
             size="sm"
             onClick={() => setShowDocumentStructure(true)}
-            className="bg-background/50 border-border/20 hover:bg-background"
+            className="bg-white border-gray-200 hover:bg-gray-50"
             title="Doc Structure"
           >
             <Layers className="h-4 w-4 sm:mr-1" />
@@ -354,12 +355,12 @@ const Chatbot = () => {
   );
 
   return (
-    <ResponsiveLayout header={header} className="bg-white dark:bg-gray-900">
+    <ResponsiveLayout header={header} className="bg-white">
       <div className="h-full flex flex-col overflow-hidden">
         {/* Error Message */}
         {error && (
           <div className="px-4 sm:px-6 py-2 flex-shrink-0">
-            <div className="bg-red-100 dark:bg-red-900/20 border border-red-300 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded">
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
               {error}
             </div>
           </div>
@@ -368,10 +369,10 @@ const Chatbot = () => {
         {/* Retry Status */}
         {retryStatus && (
           <div className="px-4 sm:px-6 py-2 flex-shrink-0">
-            <div className="bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-800 text-yellow-700 dark:text-yellow-300 px-4 py-3 rounded flex items-center justify-between">
+            <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-lg flex items-center justify-between">
               <span>{retryStatus}</span>
               {retryStatus.includes('Retry manually') && (
-                <Button size="sm" onClick={handleSendMessage} variant="outline">
+                <Button size="sm" onClick={handleSendMessage} variant="outline" className="border-yellow-300 hover:bg-yellow-100">
                   Retry
                 </Button>
               )}
@@ -448,13 +449,13 @@ const Chatbot = () => {
           {isLoading && (
             <div className="flex justify-start">
               <div className={`flex items-start space-x-2 ${isMobile ? 'max-w-[85%]' : 'max-w-[70%]'}`}>
-                <div className="w-6 h-6 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0">
-                  <Bot className="h-3 w-3 text-primary" />
+                <div className="w-6 h-6 bg-indigo-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <Bot className="h-3 w-3 text-[#4F46E5]" />
                 </div>
-                <div className="px-4 py-3 rounded-2xl bg-gray-100 dark:bg-gray-800 border border-border/20">
+                <div className="px-4 py-3 rounded-2xl bg-[#F3F4F6] border border-gray-200">
                   <div className="flex items-center space-x-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <p className="text-sm">Thinking...</p>
+                    <Loader2 className="h-4 w-4 animate-spin text-[#4F46E5]" />
+                    <p className="text-sm text-gray-900">Thinking...</p>
                   </div>
                 </div>
               </div>
@@ -470,7 +471,7 @@ const Chatbot = () => {
           <Button
             onClick={handleScrollToBottom}
             size="icon"
-            className="fixed bottom-20 right-4 sm:right-6 h-12 w-12 rounded-full shadow-lg z-10 bg-primary hover:bg-primary/90"
+            className="fixed bottom-20 right-4 sm:right-6 h-12 w-12 rounded-full shadow-lg z-10 bg-[#4F46E5] hover:bg-[#4338CA] text-white"
           >
             <ArrowDown className="h-5 w-5" />
           </Button>
@@ -478,7 +479,7 @@ const Chatbot = () => {
 
         {/* Input Area */}
         <div
-          className="border-t border-border/20 bg-white dark:bg-gray-900 p-3 sm:p-4 flex-shrink-0"
+          className="border-t border-gray-200 bg-white p-3 sm:p-4 flex-shrink-0"
           style={{
             paddingBottom: isMobile ? `calc(1rem + env(safe-area-inset-bottom))` : undefined,
           }}

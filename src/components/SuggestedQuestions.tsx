@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Button } from '@/components/ui/button';
-import { Message } from 'lucide-react';
+import { MessageCircle } from 'lucide-react';
 import { chatbotConfig } from '@/config/chatbot.config';
 
 interface ChatMessage {
@@ -104,7 +104,7 @@ export const SuggestedQuestions: React.FC<SuggestedQuestionsProps> = ({
           className="text-xs sm:text-sm h-auto py-2 px-3 rounded-full border-primary/20 hover:border-primary/40 hover:bg-primary/5 transition-all animate-fade-in"
           style={{ animationDelay: `${index * 50}ms` }}
         >
-          <Message className="h-3 w-3 mr-1.5" />
+          <MessageCircle className="h-3 w-3 mr-1.5" />
           {suggestion}
         </Button>
       ))}
