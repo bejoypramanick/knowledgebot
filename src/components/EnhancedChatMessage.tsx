@@ -115,8 +115,8 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
           />
 
           <div className={`px-4 py-3 rounded-2xl shadow-sm ${sender === 'user'
-            ? 'bg-[#4F46E5] text-white rounded-tr-sm'
-            : 'bg-[#F3F4F6] text-gray-900 rounded-tl-sm'
+            ? 'bg-black text-white rounded-tr-sm'
+            : 'bg-white border border-gray-200 text-black rounded-tl-sm'
             }`}>
             {/* Reply To Preview */}
             {replyTo && (

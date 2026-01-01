@@ -41,7 +41,7 @@ export const WelcomeMessage: React.FC<WelcomeMessageProps> = ({
     <div className="flex justify-start animate-fade-in">
       <div className="flex items-start space-x-3 max-w-[85%] sm:max-w-[70%]">
         <Avatar type="bot" size="md" isTyping={isTyping} />
-        <div className="px-4 py-3 rounded-2xl bg-[#F3F4F6] border border-gray-200">
+        <div className="px-4 py-3 rounded-2xl bg-white border border-gray-200">
           {isTyping ? (
             <div className="flex items-center space-x-2">
               <div className="flex space-x-1">

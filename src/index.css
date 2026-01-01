@@ -18,8 +18,8 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
-    /* Primary: Indigo #4F46E5 */
-    --primary: 239 84% 67%;
+    /* Primary: Black */
+    --primary: 0 0% 0%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 210 40% 96%;
@@ -40,17 +40,17 @@ All colors MUST be HSL.
 
     --radius: 0.75rem;
 
-    /* Chatbase gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 57%));
-    --gradient-secondary: linear-gradient(135deg, hsl(210 40% 96%), hsl(210 40% 98%));
-    --gradient-accent: linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 57%));
+    /* Black and white gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(0 0% 0%), hsl(0 0% 10%));
+    --gradient-secondary: linear-gradient(135deg, hsl(0 0% 96%), hsl(0 0% 98%));
+    --gradient-accent: linear-gradient(135deg, hsl(0 0% 0%), hsl(0 0% 10%));
     
     /* Glass effect */
     --glass: hsla(0, 0%, 100%, 0.8);
     --glass-border: hsla(214, 32%, 91%, 0.5);
     
-    /* Shadows - subtle like Chatbase */
-    --shadow-glow: 0 0 20px hsl(239 84% 67% / 0.15);
+    /* Shadows - subtle black and white */
+    --shadow-glow: 0 0 20px hsl(0 0% 0% / 0.1);
     --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
 
     --sidebar-background: 0 0% 98%;
@@ -71,42 +71,42 @@ All colors MUST be HSL.
   }
 
   .light {
-    /* Chatbase light theme (same as root) */
+    /* Black and white theme */
     --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    --foreground: 0 0% 0%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 0 0% 0%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 0 0% 0%;
 
-    --primary: 239 84% 67%;
+    --primary: 0 0% 0%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 0%;
 
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 40%;
 
-    --accent: 210 40% 96%;
-    --accent-foreground: 222 47% 11%;
+    --accent: 0 0% 96%;
+    --accent-foreground: 0 0% 0%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 239 84% 67%;
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 0 0% 0%;
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 222 47% 11%;
-    --sidebar-primary: 239 84% 67%;
+    --sidebar-foreground: 0 0% 0%;
+    --sidebar-primary: 0 0% 0%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 40% 96%;
-    --sidebar-accent-foreground: 222 47% 11%;
-    --sidebar-border: 214 32% 91%;
-    --sidebar-ring: 239 84% 67%;
+    --sidebar-accent: 0 0% 96%;
+    --sidebar-accent-foreground: 0 0% 0%;
+    --sidebar-border: 0 0% 90%;
+    --sidebar-ring: 0 0% 0%;
   }
 
   .dark {

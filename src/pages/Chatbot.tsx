@@ -344,8 +344,8 @@ const Chatbot = () => {
   const header = (
     <div className="flex items-center justify-between w-full">
         <div className="flex items-center space-x-2 sm:space-x-3">
-          <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
-            <MessageCircle className="h-4 w-4 text-[#4F46E5]" />
+          <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+            <MessageCircle className="h-4 w-4 text-black" />
           </div>
         <div className="flex items-center space-x-2">
           <h1 className="text-lg sm:text-xl font-semibold text-gray-900">
@@ -505,8 +505,8 @@ const Chatbot = () => {
                       key={attachment.id}
                       className={`px-3 py-2 rounded-lg text-sm ${
                         message.sender === 'user'
-                          ? 'bg-white/20 text-white'
-                          : 'bg-gray-200 text-gray-700'
+                          ? 'bg-white/30 text-white'
+                          : 'bg-gray-100 border border-gray-200 text-black'
                       }`}
                     >
                       <div className="flex items-center gap-2">
@@ -536,12 +536,12 @@ const Chatbot = () => {
           {isLoading && (
             <div className="flex justify-start">
               <div className={`flex items-start space-x-2 ${isMobile ? 'max-w-[85%]' : 'max-w-[70%]'}`}>
-                <div className="w-6 h-6 bg-indigo-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <Bot className="h-3 w-3 text-[#4F46E5]" />
+                <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <Bot className="h-3 w-3 text-black" />
                 </div>
-                <div className="px-4 py-3 rounded-2xl bg-[#F3F4F6] border border-gray-200">
+                <div className="px-4 py-3 rounded-2xl bg-white border border-gray-200">
                   <div className="flex items-center space-x-2">
-                    <Loader2 className="h-4 w-4 animate-spin text-[#4F46E5]" />
+                    <Loader2 className="h-4 w-4 animate-spin text-black" />
                     <p className="text-sm text-gray-900">Thinking...</p>
                   </div>
                 </div>
@@ -558,7 +558,7 @@ const Chatbot = () => {
           <Button
             onClick={handleScrollToBottom}
             size="icon"
-            className="fixed bottom-20 right-4 sm:right-6 h-12 w-12 rounded-full shadow-lg z-10 bg-[#4F46E5] hover:bg-[#4338CA] text-white"
+            className="fixed bottom-20 right-4 sm:right-6 h-12 w-12 rounded-full shadow-lg z-10 bg-black hover:bg-gray-800 text-white"
           >
             <ArrowDown className="h-5 w-5" />
           </Button>

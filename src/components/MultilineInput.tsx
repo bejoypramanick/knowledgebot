@@ -127,7 +127,7 @@ export const MultilineInput: React.FC<MultilineInputProps> = ({
     <div className="w-full space-y-2">
       {/* Reply Preview */}
       {replyTo && (
-        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-2 flex items-start justify-between gap-2">
+        <div className="bg-gray-100 border border-gray-300 rounded-lg p-2 flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <div className="text-xs font-medium text-indigo-700 mb-1">
               Replying to {replyTo.sender === 'user' ? 'you' : chatbotConfig.welcome.botName}
@@ -231,7 +231,7 @@ export const MultilineInput: React.FC<MultilineInputProps> = ({
           disabled={disabled || isLoading || !value.trim() || isExceedingLimit}
           size="icon"
           type="button"
-          className="h-10 w-10 min-h-[44px] min-w-[44px] rounded-full bg-[#4F46E5] hover:bg-[#4338CA] active:bg-[#3730A3] disabled:opacity-50 shrink-0 touch-manipulation z-10 relative cursor-pointer"
+          className="h-10 w-10 min-h-[44px] min-w-[44px] rounded-full bg-black hover:bg-gray-800 active:bg-gray-900 disabled:opacity-50 shrink-0 touch-manipulation z-10 relative cursor-pointer"
           style={{ 
             touchAction: 'manipulation',
             WebkitTapHighlightColor: 'transparent'
