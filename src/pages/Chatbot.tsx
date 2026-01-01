@@ -242,9 +242,16 @@ const Chatbot = () => {
 
     if (result.success && result.data) {
       const response = result.data;
+      // Filter out unwanted text from bot response
+      let cleanedResponse = response.response;
+      // Remove the "targeted information" message
+      cleanedResponse = cleanedResponse.replace(/\.\.\.?\s*and\s+I\s+can\s+provide\s+more\s+targeted\s+information!?/gi, '');
+      cleanedResponse = cleanedResponse.replace(/\.\.\.?\s*and\s+I\s+can\s+provide\s+more\s+targeted\s+information\.?/gi, '');
+      cleanedResponse = cleanedResponse.trim();
+      
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: response.response,
+        text: cleanedResponse,
         sender: 'bot',
         timestamp: new Date().toISOString(),
         metadata: {
@@ -460,7 +467,7 @@ const Chatbot = () => {
             <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-lg flex items-center justify-between">
               <span>{retryStatus}</span>
               {retryStatus.includes('Retry manually') && (
-                <Button size="sm" onClick={handleSendMessage} variant="outline" className="border-yellow-300 hover:bg-yellow-100">
+                <Button size="sm" onClick={() => handleSendMessage()} variant="outline" className="border-yellow-300 hover:bg-yellow-100">
                   Retry
                 </Button>
               )}
