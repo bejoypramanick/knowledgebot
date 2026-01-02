@@ -122,10 +122,10 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
             theme === 'light'
               ? sender === 'user'
                 ? 'bg-black text-white rounded-tr-sm'
-                : 'bg-gray-100 border border-gray-200 text-black rounded-tl-sm'
+                : 'bg-gray-100 text-black rounded-tl-sm'
               : sender === 'user'
-                ? 'bg-gray-800 text-white rounded-tr-sm'
-                : 'bg-gray-800 text-white rounded-tl-sm'
+                ? 'bg-gray-900 text-white rounded-tr-sm'
+                : 'bg-gray-900 text-white rounded-tl-sm'
             }`}>
             {/* Reply To Preview */}
             {replyTo && (

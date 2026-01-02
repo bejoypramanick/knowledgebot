@@ -43,22 +43,30 @@ export const WelcomeMessage: React.FC<WelcomeMessageProps> = ({
     <div className="flex justify-start animate-fade-in">
       <div className="flex items-start space-x-3 max-w-[85%] sm:max-w-[70%]">
         <Avatar type="bot" size="md" isTyping={isTyping} />
-        <div className={`px-4 py-3 rounded-2xl border ${
+        <div className={`px-4 py-3 rounded-2xl ${
           theme === 'light'
-            ? 'bg-white border-gray-200'
-            : 'bg-gray-800 border-gray-700'
+            ? 'bg-gray-100 text-black rounded-tl-sm'
+            : 'bg-gray-900 text-white rounded-tl-sm'
         }`}>
           {isTyping ? (
             <div className="flex items-center space-x-2">
               <div className="flex space-x-1">
-                <div className="h-2 w-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="h-2 w-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="h-2 w-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                <div className={`h-2 w-2 rounded-full animate-bounce ${
+                  theme === 'light' ? 'bg-gray-400' : 'bg-gray-500'
+                }`} style={{ animationDelay: '0ms' }} />
+                <div className={`h-2 w-2 rounded-full animate-bounce ${
+                  theme === 'light' ? 'bg-gray-400' : 'bg-gray-500'
+                }`} style={{ animationDelay: '150ms' }} />
+                <div className={`h-2 w-2 rounded-full animate-bounce ${
+                  theme === 'light' ? 'bg-gray-400' : 'bg-gray-500'
+                }`} style={{ animationDelay: '300ms' }} />
               </div>
             </div>
           ) : (
             <>
-              <p className="text-sm sm:text-base text-gray-900 dark:text-gray-100 mb-3 leading-relaxed">
+              <p className={`text-sm sm:text-base mb-3 leading-relaxed ${
+                theme === 'light' ? 'text-black' : 'text-white'
+              }`}>
                 {chatbotConfig.welcome.message}
               </p>
               <SuggestedQuestions

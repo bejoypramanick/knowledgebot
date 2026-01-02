@@ -35,7 +35,7 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
               ? 'border-gray-200 bg-white'
               : 'border-gray-800 bg-black'
           }`}>
-            <div className="flex items-center justify-between px-4 py-3">
+            <div className="flex items-center justify-between px-4 py-3 mt-2">
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 {sidebar && (
                   <Sheet>
@@ -73,7 +73,7 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
             ? 'border-gray-200 bg-white'
             : 'border-gray-800 bg-black'
         }`}>
-          <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="max-w-7xl mx-auto px-6 py-4 mt-2">
             {header}
           </div>
         </div>

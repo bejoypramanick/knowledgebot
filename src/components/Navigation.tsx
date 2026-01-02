@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { MessageCircle, Settings, BarChart3, Database, Menu, X } from "lucide-react";
+import { MessageCircle, Settings, BarChart3, Database, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -54,22 +54,42 @@ const Navigation = () => {
 
   return (
     <>
-      {/* Floating Menu Button */}
-      <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-        <SheetTrigger asChild>
-          <Button
-            variant="outline"
-            size="icon"
-            className={`fixed top-4 left-4 z-50 h-10 w-10 shadow-lg ${
-              theme === 'light'
-                ? 'bg-white border-gray-200 hover:bg-gray-50'
-                : 'bg-gray-800 border-gray-700 hover:bg-gray-700 text-white'
-            }`}
-            onClick={toggleMenu}
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-        </SheetTrigger>
+      {/* Dashboard Header */}
+      <nav className={`flex-shrink-0 border-b ${
+        theme === 'light'
+          ? 'border-gray-200 bg-gray-50'
+          : 'border-gray-800 bg-black'
+      }`}>
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3">
+          <div className="flex items-center space-x-2">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+              theme === 'light' ? 'bg-gray-100' : 'bg-gray-800'
+            }`}>
+              <Settings className={`h-4 w-4 ${
+                theme === 'light' ? 'text-black' : 'text-white'
+              }`} />
+            </div>
+            <h1 className={`text-lg sm:text-xl font-bold ${
+              theme === 'light' ? 'text-gray-900' : 'text-white'
+            }`}>Dashboard</h1>
+          </div>
+          
+          {/* Menu Button */}
+          <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
+            <SheetTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className={`h-9 w-9 ${
+                  theme === 'light'
+                    ? 'bg-white border-gray-200 hover:bg-gray-50'
+                    : 'bg-gray-800 border-gray-700 hover:bg-gray-700 text-white'
+                }`}
+                onClick={toggleMenu}
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
         <SheetContent 
           side="left" 
           className={`w-80 p-0 ${
@@ -80,7 +100,7 @@ const Navigation = () => {
             theme === 'light' ? 'bg-white' : 'bg-gray-900'
           }`}>
             {/* Header */}
-            <div className={`flex items-center justify-between px-6 py-4 border-b ${
+            <div className={`flex items-center px-6 py-4 border-b ${
               theme === 'light' ? 'border-gray-200' : 'border-gray-700'
             }`}>
               <div className="flex items-center space-x-2">
@@ -95,16 +115,6 @@ const Navigation = () => {
                   theme === 'light' ? 'text-gray-900' : 'text-white'
                 }`}>Dashboard</h1>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={closeMenu}
-                className="h-8 w-8"
-              >
-                <X className={`h-4 w-4 ${
-                  theme === 'light' ? 'text-gray-600' : 'text-gray-400'
-                }`} />
-              </Button>
             </div>
 
             {/* Navigation Items */}

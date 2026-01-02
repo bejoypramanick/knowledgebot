@@ -221,6 +221,8 @@ export const MultilineInput: React.FC<MultilineInputProps> = ({
             rows={rows}
             className={`resize-none min-h-[44px] pr-12 ${getBorderColor()} ${
               isExceedingLimit ? 'focus-visible:ring-red-500' : ''
+            } ${
+              theme === 'light' ? 'bg-white text-black' : 'bg-gray-900 text-white'
             }`}
             style={{ 
               maxHeight: `${chatbotConfig.input.maxRows * 24}px`,
@@ -241,14 +243,22 @@ export const MultilineInput: React.FC<MultilineInputProps> = ({
           disabled={disabled || isLoading || !value.trim() || isExceedingLimit}
           size="icon"
           type="button"
-          className="h-10 w-10 min-h-[44px] min-w-[44px] rounded-full bg-black hover:bg-gray-800 active:bg-gray-900 disabled:opacity-50 shrink-0 touch-manipulation z-10 relative cursor-pointer"
+          className={`h-10 w-10 min-h-[44px] min-w-[44px] rounded-full shrink-0 touch-manipulation z-10 relative cursor-pointer disabled:opacity-50 ${
+            theme === 'light'
+              ? 'bg-black hover:bg-gray-800 active:bg-gray-900 text-white'
+              : 'bg-white hover:bg-gray-200 active:bg-gray-300 text-black'
+          }`}
           style={{ 
             touchAction: 'manipulation',
             WebkitTapHighlightColor: 'transparent'
           }}
         >
           {isLoading ? (
-            <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            <div className={`h-4 w-4 border-2 rounded-full animate-spin ${
+              theme === 'light'
+                ? 'border-white border-t-transparent'
+                : 'border-black border-t-transparent'
+            }`} />
           ) : (
             <Send className="h-4 w-4" />
           )}
