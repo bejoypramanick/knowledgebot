@@ -568,9 +568,11 @@ const Chatbot = () => {
                     <div
                       key={attachment.id}
                       className={`px-3 py-2 rounded-lg text-sm ${
-                        message.sender === 'user'
-                          ? 'bg-white/30 text-white'
-                          : 'bg-gray-100 border border-gray-200 text-black'
+                        theme === 'light'
+                          ? message.sender === 'user'
+                            ? 'bg-zinc-700 text-white'  /* On black user bubble */
+                            : 'bg-gray-100 border border-gray-200 text-black'  /* On white bot bubble */
+                          : 'bg-zinc-700 text-white'  /* Dark mode */
                       }`}
                     >
                       <div className="flex items-center gap-2">
@@ -601,23 +603,23 @@ const Chatbot = () => {
             <div className="flex justify-start">
               <div className={`flex items-start space-x-2 ${isMobile ? 'max-w-[85%]' : 'max-w-[70%]'}`}>
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  theme === 'light' ? 'bg-gray-100' : 'bg-gray-800'
+                  theme === 'light' ? 'bg-gray-100' : 'bg-zinc-800'
                 }`}>
                   <Bot className={`h-3 w-3 ${
                     theme === 'light' ? 'text-black' : 'text-white'
                   }`} />
                 </div>
-                <div className={`px-4 py-3 rounded-2xl border ${
+                <div className={`px-4 py-3 rounded-2xl ${
                   theme === 'light'
-                    ? 'bg-white border-gray-200'
-                    : 'bg-gray-800 border-gray-700'
+                    ? 'bg-white border border-gray-100 shadow-md'  /* Light mode: white with shadow */
+                    : 'bg-zinc-800'  /* Dark mode: dark gray */
                 }`}>
                   <div className="flex items-center space-x-2">
                     <Loader2 className={`h-4 w-4 animate-spin ${
                       theme === 'light' ? 'text-black' : 'text-white'
                     }`} />
                     <p className={`text-sm ${
-                      theme === 'light' ? 'text-gray-900' : 'text-white'
+                      theme === 'light' ? 'text-black' : 'text-white'
                     }`}>Thinking...</p>
                   </div>
                 </div>

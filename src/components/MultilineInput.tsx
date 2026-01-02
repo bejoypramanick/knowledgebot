@@ -131,8 +131,8 @@ export const MultilineInput: React.FC<MultilineInputProps> = ({
       {replyTo && (
         <div className={`border rounded-lg p-2 flex items-start justify-between gap-2 ${
           theme === 'light'
-            ? 'bg-gray-100 border-gray-300'
-            : 'bg-gray-800 border-gray-700'
+            ? 'bg-gray-100 border-gray-200'
+            : 'bg-zinc-800 border-zinc-700'
         }`}>
           <div className="flex-1 min-w-0">
             <div className={`text-xs font-medium mb-1 ${
@@ -149,9 +149,11 @@ export const MultilineInput: React.FC<MultilineInputProps> = ({
               variant="ghost"
               size="sm"
               onClick={onCancelReply}
-              className="h-6 w-6 p-0 shrink-0"
+              className={`h-6 w-6 p-0 shrink-0 ${
+                theme === 'light' ? 'hover:bg-gray-200' : 'hover:bg-zinc-700'
+              }`}
             >
-              <X className="h-3 w-3" />
+              <X className={`h-3 w-3 ${theme === 'light' ? 'text-gray-500' : 'text-gray-300'}`} />
             </Button>
           )}
         </div>
@@ -163,11 +165,15 @@ export const MultilineInput: React.FC<MultilineInputProps> = ({
           {attachments.map((file, index) => (
             <div
               key={index}
-              className="flex items-center gap-2 px-2 py-1 bg-gray-100 rounded-lg text-sm"
+              className={`flex items-center gap-2 px-2 py-1 rounded-lg text-sm ${
+                theme === 'light'
+                  ? 'bg-gray-100 text-black'
+                  : 'bg-zinc-800 text-white'
+              }`}
             >
-              <FileText className="h-4 w-4 text-gray-600" />
+              <FileText className={`h-4 w-4 ${theme === 'light' ? 'text-gray-600' : 'text-gray-300'}`} />
               <span className="truncate max-w-[150px]">{file.name}</span>
-              <span className="text-xs text-gray-500">
+              <span className={`text-xs ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>
                 {(file.size / 1024).toFixed(1)} KB
               </span>
               {onRemoveAttachment && (
@@ -175,9 +181,9 @@ export const MultilineInput: React.FC<MultilineInputProps> = ({
                   variant="ghost"
                   size="sm"
                   onClick={() => onRemoveAttachment(index)}
-                  className="h-5 w-5 p-0"
+                  className={`h-5 w-5 p-0 ${theme === 'light' ? 'hover:bg-gray-200' : 'hover:bg-zinc-700'}`}
                 >
-                  <X className="h-3 w-3" />
+                  <X className={`h-3 w-3 ${theme === 'light' ? 'text-gray-500' : 'text-gray-300'}`} />
                 </Button>
               )}
             </div>
@@ -203,10 +209,12 @@ export const MultilineInput: React.FC<MultilineInputProps> = ({
               size="icon"
               onClick={() => fileInputRef.current?.click()}
               disabled={disabled || isLoading}
-              className="h-10 w-10 shrink-0 touch-manipulation"
+              className={`h-10 w-10 shrink-0 touch-manipulation ${
+                theme === 'light' ? 'hover:bg-gray-100' : 'hover:bg-zinc-800'
+              }`}
               title="Attach files"
             >
-              <Paperclip className="h-4 w-4" />
+              <Paperclip className={`h-4 w-4 ${theme === 'light' ? 'text-gray-600' : 'text-gray-300'}`} />
             </Button>
           </>
         )}
@@ -222,7 +230,9 @@ export const MultilineInput: React.FC<MultilineInputProps> = ({
             className={`resize-none min-h-[44px] pr-12 ${getBorderColor()} ${
               isExceedingLimit ? 'focus-visible:ring-red-500' : ''
             } ${
-              theme === 'light' ? 'bg-white text-black border-gray-300' : 'bg-gray-800 text-white border-gray-700'
+              theme === 'light' 
+                ? 'bg-white text-black border-gray-200 placeholder:text-gray-400' 
+                : 'bg-zinc-900 text-white border-zinc-700 placeholder:text-gray-500'
             }`}
             style={{ 
               maxHeight: `${chatbotConfig.input.maxRows * 24}px`,

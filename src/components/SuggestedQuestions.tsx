@@ -106,8 +106,8 @@ export const SuggestedQuestions: React.FC<SuggestedQuestionsProps> = ({
           onClick={() => onQuestionClick(suggestion)}
           className={`text-xs sm:text-sm h-auto py-2 px-3 rounded-full transition-all animate-fade-in ${
             theme === 'light'
-              ? 'bg-black text-white border-black hover:bg-gray-800'
-              : 'bg-black text-white border-white hover:bg-gray-900'
+              ? 'bg-black text-white border-black hover:bg-zinc-800'  /* Light mode: black buttons */
+              : 'bg-zinc-800 text-white border-zinc-600 hover:bg-zinc-700'  /* Dark mode: dark gray buttons */
           }`}
           style={{ animationDelay: `${index * 50}ms` }}
         >

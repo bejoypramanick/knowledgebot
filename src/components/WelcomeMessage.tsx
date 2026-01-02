@@ -45,20 +45,20 @@ export const WelcomeMessage: React.FC<WelcomeMessageProps> = ({
         <Avatar type="bot" size="md" isTyping={isTyping} />
         <div className={`px-4 py-3 rounded-2xl ${
           theme === 'light'
-            ? 'bg-gray-200 text-black rounded-tl-sm'
-            : 'bg-gray-700 text-white rounded-tl-sm'
+            ? 'bg-white text-black rounded-tl-sm shadow-md border border-gray-100'  /* Light mode: white with shadow */
+            : 'bg-zinc-800 text-white rounded-tl-sm'  /* Dark mode: dark gray */
         }`}>
           {isTyping ? (
             <div className="flex items-center space-x-2">
               <div className="flex space-x-1">
                 <div className={`h-2 w-2 rounded-full animate-bounce ${
-                  theme === 'light' ? 'bg-gray-400' : 'bg-gray-500'
+                  theme === 'light' ? 'bg-gray-300' : 'bg-zinc-500'
                 }`} style={{ animationDelay: '0ms' }} />
                 <div className={`h-2 w-2 rounded-full animate-bounce ${
-                  theme === 'light' ? 'bg-gray-400' : 'bg-gray-500'
+                  theme === 'light' ? 'bg-gray-300' : 'bg-zinc-500'
                 }`} style={{ animationDelay: '150ms' }} />
                 <div className={`h-2 w-2 rounded-full animate-bounce ${
-                  theme === 'light' ? 'bg-gray-400' : 'bg-gray-500'
+                  theme === 'light' ? 'bg-gray-300' : 'bg-zinc-500'
                 }`} style={{ animationDelay: '300ms' }} />
               </div>
             </div>

@@ -118,14 +118,14 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
             className="flex-shrink-0 mt-1" 
           />
 
-          <div className={`px-4 py-3 rounded-2xl shadow-sm ${
+          <div className={`px-4 py-3 rounded-2xl ${
             theme === 'light'
               ? sender === 'user'
-                ? 'bg-black text-white rounded-tr-sm'
-                : 'bg-gray-200 text-black rounded-tl-sm'
+                ? 'bg-black text-white rounded-tr-sm shadow-sm'  /* Light mode: user = solid black */
+                : 'bg-white text-black rounded-tl-sm shadow-md border border-gray-100'  /* Light mode: bot = white with shadow */
               : sender === 'user'
-                ? 'bg-gray-700 text-white rounded-tr-sm border border-gray-600'
-                : 'bg-gray-700 text-white rounded-tl-sm'
+                ? 'bg-zinc-800 text-white rounded-tr-sm border border-zinc-700'  /* Dark mode: user = dark gray with border */
+                : 'bg-zinc-800 text-white rounded-tl-sm'  /* Dark mode: bot = dark gray */
             }`}>
             {/* Reply To Preview */}
             {replyTo && (
@@ -133,25 +133,23 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
                 className={`mb-2 pb-2 border-l-4 pl-2 pr-2 py-1 rounded cursor-pointer transition-colors text-xs overflow-hidden ${
                   theme === 'light'
                     ? sender === 'user'
-                      ? 'border-gray-400 bg-gray-50 hover:bg-gray-100'
-                      : 'border-gray-400 bg-gray-50 hover:bg-gray-100'
-                    : sender === 'user'
-                      ? 'border-gray-500 bg-gray-800 hover:bg-gray-700'
-                      : 'border-gray-500 bg-gray-800 hover:bg-gray-700'
+                      ? 'border-gray-500 bg-zinc-700 hover:bg-zinc-600'  /* On black user bubble */
+                      : 'border-gray-300 bg-gray-100 hover:bg-gray-200'  /* On white bot bubble */
+                    : 'border-zinc-500 bg-zinc-700 hover:bg-zinc-600'  /* Dark mode */
                 }`}
                 onClick={() => onScrollToMessage?.(replyTo.id)}
                 title="Click to jump to original message"
               >
                 <div className="flex items-center gap-1 min-w-0">
                   <Reply className={`h-3 w-3 flex-shrink-0 ${
-                    theme === 'light' ? 'text-gray-500' : 'text-gray-300'
+                    theme === 'light' && sender === 'bot' ? 'text-gray-500' : 'text-gray-300'
                   }`} />
                   <span className={`font-medium truncate ${
-                    theme === 'light' ? 'text-gray-700' : 'text-white'
+                    theme === 'light' && sender === 'bot' ? 'text-gray-700' : 'text-white'
                   }`}>{replyTo.sender === 'user' ? 'You' : chatbotConfig.welcome.botName}</span>
                 </div>
                 <p className={`mt-1 break-words line-clamp-2 overflow-hidden ${
-                  theme === 'light' ? 'text-gray-600' : 'text-gray-200'
+                  theme === 'light' && sender === 'bot' ? 'text-gray-600' : 'text-gray-200'
                 }`}>{replyTo.text}</p>
               </div>
             )}
@@ -168,14 +166,16 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
                     size="sm"
                     className={`h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity ${
                       theme === 'light'
-                        ? 'hover:bg-gray-200'
-                        : 'hover:bg-gray-700'
+                        ? sender === 'user' 
+                          ? 'hover:bg-zinc-700'  /* On black bubble */
+                          : 'hover:bg-gray-200'  /* On white bubble */
+                        : 'hover:bg-zinc-600'
                     }`}
                     onClick={() => onReply(id, text)}
                     title="Reply to this message"
                   >
                     <Reply className={`h-3 w-3 ${
-                      theme === 'light' ? 'text-gray-500' : 'text-gray-300'
+                      theme === 'light' && sender === 'bot' ? 'text-gray-500' : 'text-gray-300'
                     }`} />
                   </Button>
                 )}
@@ -184,18 +184,20 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
                   size="sm"
                   className={`h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity ${
                     theme === 'light'
-                      ? 'hover:bg-gray-200'
-                      : 'hover:bg-gray-700'
+                      ? sender === 'user' 
+                        ? 'hover:bg-zinc-700'  /* On black bubble */
+                        : 'hover:bg-gray-200'  /* On white bubble */
+                      : 'hover:bg-zinc-600'
                   }`}
                   onClick={() => copyToClipboard(text)}
                 >
                   {copiedText === text ? (
                     <Check className={`h-3 w-3 ${
-                      theme === 'light' ? 'text-green-600' : 'text-green-400'
+                      theme === 'light' && sender === 'bot' ? 'text-green-600' : 'text-green-400'
                     }`} />
                   ) : (
                     <Copy className={`h-3 w-3 ${
-                      theme === 'light' ? 'text-gray-500' : 'text-gray-300'
+                      theme === 'light' && sender === 'bot' ? 'text-gray-500' : 'text-gray-300'
                     }`} />
                   )}
                 </Button>
@@ -289,8 +291,8 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
 
             <div className={`flex items-center gap-1 mt-2 ${
               theme === 'light'
-                ? sender === 'user' ? 'text-gray-400' : 'text-gray-500'
-                : 'text-gray-400'
+                ? sender === 'user' ? 'text-gray-300' : 'text-gray-500'  /* Gray on black, darker gray on white */
+                : 'text-gray-400'  /* Gray in dark mode */
             }`}>
               <Clock className="h-3 w-3" />
               <span className="text-xs">
