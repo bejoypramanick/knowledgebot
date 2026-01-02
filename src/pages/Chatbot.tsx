@@ -10,6 +10,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { MessageCircle, Bot, Loader2, FileText, Layers, Trash2, ArrowDown, X } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-media-query";
+import { useTheme } from "@/hooks/use-theme";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { ChatbotAPI, ChatResponse } from "@/lib/chatbot-api";
 import { AWS_CONFIG } from "@/lib/aws-config";
 import { chatbotConfig } from "@/config/chatbot.config";
@@ -387,20 +389,30 @@ const Chatbot = () => {
     }
   };
 
+  const { theme } = useTheme();
+
   const header = (
     <div className="flex items-center justify-between w-full">
         <div className="flex items-center space-x-2 sm:space-x-3">
-          <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-            <MessageCircle className="h-4 w-4 text-black" />
+          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+            theme === 'light' ? 'bg-gray-100' : 'bg-gray-800'
+          }`}>
+            <MessageCircle className={`h-4 w-4 ${
+              theme === 'light' ? 'text-black' : 'text-white'
+            }`} />
           </div>
         <div className="flex items-center space-x-2">
-          <h1 className="text-lg sm:text-xl font-semibold text-gray-900">
+          <h1 className={`text-lg sm:text-xl font-semibold ${
+            theme === 'light' ? 'text-gray-900' : 'text-white'
+          }`}>
             Chat with {chatbotConfig.welcome.botName}
           </h1>
           <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-400'}`} 
                title={isConnected ? 'Connected' : 'Disconnected'} />
         </div>
-      </div>
+        </div>
+        
+        <ThemeToggle />
       <div className={`flex items-center gap-1 sm:gap-2 ${isMobile ? 'flex-wrap' : ''}`}>
         <Button
           variant="outline"
@@ -463,7 +475,9 @@ const Chatbot = () => {
   );
 
   return (
-    <ResponsiveLayout header={header} className="bg-white">
+    <ResponsiveLayout header={header} className={`${
+      theme === 'light' ? 'bg-white' : 'bg-black'
+    }`}>
       <div className="h-full flex flex-col overflow-hidden">
         {/* Error Message */}
         {error && (
@@ -493,7 +507,9 @@ const Chatbot = () => {
         {/* Chat History */}
         <div
           ref={messagesContainerRef}
-          className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 scroll-smooth"
+          className={`flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 scroll-smooth ${
+            theme === 'light' ? 'bg-white' : 'bg-black'
+          }`}
           style={{
             paddingBottom: isMobile ? 'env(safe-area-inset-bottom)' : undefined,
           }}
@@ -570,13 +586,25 @@ const Chatbot = () => {
           {isLoading && (
             <div className="flex justify-start">
               <div className={`flex items-start space-x-2 ${isMobile ? 'max-w-[85%]' : 'max-w-[70%]'}`}>
-                <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <Bot className="h-3 w-3 text-black" />
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  theme === 'light' ? 'bg-gray-100' : 'bg-gray-800'
+                }`}>
+                  <Bot className={`h-3 w-3 ${
+                    theme === 'light' ? 'text-black' : 'text-white'
+                  }`} />
                 </div>
-                <div className="px-4 py-3 rounded-2xl bg-white border border-gray-200">
+                <div className={`px-4 py-3 rounded-2xl border ${
+                  theme === 'light'
+                    ? 'bg-white border-gray-200'
+                    : 'bg-gray-800 border-gray-700'
+                }`}>
                   <div className="flex items-center space-x-2">
-                    <Loader2 className="h-4 w-4 animate-spin text-black" />
-                    <p className="text-sm text-gray-900">Thinking...</p>
+                    <Loader2 className={`h-4 w-4 animate-spin ${
+                      theme === 'light' ? 'text-black' : 'text-white'
+                    }`} />
+                    <p className={`text-sm ${
+                      theme === 'light' ? 'text-gray-900' : 'text-white'
+                    }`}>Thinking...</p>
                   </div>
                 </div>
               </div>
@@ -592,7 +620,11 @@ const Chatbot = () => {
           <Button
             onClick={handleScrollToBottom}
             size="icon"
-            className="fixed bottom-20 right-4 sm:right-6 h-12 w-12 rounded-full shadow-lg z-10 bg-black hover:bg-gray-800 text-white"
+            className={`fixed bottom-20 right-4 sm:right-6 h-12 w-12 rounded-full shadow-lg z-10 ${
+              theme === 'light'
+                ? 'bg-black hover:bg-gray-800 text-white'
+                : 'bg-white hover:bg-gray-200 text-black'
+            }`}
           >
             <ArrowDown className="h-5 w-5" />
           </Button>
@@ -601,7 +633,11 @@ const Chatbot = () => {
         {/* Input Area */}
         <div
           data-input-area
-          className="border-t border-gray-200 bg-white p-3 sm:p-4 flex-shrink-0 relative z-50"
+          className={`border-t p-3 sm:p-4 flex-shrink-0 relative z-50 ${
+            theme === 'light'
+              ? 'border-gray-200 bg-white'
+              : 'border-gray-800 bg-black'
+          }`}
           style={{
             paddingBottom: isMobile ? `calc(1rem + env(safe-area-inset-bottom))` : undefined,
             touchAction: 'manipulation',

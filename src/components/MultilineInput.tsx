@@ -3,6 +3,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Send, AlertCircle, Paperclip, X, FileText } from 'lucide-react';
 import { chatbotConfig } from '@/config/chatbot.config';
+import { useTheme } from '@/hooks/use-theme';
 
 interface MultilineInputProps {
   value: string;
@@ -39,6 +40,7 @@ export const MultilineInput: React.FC<MultilineInputProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [characterCount, setCharacterCount] = useState(0);
   const [rows, setRows] = useState(chatbotConfig.input.minRows);
+  const { theme } = useTheme();
 
   const maxChars = chatbotConfig.input.maxCharacters;
   const enterToSend = chatbotConfig.input.enterToSend;
@@ -127,12 +129,20 @@ export const MultilineInput: React.FC<MultilineInputProps> = ({
     <div className="w-full space-y-2">
       {/* Reply Preview */}
       {replyTo && (
-        <div className="bg-gray-100 border border-gray-300 rounded-lg p-2 flex items-start justify-between gap-2">
+        <div className={`border rounded-lg p-2 flex items-start justify-between gap-2 ${
+          theme === 'light'
+            ? 'bg-gray-100 border-gray-300'
+            : 'bg-gray-800 border-gray-700'
+        }`}>
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-medium text-black mb-1">
+            <div className={`text-xs font-medium mb-1 ${
+              theme === 'light' ? 'text-black' : 'text-white'
+            }`}>
               Replying to {replyTo.sender === 'user' ? 'you' : chatbotConfig.welcome.botName}
             </div>
-            <p className="text-xs text-gray-600 truncate">{replyTo.text}</p>
+            <p className={`text-xs truncate ${
+              theme === 'light' ? 'text-gray-600' : 'text-gray-400'
+            }`}>{replyTo.text}</p>
           </div>
           {onCancelReply && (
             <Button

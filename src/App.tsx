@@ -11,6 +11,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { useTheme } from "@/hooks/use-theme";
 import Navigation from "./components/Navigation";
 import Chatbot from "./pages/Chatbot";
 import ChatbotConfiguration from "./pages/ChatbotConfiguration";
@@ -20,30 +21,42 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+const AppContent = () => {
+  const { theme } = useTheme();
+  
+  return (
+    <BrowserRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true
+      }}
+    >
+      <div className={`h-screen flex flex-col overflow-hidden ${
+        theme === 'light' ? 'bg-white' : 'bg-black'
+      }`}>
+        <Navigation />
+        <main className={`flex-1 overflow-hidden ${
+          theme === 'light' ? 'bg-white' : 'bg-black'
+        }`}>
+          <Routes>
+            <Route path="/" element={<Chatbot />} />
+            <Route path="/configuration" element={<ChatbotConfiguration />} />
+            <Route path="/performance" element={<ChatbotPerformance />} />
+            <Route path="/knowledge-base" element={<KnowledgeBaseManagement />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </main>
+      </div>
+    </BrowserRouter>
+  );
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter
-        future={{
-          v7_startTransition: true,
-          v7_relativeSplatPath: true
-        }}
-      >
-        <div className="h-screen flex flex-col overflow-hidden bg-white">
-          <Navigation />
-          <main className="flex-1 overflow-hidden bg-white">
-            <Routes>
-              <Route path="/" element={<Chatbot />} />
-              <Route path="/configuration" element={<ChatbotConfiguration />} />
-              <Route path="/performance" element={<ChatbotPerformance />} />
-              <Route path="/knowledge-base" element={<KnowledgeBaseManagement />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </main>
-        </div>
-      </BrowserRouter>
+      <AppContent />
     </TooltipProvider>
   </QueryClientProvider>
 );

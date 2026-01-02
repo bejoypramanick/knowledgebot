@@ -15,6 +15,7 @@ import {
   Reply
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-media-query';
+import { useTheme } from '@/hooks/use-theme';
 import { formatTimestampDDMMYYYY } from '@/lib/timezone-utils';
 import { chatbotConfig } from '@/config/chatbot.config';
 import { Avatar } from './Avatar';
@@ -67,6 +68,7 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
   const [copiedText, setCopiedText] = useState<string | null>(null);
   const displayTimestamp = formatTimestampDDMMYYYY(timestamp);
   const isMobile = useIsMobile();
+  const { theme } = useTheme();
 
   const handleSourceClick = (source: DocumentSource) => {
     setSelectedSource(source);
@@ -116,9 +118,14 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
             className="flex-shrink-0 mt-1" 
           />
 
-          <div className={`px-4 py-3 rounded-2xl shadow-sm ${sender === 'user'
-            ? 'bg-gray-100 border border-gray-200 text-black rounded-tr-sm'
-            : 'bg-white border border-gray-200 text-black rounded-tl-sm'
+          <div className={`px-4 py-3 rounded-2xl shadow-sm ${
+            theme === 'light'
+              ? sender === 'user'
+                ? 'bg-black text-white rounded-tr-sm'
+                : 'bg-gray-100 border border-gray-200 text-black rounded-tl-sm'
+              : sender === 'user'
+                ? 'bg-gray-800 text-white rounded-tr-sm'
+                : 'bg-gray-800 text-white rounded-tl-sm'
             }`}>
             {/* Reply To Preview */}
             {replyTo && (

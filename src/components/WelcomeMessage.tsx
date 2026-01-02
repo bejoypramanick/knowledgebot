@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Avatar } from './Avatar';
 import { SuggestedQuestions } from './SuggestedQuestions';
 import { chatbotConfig } from '@/config/chatbot.config';
+import { useTheme } from '@/hooks/use-theme';
 
 interface WelcomeMessageProps {
   onQuestionClick: (question: string) => void;
@@ -12,6 +13,7 @@ export const WelcomeMessage: React.FC<WelcomeMessageProps> = ({
 }) => {
   const [showWelcome, setShowWelcome] = useState(false);
   const [isTyping, setIsTyping] = useState(true);
+  const { theme } = useTheme();
 
   useEffect(() => {
     // Check if this is first visit
@@ -41,7 +43,11 @@ export const WelcomeMessage: React.FC<WelcomeMessageProps> = ({
     <div className="flex justify-start animate-fade-in">
       <div className="flex items-start space-x-3 max-w-[85%] sm:max-w-[70%]">
         <Avatar type="bot" size="md" isTyping={isTyping} />
-        <div className="px-4 py-3 rounded-2xl bg-white border border-gray-200">
+        <div className={`px-4 py-3 rounded-2xl border ${
+          theme === 'light'
+            ? 'bg-white border-gray-200'
+            : 'bg-gray-800 border-gray-700'
+        }`}>
           {isTyping ? (
             <div className="flex items-center space-x-2">
               <div className="flex space-x-1">
