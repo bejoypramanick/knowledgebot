@@ -646,35 +646,40 @@ const Chatbot = () => {
           </Button>
         )}
 
-        {/* Powered By */}
-        <PoweredBy />
+        {/* Bottom Section with Powered By and Input */}
+        <div className={`flex-shrink-0 ${
+          theme === 'light' ? 'bg-white' : 'bg-black'
+        }`}>
+          {/* Powered By */}
+          <PoweredBy />
 
-        {/* Input Area */}
-        <div
-          data-input-area
-          className={`border-t p-3 sm:p-4 flex-shrink-0 relative z-50 ${
-            theme === 'light'
-              ? 'border-gray-300 bg-white'
-              : 'border-gray-700 bg-black'
-          }`}
-          style={{
-            paddingBottom: isMobile ? `calc(1rem + env(safe-area-inset-bottom))` : undefined,
-            touchAction: 'manipulation',
-          }}
-        >
-          <MultilineInput
-            value={newMessage}
-            onChange={setNewMessage}
-            onSend={handleSendMessage}
-            disabled={isLoading || !sessionId}
-            placeholder={isLoading ? "Please wait..." : "Type your message..."}
-            isLoading={isLoading}
-            onFileSelect={handleFileUpload}
-            attachments={attachments}
-            onRemoveAttachment={(index) => setAttachments(prev => prev.filter((_, i) => i !== index))}
-            replyTo={replyToMessage}
-            onCancelReply={() => setReplyToMessage(null)}
-          />
+          {/* Input Area */}
+          <div
+            data-input-area
+            className={`border-t p-3 sm:p-4 relative z-50 ${
+              theme === 'light'
+                ? 'border-gray-200 bg-white'
+                : 'border-zinc-800 bg-black'
+            }`}
+            style={{
+              paddingBottom: isMobile ? `calc(1rem + env(safe-area-inset-bottom))` : undefined,
+              touchAction: 'manipulation',
+            }}
+          >
+            <MultilineInput
+              value={newMessage}
+              onChange={setNewMessage}
+              onSend={handleSendMessage}
+              disabled={isLoading || !sessionId}
+              placeholder={isLoading ? "Please wait..." : "Type your message..."}
+              isLoading={isLoading}
+              onFileSelect={handleFileUpload}
+              attachments={attachments}
+              onRemoveAttachment={(index) => setAttachments(prev => prev.filter((_, i) => i !== index))}
+              replyTo={replyToMessage}
+              onCancelReply={() => setReplyToMessage(null)}
+            />
+          </div>
         </div>
       </div>
 
