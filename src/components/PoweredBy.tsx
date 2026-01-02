@@ -6,7 +6,9 @@ export const PoweredBy: React.FC = () => {
   const { theme } = useTheme();
 
   return (
-    <div className="flex items-center justify-center py-2 px-4">
+    <div className={`flex items-center justify-center py-2 px-4 ${
+      theme === 'light' ? 'bg-white' : 'bg-black'
+    }`}>
       <div className={`flex items-center gap-2 text-xs ${
         theme === 'light' ? 'text-gray-500' : 'text-gray-400'
       }`}>

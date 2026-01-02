@@ -126,7 +126,7 @@ export const MultilineInput: React.FC<MultilineInputProps> = ({
   };
 
   return (
-    <div className="w-full space-y-2">
+    <div className={`w-full space-y-2 ${theme === 'light' ? 'bg-white' : 'bg-black'}`}>
       {/* Reply Preview */}
       {replyTo && (
         <div className={`border rounded-lg p-2 flex items-start justify-between gap-2 ${
