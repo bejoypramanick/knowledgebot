@@ -492,7 +492,9 @@ const Chatbot = () => {
     <ResponsiveLayout header={header} className={`${
       theme === 'light' ? 'bg-white' : 'bg-black'
     }`}>
-      <div className="h-full flex flex-col overflow-hidden">
+      <div className={`h-full flex flex-col overflow-hidden ${
+        theme === 'light' ? 'bg-white' : 'bg-black'
+      }`}>
         {/* Error Message */}
         {error && (
           <div className="px-4 sm:px-6 py-2 flex-shrink-0">
