@@ -648,8 +648,8 @@ const Chatbot = () => {
           data-input-area
           className={`border-t p-3 sm:p-4 flex-shrink-0 relative z-50 ${
             theme === 'light'
-              ? 'border-gray-200 bg-white'
-              : 'border-gray-800 bg-black'
+              ? 'border-gray-300 bg-white'
+              : 'border-gray-700 bg-black'
           }`}
           style={{
             paddingBottom: isMobile ? `calc(1rem + env(safe-area-inset-bottom))` : undefined,

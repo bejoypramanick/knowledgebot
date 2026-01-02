@@ -45,8 +45,8 @@ export const WelcomeMessage: React.FC<WelcomeMessageProps> = ({
         <Avatar type="bot" size="md" isTyping={isTyping} />
         <div className={`px-4 py-3 rounded-2xl ${
           theme === 'light'
-            ? 'bg-gray-100 text-black rounded-tl-sm'
-            : 'bg-gray-900 text-white rounded-tl-sm'
+            ? 'bg-gray-200 text-black rounded-tl-sm'
+            : 'bg-gray-700 text-white rounded-tl-sm'
         }`}>
           {isTyping ? (
             <div className="flex items-center space-x-2">

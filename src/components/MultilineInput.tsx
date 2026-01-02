@@ -222,7 +222,7 @@ export const MultilineInput: React.FC<MultilineInputProps> = ({
             className={`resize-none min-h-[44px] pr-12 ${getBorderColor()} ${
               isExceedingLimit ? 'focus-visible:ring-red-500' : ''
             } ${
-              theme === 'light' ? 'bg-white text-black' : 'bg-gray-900 text-white'
+              theme === 'light' ? 'bg-white text-black border-gray-300' : 'bg-gray-800 text-white border-gray-700'
             }`}
             style={{ 
               maxHeight: `${chatbotConfig.input.maxRows * 24}px`,

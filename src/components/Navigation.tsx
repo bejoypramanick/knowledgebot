@@ -48,7 +48,7 @@ const Navigation = () => {
   return (
     <nav className={`flex-shrink-0 border-b mb-4 ${
       theme === 'light'
-        ? 'border-gray-200 bg-gray-50'
+        ? 'border-gray-200 bg-gray-100'
         : 'border-gray-800 bg-black'
     }`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6">

@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { MessageCircle } from 'lucide-react';
 import { chatbotConfig } from '@/config/chatbot.config';
+import { useTheme } from '@/hooks/use-theme';
 
 interface ChatMessage {
   id: string;
@@ -93,6 +94,8 @@ export const SuggestedQuestions: React.FC<SuggestedQuestionsProps> = ({
     return null;
   }
 
+  const { theme } = useTheme();
+
   return (
     <div className={`flex flex-wrap gap-2 ${className}`}>
       {suggestions.map((suggestion, index) => (
@@ -101,7 +104,11 @@ export const SuggestedQuestions: React.FC<SuggestedQuestionsProps> = ({
           variant="outline"
           size="sm"
           onClick={() => onQuestionClick(suggestion)}
-          className="text-xs sm:text-sm h-auto py-2 px-3 rounded-full border-primary/20 hover:border-primary/40 hover:bg-primary/5 transition-all animate-fade-in"
+          className={`text-xs sm:text-sm h-auto py-2 px-3 rounded-full transition-all animate-fade-in ${
+            theme === 'light'
+              ? 'bg-black text-white border-black hover:bg-gray-800'
+              : 'bg-black text-white border-white hover:bg-gray-900'
+          }`}
           style={{ animationDelay: `${index * 50}ms` }}
         >
           <MessageCircle className="h-3 w-3 mr-1.5" />
