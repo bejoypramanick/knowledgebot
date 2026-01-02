@@ -412,8 +412,8 @@ const Chatbot = () => {
         </div>
         </div>
         
-        <ThemeToggle />
       <div className={`flex items-center gap-1 sm:gap-2 ${isMobile ? 'flex-wrap' : ''}`}>
+        <ThemeToggle />
         <Button
           variant="outline"
           size="sm"

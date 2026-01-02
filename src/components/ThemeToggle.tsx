@@ -8,7 +8,7 @@ export const ThemeToggle: React.FC = () => {
 
   return (
     <Button
-      variant="ghost"
+      variant="outline"
       size="icon"
       onClick={toggleTheme}
       className="h-9 w-9"
