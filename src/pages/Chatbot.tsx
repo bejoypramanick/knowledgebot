@@ -392,27 +392,27 @@ const Chatbot = () => {
   const { theme } = useTheme();
 
   const header = (
-    <div className="flex items-center justify-between w-full">
-        <div className="flex items-center space-x-2 sm:space-x-3">
-          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+    <div className="flex items-center justify-between w-full gap-4">
+        <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
+          <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
             theme === 'light' ? 'bg-gray-100' : 'bg-gray-800'
           }`}>
             <MessageCircle className={`h-4 w-4 ${
               theme === 'light' ? 'text-black' : 'text-white'
             }`} />
           </div>
-        <div className="flex items-center space-x-2">
-          <h1 className={`text-lg sm:text-xl font-semibold ${
-            theme === 'light' ? 'text-gray-900' : 'text-white'
-          }`}>
-            Chat with {chatbotConfig.welcome.botName}
-          </h1>
-          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-400'}`} 
-               title={isConnected ? 'Connected' : 'Disconnected'} />
-        </div>
+          <div className="flex items-center space-x-2 min-w-0">
+            <h1 className={`text-lg sm:text-xl font-semibold truncate ${
+              theme === 'light' ? 'text-gray-900' : 'text-white'
+            }`}>
+              Chat with {chatbotConfig.welcome.botName}
+            </h1>
+            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isConnected ? 'bg-green-400' : 'bg-red-400'}`} 
+                 title={isConnected ? 'Connected' : 'Disconnected'} />
+          </div>
         </div>
         
-      <div className={`flex items-center gap-1 sm:gap-2 ${isMobile ? 'flex-wrap' : ''}`}>
+      <div className={`flex items-center gap-1 sm:gap-2 flex-shrink-0 ${isMobile ? 'flex-wrap' : ''}`}>
         <ThemeToggle />
         <Button
           variant="outline"
