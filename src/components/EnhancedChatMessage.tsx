@@ -32,7 +32,7 @@ interface DocumentSource {
   hierarchy_level: number;
   similarity_score: number;
   content: string;
-  metadata: any;
+  metadata: Record<string, unknown>;
 }
 
 interface EnhancedChatMessageProps {
@@ -130,49 +130,73 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
             {/* Reply To Preview */}
             {replyTo && (
               <div 
-                className={`mb-2 pb-2 border-l-4 pl-2 pr-2 py-1 rounded cursor-pointer transition-colors ${
-                  sender === 'user' 
-                    ? 'border-gray-400 bg-gray-50 hover:bg-gray-100' 
-                    : 'border-gray-400 bg-gray-50 hover:bg-gray-100'
-                } text-xs overflow-hidden`}
+                className={`mb-2 pb-2 border-l-4 pl-2 pr-2 py-1 rounded cursor-pointer transition-colors text-xs overflow-hidden ${
+                  theme === 'light'
+                    ? sender === 'user'
+                      ? 'border-gray-400 bg-gray-50 hover:bg-gray-100'
+                      : 'border-gray-400 bg-gray-50 hover:bg-gray-100'
+                    : sender === 'user'
+                      ? 'border-gray-500 bg-gray-800 hover:bg-gray-700'
+                      : 'border-gray-500 bg-gray-800 hover:bg-gray-700'
+                }`}
                 onClick={() => onScrollToMessage?.(replyTo.id)}
                 title="Click to jump to original message"
               >
                 <div className="flex items-center gap-1 min-w-0">
-                  <Reply className="h-3 w-3 text-gray-500 flex-shrink-0" />
-                  <span className="font-medium text-gray-700 truncate">{replyTo.sender === 'user' ? 'You' : chatbotConfig.welcome.botName}</span>
+                  <Reply className={`h-3 w-3 flex-shrink-0 ${
+                    theme === 'light' ? 'text-gray-500' : 'text-gray-300'
+                  }`} />
+                  <span className={`font-medium truncate ${
+                    theme === 'light' ? 'text-gray-700' : 'text-white'
+                  }`}>{replyTo.sender === 'user' ? 'You' : chatbotConfig.welcome.botName}</span>
                 </div>
-                <p className="mt-1 text-gray-600 break-words line-clamp-2 overflow-hidden">{replyTo.text}</p>
+                <p className={`mt-1 break-words line-clamp-2 overflow-hidden ${
+                  theme === 'light' ? 'text-gray-600' : 'text-gray-200'
+                }`}>{replyTo.text}</p>
               </div>
             )}
             <div className="flex items-start justify-between gap-2 group">
-              <p className="text-[15px] leading-relaxed flex-1 whitespace-pre-wrap break-words">{text}</p>
+              <p className={`text-[15px] leading-relaxed flex-1 whitespace-pre-wrap break-words ${
+                theme === 'light'
+                  ? sender === 'user' ? 'text-white' : 'text-black'
+                  : 'text-white'
+              }`}>{text}</p>
               <div className="flex items-center gap-1">
                 {onReply && (
                   <Button
                     variant="ghost"
                     size="sm"
                     className={`h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity ${
-                      sender === 'user' ? 'hover:bg-gray-200' : 'hover:bg-gray-200'
+                      theme === 'light'
+                        ? 'hover:bg-gray-200'
+                        : 'hover:bg-gray-700'
                     }`}
                     onClick={() => onReply(id, text)}
                     title="Reply to this message"
                   >
-                    <Reply className={`h-3 w-3 ${sender === 'user' ? 'text-gray-500' : 'text-gray-500'}`} />
+                    <Reply className={`h-3 w-3 ${
+                      theme === 'light' ? 'text-gray-500' : 'text-gray-300'
+                    }`} />
                   </Button>
                 )}
                 <Button
                   variant="ghost"
                   size="sm"
                   className={`h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity ${
-                    sender === 'user' ? 'hover:bg-gray-200' : 'hover:bg-gray-200'
+                    theme === 'light'
+                      ? 'hover:bg-gray-200'
+                      : 'hover:bg-gray-700'
                   }`}
                   onClick={() => copyToClipboard(text)}
                 >
                   {copiedText === text ? (
-                    <Check className={`h-3 w-3 ${sender === 'user' ? 'text-green-600' : 'text-green-600'}`} />
+                    <Check className={`h-3 w-3 ${
+                      theme === 'light' ? 'text-green-600' : 'text-green-400'
+                    }`} />
                   ) : (
-                    <Copy className={`h-3 w-3 ${sender === 'user' ? 'text-gray-500' : 'text-gray-500'}`} />
+                    <Copy className={`h-3 w-3 ${
+                      theme === 'light' ? 'text-gray-500' : 'text-gray-300'
+                    }`} />
                   )}
                 </Button>
               </div>
@@ -263,10 +287,11 @@ const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = ({
               </div>
             )}
 
-            <div className={`flex items-center gap-1 mt-2 ${sender === 'user'
-              ? 'text-gray-500'
-              : 'text-gray-500'
-              }`}>
+            <div className={`flex items-center gap-1 mt-2 ${
+              theme === 'light'
+                ? sender === 'user' ? 'text-gray-400' : 'text-gray-500'
+                : 'text-gray-400'
+            }`}>
               <Clock className="h-3 w-3" />
               <span className="text-xs">
                 {displayTimestamp}

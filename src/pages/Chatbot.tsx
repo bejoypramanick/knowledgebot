@@ -23,6 +23,7 @@ import { MultilineInput } from "@/components/MultilineInput";
 import { WelcomeMessage } from "@/components/WelcomeMessage";
 import { SuggestedQuestions } from "@/components/SuggestedQuestions";
 import { ResponsiveLayout } from "@/components/ResponsiveLayout";
+import { PoweredBy } from "@/components/PoweredBy";
 import DocumentViewer from "@/components/DocumentViewer";
 import DocumentContextPanel from "@/components/DocumentContextPanel";
 import DocumentPreview from "@/components/DocumentPreview";
@@ -642,6 +643,9 @@ const Chatbot = () => {
             <ArrowDown className="h-5 w-5" />
           </Button>
         )}
+
+        {/* Powered By */}
+        <PoweredBy />
 
         {/* Input Area */}
         <div
