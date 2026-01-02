@@ -1,5 +1,6 @@
 import React, { ReactNode } from 'react';
 import { useIsMobile } from '@/hooks/use-media-query';
+import { useTheme } from '@/hooks/use-theme';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Menu, X } from 'lucide-react';
@@ -22,13 +23,18 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
   className = '',
 }) => {
   const isMobile = useIsMobile();
+  const { theme } = useTheme();
 
   if (isMobile) {
     return (
       <div className={`h-screen flex flex-col overflow-hidden ${className}`}>
         {/* Mobile Header */}
         {header && (
-          <div className="flex-shrink-0 border-b border-gray-200 bg-white">
+          <div className={`flex-shrink-0 border-b ${
+            theme === 'light'
+              ? 'border-gray-200 bg-white'
+              : 'border-gray-800 bg-black'
+          }`}>
             <div className="flex items-center justify-between px-4 py-3">
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 {sidebar && (
@@ -62,7 +68,11 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
     <div className={`h-screen flex flex-col overflow-hidden ${className}`}>
       {/* Desktop Header */}
       {header && (
-        <div className="flex-shrink-0 border-b border-gray-200 bg-white">
+        <div className={`flex-shrink-0 border-b ${
+          theme === 'light'
+            ? 'border-gray-200 bg-white'
+            : 'border-gray-800 bg-black'
+        }`}>
           <div className="max-w-7xl mx-auto px-6 py-4">
             {header}
           </div>
