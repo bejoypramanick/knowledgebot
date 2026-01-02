@@ -8,10 +8,10 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { MessageCircle, Bot, Loader2, FileText, Layers, Trash2, ArrowDown, X } from "lucide-react";
+import { MessageCircle, Bot, Loader2, FileText, Layers, ArrowDown, X } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-media-query";
 import { useTheme } from "@/hooks/use-theme";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { useChatContext } from "@/contexts/ChatContext";
 import { ChatbotAPI, ChatResponse } from "@/lib/chatbot-api";
 import { AWS_CONFIG } from "@/lib/aws-config";
 import { chatbotConfig } from "@/config/chatbot.config";
@@ -361,7 +361,9 @@ const Chatbot = () => {
     setAttachments(prev => [...prev, ...validFiles]);
   };
 
-  const handleClearAllChats = () => {
+  const { setOnClearChats } = useChatContext();
+
+  const handleClearAllChats = useCallback(() => {
     setMessages([]);
     setAllSources([]);
     setSelectedSource(null);
@@ -370,7 +372,13 @@ const Chatbot = () => {
     setReplyToMessage(null);
     setAttachments([]);
     notificationService.markAsRead();
-  };
+  }, []);
+
+  // Register clear handler with context
+  useEffect(() => {
+    setOnClearChats(() => handleClearAllChats);
+    return () => setOnClearChats(null);
+  }, [setOnClearChats, handleClearAllChats]);
 
   const handleScrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -413,24 +421,17 @@ const Chatbot = () => {
         </div>
         
       <div className={`flex items-center gap-1 sm:gap-2 flex-shrink-0 ${isMobile ? 'flex-wrap' : ''}`}>
-        <ThemeToggle />
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleClearAllChats}
-          className="bg-white border-gray-200 hover:bg-gray-50"
-          title="Clear all chats"
-        >
-          <Trash2 className="h-4 w-4 sm:mr-1" />
-          {!isMobile && "Clear All"}
-        </Button>
         {allSources.length > 0 && (
           <>
             <Button
               variant="outline"
               size="sm"
               onClick={() => setShowDocumentViewer(true)}
-              className="bg-white border-gray-200 hover:bg-gray-50"
+              className={`${
+                theme === 'light'
+                  ? 'bg-white border-gray-200 hover:bg-gray-50 text-gray-700'
+                  : 'bg-gray-900 border-gray-700 hover:bg-gray-800 text-gray-200'
+              }`}
               title="View Sources"
             >
               <FileText className="h-4 w-4 sm:mr-1" />
@@ -440,7 +441,11 @@ const Chatbot = () => {
               variant="outline"
               size="sm"
               onClick={() => setShowContextPanel(true)}
-              className="bg-white border-gray-200 hover:bg-gray-50"
+              className={`${
+                theme === 'light'
+                  ? 'bg-white border-gray-200 hover:bg-gray-50 text-gray-700'
+                  : 'bg-gray-900 border-gray-700 hover:bg-gray-800 text-gray-200'
+              }`}
               title="Structure"
             >
               <Layers className="h-4 w-4 sm:mr-1" />
@@ -452,7 +457,11 @@ const Chatbot = () => {
           variant="outline"
           size="sm"
           onClick={() => setShowStructureSearch(true)}
-          className="bg-white border-gray-200 hover:bg-gray-50"
+          className={`${
+            theme === 'light'
+              ? 'bg-white border-gray-200 hover:bg-gray-50 text-gray-700'
+              : 'bg-gray-900 border-gray-700 hover:bg-gray-800 text-gray-200'
+          }`}
           title="Search"
         >
           <FileText className="h-4 w-4 sm:mr-1" />
@@ -463,7 +472,11 @@ const Chatbot = () => {
             variant="outline"
             size="sm"
             onClick={() => setShowDocumentStructure(true)}
-            className="bg-white border-gray-200 hover:bg-gray-50"
+            className={`${
+              theme === 'light'
+                ? 'bg-white border-gray-200 hover:bg-gray-50 text-gray-700'
+                : 'bg-gray-900 border-gray-700 hover:bg-gray-800 text-gray-200'
+            }`}
             title="Doc Structure"
           >
             <Layers className="h-4 w-4 sm:mr-1" />

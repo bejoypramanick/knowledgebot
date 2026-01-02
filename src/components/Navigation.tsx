@@ -1,21 +1,22 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { MessageCircle, Settings, BarChart3, Database, Menu } from "lucide-react";
+import { MessageCircle, Settings, BarChart3, Database, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/hooks/use-media-query";
 import { useTheme } from "@/hooks/use-theme";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { useChatContext } from "@/contexts/ChatContext";
+import { ThemeToggle } from "./ThemeToggle";
 import UploadDocumentButton from "./UploadDocumentButton";
 
 const Navigation = () => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const isMobile = useIsMobile();
   const location = useLocation();
   const { theme } = useTheme();
+  const { onClearChats } = useChatContext();
   
   // Show upload button only on knowledge-base page
   const showUploadButton = location.pathname === '/knowledge-base';
+  const isChatPage = location.pathname === '/';
   
   const navItems = [
     {
@@ -44,115 +45,87 @@ const Navigation = () => {
     },
   ];
 
-  const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen);
-  };
-
-  const closeMenu = () => {
-    setIsMenuOpen(false);
-  };
-
   return (
-    <>
-      {/* Dashboard Header */}
-      <nav className={`flex-shrink-0 border-b ${
-        theme === 'light'
-          ? 'border-gray-200 bg-gray-50'
-          : 'border-gray-800 bg-black'
-      }`}>
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3">
-          <div className="flex items-center space-x-2">
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+    <nav className={`flex-shrink-0 border-b mb-4 ${
+      theme === 'light'
+        ? 'border-gray-200 bg-gray-50'
+        : 'border-gray-800 bg-black'
+    }`}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
+        <div className="flex items-center justify-between py-3 gap-4">
+          {/* Left: Logo and Navigation Items */}
+          <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
               theme === 'light' ? 'bg-gray-100' : 'bg-gray-800'
             }`}>
               <Settings className={`h-4 w-4 ${
                 theme === 'light' ? 'text-black' : 'text-white'
               }`} />
             </div>
-            <h1 className={`text-lg sm:text-xl font-bold ${
+            <h1 className={`text-lg sm:text-xl font-bold flex-shrink-0 ${
               theme === 'light' ? 'text-gray-900' : 'text-white'
             }`}>Dashboard</h1>
+            
+            {/* Navigation Items */}
+            <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto scrollbar-hide flex-1">
+              {navItems.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-all duration-200 text-sm whitespace-nowrap flex-shrink-0",
+                      isActive
+                        ? theme === 'light'
+                          ? "bg-gray-100 text-gray-900 font-medium"
+                          : "bg-gray-800 text-white font-medium"
+                        : theme === 'light'
+                          ? "text-gray-700 hover:bg-gray-100"
+                          : "text-gray-300 hover:bg-gray-800"
+                    )
+                  }
+                >
+                  <item.icon className="h-4 w-4 flex-shrink-0" />
+                  <span className="hidden sm:inline">{item.label}</span>
+                  <span className="sm:hidden">{item.shortLabel}</span>
+                </NavLink>
+              ))}
+            </div>
           </div>
-          
-          {/* Menu Button */}
-          <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-            <SheetTrigger asChild>
+
+          {/* Right: Action Buttons */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {isChatPage && onClearChats && (
               <Button
                 variant="outline"
-                size="icon"
-                className={`h-9 w-9 ${
+                size="sm"
+                onClick={onClearChats}
+                className={`${
                   theme === 'light'
-                    ? 'bg-white border-gray-200 hover:bg-gray-50'
-                    : 'bg-gray-800 border-gray-700 hover:bg-gray-700 text-white'
+                    ? 'bg-white border-gray-200 hover:bg-gray-50 text-gray-700'
+                    : 'bg-gray-900 border-gray-700 hover:bg-gray-800 text-gray-200'
                 }`}
-                onClick={toggleMenu}
+                title="Clear all chats"
               >
-                <Menu className="h-5 w-5" />
+                <Trash2 className="h-4 w-4 sm:mr-1" />
+                {!isMobile && "Clear All"}
               </Button>
-            </SheetTrigger>
-            <SheetContent 
-              side="left" 
-              className={`w-80 p-0 ${
-                theme === 'light' ? 'bg-white' : 'bg-gray-900'
-              }`}
-            >
-              <div className={`h-full flex flex-col ${
-                theme === 'light' ? 'bg-white' : 'bg-gray-900'
-              }`}>
-                {/* Header */}
-                <div className={`flex items-center px-6 py-4 border-b ${
-                  theme === 'light' ? 'border-gray-200' : 'border-gray-700'
-                }`}>
-                  <div className="flex items-center space-x-2">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                      theme === 'light' ? 'bg-gray-100' : 'bg-gray-800'
-                    }`}>
-                      <Settings className={`h-4 w-4 ${
-                        theme === 'light' ? 'text-black' : 'text-white'
-                      }`} />
-                    </div>
-                    <h1 className={`text-lg font-bold ${
-                      theme === 'light' ? 'text-gray-900' : 'text-white'
-                    }`}>Dashboard</h1>
-                  </div>
-                </div>
-
-                {/* Navigation Items */}
-                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
-                  {navItems.map((item) => (
-                    <NavLink
-                      key={item.to}
-                      to={item.to}
-                      onClick={closeMenu}
-                      className={({ isActive }) =>
-                        cn(
-                          "flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-300",
-                          isActive
-                            ? theme === 'light'
-                              ? "bg-gray-100 text-gray-900"
-                              : "bg-gray-800 text-white"
-                            : theme === 'light'
-                              ? "text-gray-700 hover:bg-gray-50"
-                              : "text-gray-300 hover:bg-gray-800"
-                        )
-                      }
-                    >
-                      <item.icon className="h-5 w-5" />
-                      <span className="font-medium text-sm">{item.label}</span>
-                    </NavLink>
-                  ))}
-                  {showUploadButton && (
-                    <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                      <UploadDocumentButton />
-                    </div>
-                  )}
-                </div>
+            )}
+            <ThemeToggle />
+            {showUploadButton && (
+              <div className="hidden sm:block">
+                <UploadDocumentButton />
               </div>
-            </SheetContent>
-          </Sheet>
+            )}
+          </div>
         </div>
-      </nav>
-    </>
+        {showUploadButton && isMobile && (
+          <div className="pb-2">
+            <UploadDocumentButton />
+          </div>
+        )}
+      </div>
+    </nav>
   );
 };
 

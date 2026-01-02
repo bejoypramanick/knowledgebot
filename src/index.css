@@ -278,4 +278,13 @@ All colors MUST be HSL.
       background-color: rgba(59, 130, 246, 0.1);
     }
   }
+
+  /* Hide scrollbar for horizontal scroll */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
 }

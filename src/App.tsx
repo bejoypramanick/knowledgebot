@@ -12,6 +12,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useTheme } from "@/hooks/use-theme";
+import { ChatProvider } from "@/contexts/ChatContext";
 import Navigation from "./components/Navigation";
 import Chatbot from "./pages/Chatbot";
 import ChatbotConfiguration from "./pages/ChatbotConfiguration";
@@ -31,22 +32,24 @@ const AppContent = () => {
         v7_relativeSplatPath: true
       }}
     >
-      <div className={`h-screen flex flex-col overflow-hidden ${
-        theme === 'light' ? 'bg-white' : 'bg-black'
-      }`}>
-        <Navigation />
-        <main className={`flex-1 overflow-hidden ${
+      <ChatProvider>
+        <div className={`h-screen flex flex-col overflow-hidden ${
           theme === 'light' ? 'bg-white' : 'bg-black'
         }`}>
-          <Routes>
-            <Route path="/" element={<Chatbot />} />
-            <Route path="/configuration" element={<ChatbotConfiguration />} />
-            <Route path="/performance" element={<ChatbotPerformance />} />
-            <Route path="/knowledge-base" element={<KnowledgeBaseManagement />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </main>
-      </div>
+          <Navigation />
+          <main className={`flex-1 overflow-hidden ${
+            theme === 'light' ? 'bg-white' : 'bg-black'
+          }`}>
+            <Routes>
+              <Route path="/" element={<Chatbot />} />
+              <Route path="/configuration" element={<ChatbotConfiguration />} />
+              <Route path="/performance" element={<ChatbotPerformance />} />
+              <Route path="/knowledge-base" element={<KnowledgeBaseManagement />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </main>
+        </div>
+      </ChatProvider>
     </BrowserRouter>
   );
 };
