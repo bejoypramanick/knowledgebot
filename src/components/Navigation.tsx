@@ -90,66 +90,68 @@ const Navigation = () => {
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-        <SheetContent 
-          side="left" 
-          className={`w-80 p-0 ${
-            theme === 'light' ? 'bg-white' : 'bg-gray-900'
-          }`}
-        >
-          <div className={`h-full flex flex-col ${
-            theme === 'light' ? 'bg-white' : 'bg-gray-900'
-          }`}>
-            {/* Header */}
-            <div className={`flex items-center px-6 py-4 border-b ${
-              theme === 'light' ? 'border-gray-200' : 'border-gray-700'
-            }`}>
-              <div className="flex items-center space-x-2">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                  theme === 'light' ? 'bg-gray-100' : 'bg-gray-800'
+            <SheetContent 
+              side="left" 
+              className={`w-80 p-0 ${
+                theme === 'light' ? 'bg-white' : 'bg-gray-900'
+              }`}
+            >
+              <div className={`h-full flex flex-col ${
+                theme === 'light' ? 'bg-white' : 'bg-gray-900'
+              }`}>
+                {/* Header */}
+                <div className={`flex items-center px-6 py-4 border-b ${
+                  theme === 'light' ? 'border-gray-200' : 'border-gray-700'
                 }`}>
-                  <Settings className={`h-4 w-4 ${
-                    theme === 'light' ? 'text-black' : 'text-white'
-                  }`} />
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                      theme === 'light' ? 'bg-gray-100' : 'bg-gray-800'
+                    }`}>
+                      <Settings className={`h-4 w-4 ${
+                        theme === 'light' ? 'text-black' : 'text-white'
+                      }`} />
+                    </div>
+                    <h1 className={`text-lg font-bold ${
+                      theme === 'light' ? 'text-gray-900' : 'text-white'
+                    }`}>Dashboard</h1>
+                  </div>
                 </div>
-                <h1 className={`text-lg font-bold ${
-                  theme === 'light' ? 'text-gray-900' : 'text-white'
-                }`}>Dashboard</h1>
-              </div>
-            </div>
 
-            {/* Navigation Items */}
-            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
-              {navItems.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  onClick={closeMenu}
-                  className={({ isActive }) =>
-                    cn(
-                      "flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-300",
-                      isActive
-                        ? theme === 'light'
-                          ? "bg-gray-100 text-gray-900"
-                          : "bg-gray-800 text-white"
-                        : theme === 'light'
-                          ? "text-gray-700 hover:bg-gray-50"
-                          : "text-gray-300 hover:bg-gray-800"
-                    )
-                  }
-                >
-                  <item.icon className="h-5 w-5" />
-                  <span className="font-medium text-sm">{item.label}</span>
-                </NavLink>
-              ))}
-              {showUploadButton && (
-                <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                  <UploadDocumentButton />
+                {/* Navigation Items */}
+                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
+                  {navItems.map((item) => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      onClick={closeMenu}
+                      className={({ isActive }) =>
+                        cn(
+                          "flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-300",
+                          isActive
+                            ? theme === 'light'
+                              ? "bg-gray-100 text-gray-900"
+                              : "bg-gray-800 text-white"
+                            : theme === 'light'
+                              ? "text-gray-700 hover:bg-gray-50"
+                              : "text-gray-300 hover:bg-gray-800"
+                        )
+                      }
+                    >
+                      <item.icon className="h-5 w-5" />
+                      <span className="font-medium text-sm">{item.label}</span>
+                    </NavLink>
+                  ))}
+                  {showUploadButton && (
+                    <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                      <UploadDocumentButton />
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
+      </nav>
     </>
   );
 };
