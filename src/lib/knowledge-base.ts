@@ -400,9 +400,9 @@ export class KnowledgeBaseManager {
           originalUrl = `https://${scrapedDomain}`;
         }
 
-        // Use gemini_file_name as the primary identifier for deletion
-        // This should be the Gemini file name like 'files/xyz123'
-        const documentId = doc.gemini_file_name || doc.key || doc.name || String(doc.id) || Math.random().toString();
+        // Use database ID as the primary identifier (for download/delete operations)
+        // The backend now expects database ID (UUID) for both download and delete endpoints
+        const documentId = String(doc.id || doc.key || Math.random().toString());
         console.log('Document ID assignment:', {
           id: doc.id,
           key: doc.key,
@@ -412,7 +412,7 @@ export class KnowledgeBaseManager {
         });
         
         return {
-          id: documentId,
+          id: documentId, // Database ID (UUID)
           name: name,
           type: extension,
           status: (doc.status || 'processed') as 'uploaded' | 'processing' | 'processed' | 'failed',
@@ -451,15 +451,13 @@ export class KnowledgeBaseManager {
     try {
       console.log('deleteDocument called with documentKey:', documentKey);
 
-      // Extract just the file ID if the key is in 'files/xyz123' format
-      // The backend will normalize it to the proper Gemini format
-      const fileId = documentKey.startsWith('files/')
-        ? documentKey.substring(6)  // Remove 'files/' prefix
-        : documentKey;
+      // The backend now expects database ID (UUID), not Gemini file name
+      // documentKey should already be the database ID from doc.id
+      const fileId = documentKey;
 
-      console.log('deleteDocument - extracted fileId:', fileId, 'from documentKey:', documentKey);
+      console.log('deleteDocument - using fileId (database ID):', fileId);
 
-      // Use DELETE method with the file ID as path parameter
+      // Use DELETE method with the database ID as path parameter
       const response = await axios.delete(`${this.apiBaseUrl}/api/v1/knowledgebase/files/${encodeURIComponent(fileId)}`);
       console.log('deleteDocument - API response:', response.status, response.data);
 
@@ -556,8 +554,10 @@ export class KnowledgeBaseManager {
 
   async getSignedDownloadUrl(fileId: string, expirationSeconds: number = 3600): Promise<string> {
     try {
+      // Use the signed-url endpoint, not the download endpoint
+      // The download endpoint streams files directly, while signed-url returns a URL
       const response = await axios.get(
-        `${this.apiBaseUrl}/api/v1/knowledgebase/files/${encodeURIComponent(fileId)}/download`,
+        `${this.apiBaseUrl}/api/v1/knowledgebase/files/${encodeURIComponent(fileId)}/signed-url`,
         { params: { expiration: expirationSeconds } }
       );
       
