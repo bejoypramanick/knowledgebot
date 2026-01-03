@@ -1,9 +1,17 @@
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect, useRef } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Edit, Trash2, Filter, FileText, Database as DatabaseIcon, Loader2, Upload } from "lucide-react";
+import { 
+  Search, 
+  Trash2, 
+  Upload, 
+  Loader2, 
+  FolderOpen,
+  Globe,
+  FileText,
+  ChevronDown
+} from "lucide-react";
 import {
   Table,
   TableBody,
@@ -12,9 +20,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { KnowledgeBaseManager, Document, DocumentMetadata } from "@/lib/knowledge-base";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { KnowledgeBaseManager, Document } from "@/lib/knowledge-base";
 import { AWS_CONFIG } from "@/lib/aws-config";
-import UploadDocumentButton from "@/components/UploadDocumentButton";
+import { useTheme } from "@/hooks/use-theme";
 
 const KnowledgeBaseManagement = () => {
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -22,48 +37,25 @@ const KnowledgeBaseManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  
+  // Upload state
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [scrapeUrl, setScrapeUrl] = useState('');
-  const [isScraping, setIsScraping] = useState(false);
-
-  const handleScrape = async () => {
-    if (!scrapeUrl) return;
-
-    // Basic URL validation
-    try {
-      new URL(scrapeUrl);
-    } catch (_) {
-      setError('Please enter a valid URL (e.g., https://example.com)');
-      return;
-    }
-
-    try {
-      setIsScraping(true);
-      setError(null);
-      setSuccess(null);
-
-      console.log(`Starting scrape for ${scrapeUrl}`);
-      const response = await knowledgeBaseManager.scrapeWebsite(scrapeUrl);
-      console.log('Scrape started:', response);
-
-      setSuccess(`Scraping started for ${scrapeUrl}. Content will appear in the list once processed.`);
-      setScrapeUrl('');
-
-      // Reload documents list after 2 seconds
-      setTimeout(() => {
-        loadDocuments();
-      }, 2000);
-
-    } catch (err: any) {
-      console.error('Scrape error:', err);
-      setError(err.message || 'Failed to start scraping');
-    } finally {
-      setIsScraping(false);
-    }
-  };
-
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // URL crawl state
+  const [urlProtocol, setUrlProtocol] = useState('https://');
+  const [urlPath, setUrlPath] = useState('');
+  const [sitemapProtocol, setSitemapProtocol] = useState('https://');
+  const [sitemapPath, setSitemapPath] = useState('');
+  const [isFetching, setIsFetching] = useState(false);
+  
+  const { theme } = useTheme();
   const knowledgeBaseManager = new KnowledgeBaseManager(AWS_CONFIG.endpoints.pharmaApiGateway);
+
+  // Supported file formats
+  const supportedFormats = ['docx', 'pdf', 'txt', 'ppt', 'xlsx', 'png', 'jpg', 'mp3', 'wav', 'html', 'yaml', 'json', 'xml'];
 
   // Load documents on component mount
   useEffect(() => {
@@ -73,21 +65,16 @@ const KnowledgeBaseManagement = () => {
   const loadDocuments = async () => {
     try {
       setIsLoading(true);
-      console.log('Loading documents...');
       const response = await knowledgeBaseManager.getDocuments();
-      console.log('Raw API response:', response);
-
-      // Transform the response data to match our Document interface
+      
       const transformedDocuments = (response.documents || []).map((doc: any) => {
-        console.log('Processing document:', doc);
-
-        // Use original_name from Pharma backend API response
         const originalName = doc.original_name || doc.filename || 'Unknown Document';
-
+        const extension = originalName.split('.').pop()?.toUpperCase() || 'TXT';
+        
         return {
           id: doc.key || doc.chunk_id || doc.document_id || Math.random().toString(),
-          name: originalName, // Use the original filename
-          type: doc.metadata?.document_type || 'txt',
+          name: originalName,
+          type: extension.toLowerCase(),
           status: doc.status || 'processed',
           chunks: doc.chunks_count ? [doc] : [],
           metadata: {
@@ -96,20 +83,128 @@ const KnowledgeBaseManagement = () => {
             tags: doc.metadata?.tags || [],
             author: doc.metadata?.author || 'unknown',
             sourceUrl: doc.metadata?.sourceUrl,
-            key: doc.key // Store S3 key for deletion
+            key: doc.key
           },
           createdAt: doc.last_modified || doc.created_at || doc.processed_at || new Date().toISOString(),
           updatedAt: doc.last_modified || doc.created_at || doc.processed_at || new Date().toISOString()
         };
       });
 
-      console.log('Transformed documents:', transformedDocuments);
       setDocuments(transformedDocuments);
     } catch (err) {
       console.error('Error loading documents:', err);
       setError('Failed to load documents');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleFileUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    
+    const file = files[0];
+    
+    try {
+      setIsUploading(true);
+      setUploadProgress(0);
+      setError(null);
+      setSuccess(null);
+
+      // Simulate upload progress
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return prev;
+          }
+          return prev + 10;
+        });
+      }, 200);
+
+      await knowledgeBaseManager.uploadDocument(file, { title: file.name });
+      
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+      setSuccess(`Document "${file.name}" uploaded successfully!`);
+      
+      // Reload documents
+      setTimeout(() => {
+        loadDocuments();
+        setSuccess(null);
+      }, 2000);
+
+    } catch (err: any) {
+      console.error('Upload error:', err);
+      setError(err.message || 'Failed to upload document');
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    handleFileUpload(e.dataTransfer.files);
+  };
+
+  const handleFetchData = async () => {
+    const fullUrl = urlPath ? `${urlProtocol}${urlPath}` : '';
+    const fullSitemap = sitemapPath ? `${sitemapProtocol}${sitemapPath}` : '';
+    
+    if (!fullUrl && !fullSitemap) {
+      setError('Please enter a URL or sitemap');
+      return;
+    }
+
+    try {
+      setIsFetching(true);
+      setError(null);
+      setSuccess(null);
+
+      // Scrape the URL
+      if (fullUrl) {
+        await knowledgeBaseManager.scrapeWebsite(fullUrl);
+        
+        // Auto-populate sitemap if not already set
+        if (!sitemapPath) {
+          try {
+            const url = new URL(fullUrl);
+            setSitemapPath(`${url.hostname}/sitemap.xml`);
+          } catch (e) {
+            // Ignore URL parsing errors
+          }
+        }
+      }
+
+      // If sitemap is provided, also crawl it
+      if (fullSitemap && fullSitemap !== fullUrl) {
+        await knowledgeBaseManager.scrapeWebsite(fullSitemap);
+      }
+
+      setSuccess('Data fetching started! Content will appear in the list once processed.');
+      setUrlPath('');
+      
+      // Reload documents after delay
+      setTimeout(() => {
+        loadDocuments();
+      }, 3000);
+
+    } catch (err: any) {
+      console.error('Fetch error:', err);
+      setError(err.message || 'Failed to fetch data');
+    } finally {
+      setIsFetching(false);
     }
   };
 
@@ -122,12 +217,9 @@ const KnowledgeBaseManagement = () => {
       setIsLoading(true);
       setError(null);
 
-      // Call delete-document API
       const response = await fetch(`${AWS_CONFIG.endpoints.pharmaApiGateway}/delete-document`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ document_key: documentKey })
       });
 
@@ -135,17 +227,10 @@ const KnowledgeBaseManagement = () => {
         throw new Error(`Failed to delete document: ${response.statusText}`);
       }
 
-      const result = await response.json();
-      console.log('Delete result:', result);
-
       setSuccess(`Document "${documentName}" deleted successfully!`);
-
-      // Reload documents
       await loadDocuments();
 
-      setTimeout(() => {
-        setSuccess(null);
-      }, 2000);
+      setTimeout(() => setSuccess(null), 2000);
     } catch (err: any) {
       console.error('Error deleting document:', err);
       setError(err.message || 'Failed to delete document');
@@ -154,331 +239,395 @@ const KnowledgeBaseManagement = () => {
     }
   };
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const filteredDocuments = documents.filter(doc => {
+    if (!doc) return false;
+    return (doc.name || '').toLowerCase().includes(searchTerm.toLowerCase());
+  });
 
+  const getFileTypeDisplay = (type: string): string => {
+    const typeMap: Record<string, string> = {
+      'pdf': 'PDF',
+      'docx': 'Doc.x',
+      'doc': 'Doc',
+      'txt': 'TXT',
+      'png': 'PNG',
+      'jpg': 'JPG',
+      'jpeg': 'JPEG',
+      'html': 'HTML',
+      'url': 'URL',
+      'xml': 'XML',
+      'json': 'JSON',
+    };
+    return typeMap[type.toLowerCase()] || type.toUpperCase();
+  };
+
+  const formatDate = (dateString: string): string => {
     try {
-      setIsUploading(true);
-      setUploadProgress(0);
-      setError(null);
-      setSuccess(null);
-
-      console.log(`Starting upload for ${file.name}`);
-
-      // Step 1: Get presigned URL (10% progress)
-      setUploadProgress(10);
-      const presignedUrlData = await knowledgeBaseManager.getPresignedUploadUrl(file);
-      console.log('Got presigned URL:', presignedUrlData);
-
-      // Step 2: Upload to S3 (10-90% progress)
-      setUploadProgress(20);
-      await knowledgeBaseManager.uploadToS3(file, presignedUrlData.presigned_url, {}, (progress) => {
-        setUploadProgress(progress);
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', {
+        month: '2-digit',
+        day: '2-digit',
+        year: 'numeric'
       });
-
-      // Note: Processing should be triggered via WebSocket from the UploadDocumentButton component
-      // This simple upload handler just uploads to S3
-      setUploadProgress(100);
-      setSuccess(`Document "${file.name}" uploaded successfully! Please use the Upload Document button for full processing.`);
-
-      // Reload documents list after 2 seconds
-      setTimeout(() => {
-        loadDocuments();
-      }, 2000);
-
-    } catch (err: any) {
-      console.error('Upload error:', err);
-      setError(err.message || 'Failed to upload document');
-    } finally {
-      setIsUploading(false);
-      setUploadProgress(0);
-      // Reset file input
-      event.target.value = '';
+    } catch {
+      return 'Unknown';
     }
   };
 
-
-  const filteredDocuments = documents.filter(doc => {
-    if (!doc) return false;
-    return (
-      (doc.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (doc.metadata?.category || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (doc.metadata?.author || '').toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  });
   return (
-    <div className="h-full bg-gradient-secondary overflow-y-auto">
-      <div className="p-6 max-w-7xl mx-auto space-y-8 animate-fade-in">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground mb-2">Knowledge-base Management</h1>
-            <p className="text-muted-foreground">Manage your AI assistant's knowledge and training data</p>
-          </div>
-          <div className="flex items-center space-x-2">
-            <UploadDocumentButton
-              onUploadSuccess={loadDocuments}
-            />
-          </div>
+    <div className={`h-full overflow-y-auto ${
+      theme === 'light' ? 'bg-white' : 'bg-black'
+    }`}>
+      <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <div>
+          <h1 className={`text-2xl sm:text-3xl font-semibold ${
+            theme === 'light' ? 'text-black' : 'text-white'
+          }`}>
+            Knowledge-base management
+          </h1>
         </div>
 
-        {/* Upload Progress Bar */}
-        {isUploading && uploadProgress > 0 && (
-          <Card className="backdrop-blur-sm bg-card/80 border-border/20">
-            <CardContent className="p-4">
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Uploading document...</span>
-                  <span>{uploadProgress}%</span>
-                </div>
-                <div className="w-full bg-muted rounded-full h-2">
-                  <div
-                    className="bg-primary h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${uploadProgress}%` }}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Web Scraping Input */}
-        <Card className="backdrop-blur-sm bg-card/80 border-border/20">
-          <CardContent className="p-6">
-            <h3 className="text-lg font-semibold mb-4 flex items-center">
-              <span className="mr-2">🌐</span> Add Knowledge from Website
-            </h3>
-            <div className="flex gap-4 items-end">
-              <div className="flex-1 space-y-2">
-                <Input
-                  placeholder="Enter website URL (e.g., https://docs.example.com)"
-                  value={scrapeUrl}
-                  onChange={(e) => setScrapeUrl(e.target.value)}
-                  className="bg-muted/30 border-border/20 text-white"
-                  disabled={isScraping}
-                />
-              </div>
-              <Button
-                onClick={handleScrape}
-                disabled={!scrapeUrl || isScraping}
-                className="bg-gradient-primary border-0 shadow-glow"
-              >
-                {isScraping ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Scraping...
-                  </>
-                ) : (
-                  <>
-                    <Search className="h-4 w-4 mr-2" />
-                    Scrape Website
-                  </>
-                )}
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              The crawler will extract text content from the URL and add it to the knowledge base. Max depth: 2, Max pages: 10.
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Success Message */}
+        {/* Success/Error Messages */}
         {success && (
-          <Card className="backdrop-blur-sm bg-green-500/10 border-green-500/20">
-            <CardContent className="p-4">
-              <p className="text-green-500">{success}</p>
-            </CardContent>
-          </Card>
+          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
+            {success}
+          </div>
         )}
-
-        {/* Error Message */}
         {error && (
-          <Card className="backdrop-blur-sm bg-red-500/10 border-red-500/20">
-            <CardContent className="p-4">
-              <p className="text-red-500">{error}</p>
-            </CardContent>
-          </Card>
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            {error}
+          </div>
         )}
 
-        {/* Search and Filters */}
-        <Card className="backdrop-blur-sm bg-card/80 border-border/20 shadow-card">
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        {/* Main Content - Upload and Crawl sections side by side on desktop */}
+        <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
+          {/* UPLOAD FILE Section */}
+          <Card className={`${
+            theme === 'light' 
+              ? 'bg-white border-gray-200' 
+              : 'bg-zinc-900 border-zinc-800'
+          }`}>
+            <CardContent className="p-6">
+              <h3 className={`text-sm font-semibold mb-4 uppercase tracking-wide ${
+                theme === 'light' ? 'text-black' : 'text-white'
+              }`}>
+                UPLOAD FILE
+              </h3>
+              
+              {/* Drag and Drop Area */}
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+                className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+                  isDragging 
+                    ? 'border-blue-500 bg-blue-50' 
+                    : theme === 'light'
+                      ? 'border-gray-300 hover:border-gray-400'
+                      : 'border-zinc-600 hover:border-zinc-500'
+                }`}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={(e) => handleFileUpload(e.target.files)}
+                  accept={supportedFormats.map(f => `.${f}`).join(',')}
+                />
+                <p className={`mb-4 ${
+                  theme === 'light' ? 'text-gray-500' : 'text-gray-400'
+                }`}>
+                  Drag and drop a file here or click
+                </p>
+                <Button
+                  className={`${
+                    theme === 'light'
+                      ? 'bg-black text-white hover:bg-gray-800'
+                      : 'bg-white text-black hover:bg-gray-200'
+                  }`}
+                  disabled={isUploading}
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    'Upload'
+                  )}
+                </Button>
+              </div>
+
+              {/* Supported Formats */}
+              <div className={`flex items-center gap-2 mt-4 text-sm ${
+                theme === 'light' ? 'text-gray-600' : 'text-gray-400'
+              }`}>
+                <FolderOpen className="h-4 w-4" />
+                <span>Formats: {supportedFormats.join(', ')}</span>
+              </div>
+
+              {/* Upload Progress */}
+              {isUploading && uploadProgress > 0 && (
+                <div className="mt-4">
+                  <div className={`flex items-center gap-2 text-sm mb-2 ${
+                    theme === 'light' ? 'text-gray-600' : 'text-gray-400'
+                  }`}>
+                    <FolderOpen className="h-4 w-4" />
+                    <span>Uploading</span>
+                    <div className="flex-1 mx-2">
+                      <div className={`h-2 rounded-full ${
+                        theme === 'light' ? 'bg-gray-200' : 'bg-zinc-700'
+                      }`}>
+                        <div
+                          className="h-2 bg-blue-500 rounded-full transition-all"
+                          style={{ width: `${uploadProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Add crawl links Section */}
+          <Card className={`${
+            theme === 'light' 
+              ? 'bg-white border-gray-200' 
+              : 'bg-zinc-900 border-zinc-800'
+          }`}>
+            <CardContent className="p-6">
+              <h3 className={`text-sm font-semibold mb-4 ${
+                theme === 'light' ? 'text-black' : 'text-white'
+              }`}>
+                Add crawl links
+              </h3>
+              
+              <div className="space-y-4">
+                {/* URL Input */}
+                <div className="flex items-center gap-2">
+                  <div className={`flex items-center border rounded-full px-4 py-2 ${
+                    theme === 'light' ? 'border-gray-300 bg-white' : 'border-zinc-600 bg-zinc-800'
+                  }`}>
+                    <span className={`text-sm mr-1 ${
+                      theme === 'light' ? 'text-gray-600' : 'text-gray-400'
+                    }`}>URL:</span>
+                    <Select value={urlProtocol} onValueChange={setUrlProtocol}>
+                      <SelectTrigger className={`border-0 p-0 h-auto w-auto text-sm shadow-none focus:ring-0 ${
+                        theme === 'light' ? 'text-black' : 'text-white'
+                      }`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="https://">https://</SelectItem>
+                        <SelectItem value="http://">http://</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      value={urlPath}
+                      onChange={(e) => setUrlPath(e.target.value)}
+                      placeholder="example.com/page"
+                      className={`border-0 shadow-none focus-visible:ring-0 flex-1 min-w-[200px] ${
+                        theme === 'light' ? 'bg-white text-black' : 'bg-zinc-800 text-white'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                {/* Sitemap Input */}
+                <div className="flex items-center gap-2">
+                  <div className={`flex items-center border rounded-full px-4 py-2 ${
+                    theme === 'light' ? 'border-gray-300 bg-white' : 'border-zinc-600 bg-zinc-800'
+                  }`}>
+                    <span className={`text-sm mr-1 ${
+                      theme === 'light' ? 'text-gray-600' : 'text-gray-400'
+                    }`}>Sitemap:</span>
+                    <Select value={sitemapProtocol} onValueChange={setSitemapProtocol}>
+                      <SelectTrigger className={`border-0 p-0 h-auto w-auto text-sm shadow-none focus:ring-0 ${
+                        theme === 'light' ? 'text-black' : 'text-white'
+                      }`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="https://">https://</SelectItem>
+                        <SelectItem value="http://">http://</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      value={sitemapPath}
+                      onChange={(e) => setSitemapPath(e.target.value)}
+                      placeholder="example.com/sitemap.xml"
+                      className={`border-0 shadow-none focus-visible:ring-0 flex-1 min-w-[200px] ${
+                        theme === 'light' ? 'bg-white text-black' : 'bg-zinc-800 text-white'
+                      }`}
+                    />
+                  </div>
+                  
+                  <Button
+                    onClick={handleFetchData}
+                    disabled={isFetching || (!urlPath && !sitemapPath)}
+                    className={`rounded-lg ${
+                      theme === 'light'
+                        ? 'bg-black text-white hover:bg-gray-800'
+                        : 'bg-white text-black hover:bg-gray-200'
+                    }`}
+                  >
+                    {isFetching ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Fetching...
+                      </>
+                    ) : (
+                      'Fetch data'
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Knowledge Base Section */}
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <h2 className={`text-xl font-semibold ${
+              theme === 'light' ? 'text-black' : 'text-white'
+            }`}>
+              Knowledge Base
+            </h2>
+            <div className="flex items-center gap-3">
+              <div className="relative">
                 <Input
-                  placeholder="Search knowledge base articles..."
-                  className="pl-10 bg-muted/30 border-border/20 focus:border-primary/50"
+                  placeholder="Search documents"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
+                  className={`pl-4 pr-10 w-64 ${
+                    theme === 'light' 
+                      ? 'bg-white border-gray-300 text-black' 
+                      : 'bg-zinc-800 border-zinc-600 text-white'
+                  }`}
                 />
               </div>
               <Button
-                variant="outline"
-                size="sm"
-                className="backdrop-blur-sm border-border/20"
-                onClick={loadDocuments}
-                disabled={isLoading}
+                onClick={() => fileInputRef.current?.click()}
+                className={`${
+                  theme === 'light'
+                    ? 'bg-black text-white hover:bg-gray-800'
+                    : 'bg-white text-black hover:bg-gray-200'
+                }`}
               >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Filter className="h-4 w-4 mr-2" />
-                )}
-                Refresh
+                Add Document
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
 
-        {/* Knowledge Base Table */}
-        <Card className="backdrop-blur-sm bg-card/80 border-border/20 shadow-card hover:shadow-glow transition-all duration-300">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-xl text-foreground flex items-center space-x-2">
-              <div className="w-2 h-2 bg-primary rounded-full animate-glow"></div>
-              <span>Knowledge Base Articles</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-lg border border-border/20 overflow-hidden">
+          {/* Documents Table */}
+          <Card className={`${
+            theme === 'light' 
+              ? 'bg-white border-gray-200' 
+              : 'bg-zinc-900 border-zinc-800'
+          }`}>
+            <CardContent className="p-0">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-muted/30 hover:bg-muted/50">
-                    <TableHead className="text-foreground font-semibold">Name</TableHead>
-                    <TableHead className="text-foreground font-semibold">Category</TableHead>
-                    <TableHead className="text-foreground font-semibold">Last Updated</TableHead>
-                    <TableHead className="text-foreground font-semibold">Author</TableHead>
-                    <TableHead className="text-foreground font-semibold">Status</TableHead>
-                    <TableHead className="text-right text-foreground font-semibold">Actions</TableHead>
+                  <TableRow className={`${
+                    theme === 'light' ? 'border-gray-200' : 'border-zinc-700'
+                  }`}>
+                    <TableHead className={`font-semibold ${
+                      theme === 'light' ? 'text-black' : 'text-white'
+                    }`}>Name</TableHead>
+                    <TableHead className={`font-semibold ${
+                      theme === 'light' ? 'text-black' : 'text-white'
+                    }`}>Type</TableHead>
+                    <TableHead className={`font-semibold ${
+                      theme === 'light' ? 'text-black' : 'text-white'
+                    }`}>Last Updated</TableHead>
+                    <TableHead className={`font-semibold text-center ${
+                      theme === 'light' ? 'text-black' : 'text-white'
+                    }`}>Delete</TableHead>
+                    <TableHead className={`font-semibold text-center ${
+                      theme === 'light' ? 'text-black' : 'text-white'
+                    }`}>Update</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8">
-                        <div className="flex items-center justify-center space-x-2">
+                      <TableCell colSpan={5} className="text-center py-8">
+                        <div className="flex items-center justify-center gap-2">
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          <span>Loading documents...</span>
+                          <span className={theme === 'light' ? 'text-gray-600' : 'text-gray-400'}>
+                            Loading documents...
+                          </span>
                         </div>
                       </TableCell>
                     </TableRow>
                   ) : filteredDocuments.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8">
-                        <div className="flex flex-col items-center space-y-2">
-                          <FileText className="h-8 w-8 text-muted-foreground" />
-                          <span className="text-muted-foreground">No documents found</span>
-                          <span className="text-sm text-muted-foreground">
-                            {searchTerm ? 'Try adjusting your search terms' : 'Upload your first document to get started'}
+                      <TableCell colSpan={5} className="text-center py-8">
+                        <div className="flex flex-col items-center gap-2">
+                          <FileText className={`h-8 w-8 ${
+                            theme === 'light' ? 'text-gray-400' : 'text-gray-500'
+                          }`} />
+                          <span className={theme === 'light' ? 'text-gray-600' : 'text-gray-400'}>
+                            {searchTerm ? 'No documents found' : 'No documents yet'}
                           </span>
                         </div>
                       </TableCell>
                     </TableRow>
                   ) : (
                     filteredDocuments.map((doc, index) => (
-                      <TableRow key={doc.id || `doc-${index}`} className="hover:bg-muted/20 transition-colors">
-                        <TableCell className="font-medium flex items-center space-x-2">
-                          <FileText className="h-4 w-4 text-primary" />
-                          <span>{doc.name}</span>
+                      <TableRow 
+                        key={doc.id || `doc-${index}`}
+                        className={`${
+                          theme === 'light' 
+                            ? 'border-gray-200 hover:bg-gray-50' 
+                            : 'border-zinc-700 hover:bg-zinc-800'
+                        }`}
+                      >
+                        <TableCell className={`font-medium ${
+                          doc.metadata?.sourceUrl ? 'text-blue-600 underline cursor-pointer' : ''
+                        } ${theme === 'light' ? 'text-black' : 'text-white'}`}>
+                          {doc.name}
                         </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="border-primary/20 text-primary bg-primary/10">
-                            {doc.metadata?.category || 'general'}
-                          </Badge>
+                        <TableCell className={theme === 'light' ? 'text-gray-600' : 'text-gray-400'}>
+                          {getFileTypeDisplay(doc.type)}
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {new Date(doc.createdAt).toLocaleDateString()}
+                        <TableCell className={theme === 'light' ? 'text-gray-600' : 'text-gray-400'}>
+                          {formatDate(doc.updatedAt)}
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {doc.metadata?.author || 'Unknown'}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={doc.status === "processed" ? "default" : "secondary"}
-                            className={doc.status === "processed"
-                              ? "bg-green-500/20 text-green-500 border-green-500/20"
-                              : doc.status === "processing"
-                                ? "bg-yellow-500/20 text-yellow-500 border-yellow-500/20"
-                                : "bg-red-500/20 text-red-500 border-red-500/20"
-                            }
+                        <TableCell className="text-center">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteDocument(doc.metadata?.key, doc.name)}
+                            disabled={isLoading}
+                            className={`hover:bg-red-50 hover:text-red-600 ${
+                              theme === 'light' ? 'text-gray-600' : 'text-gray-400'
+                            }`}
                           >
-                            {doc.status}
-                          </Badge>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end space-x-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="hover:bg-primary/10"
-                              title="Edit document"
-                              disabled={isLoading}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="hover:bg-destructive/10 hover:text-destructive"
-                              title="Delete document"
-                              onClick={() => handleDeleteDocument(doc.metadata?.key, doc.name)}
-                              disabled={isLoading}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
+                        <TableCell className="text-center">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={isLoading}
+                            className={theme === 'light' ? 'text-gray-600' : 'text-gray-400'}
+                          >
+                            <Upload className="h-4 w-4" />
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))
                   )}
                 </TableBody>
               </Table>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="backdrop-blur-sm bg-card/80 border-border/20 shadow-card hover:shadow-glow transition-all duration-300 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-primary opacity-10 rounded-full -mr-8 -mt-8"></div>
-            <CardContent className="p-6 text-center">
-              <div className="flex items-center justify-center mb-3">
-                <div className="p-3 bg-primary/20 rounded-xl">
-                  <DatabaseIcon className="h-6 w-6 text-primary" />
-                </div>
-              </div>
-              <div className="text-3xl font-bold text-foreground mb-1">{documents.length}</div>
-              <div className="text-sm text-muted-foreground">Total Documents</div>
-            </CardContent>
-          </Card>
-
-          <Card className="backdrop-blur-sm bg-card/80 border-border/20 shadow-card hover:shadow-glow transition-all duration-300 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-accent opacity-10 rounded-full -mr-8 -mt-8"></div>
-            <CardContent className="p-6 text-center">
-              <div className="flex items-center justify-center mb-3">
-                <div className="p-3 bg-green-500/20 rounded-xl">
-                  <FileText className="h-6 w-6 text-green-500" />
-                </div>
-              </div>
-              <div className="text-3xl font-bold text-foreground mb-1">
-                {documents.filter(doc => doc.status === 'processed').length}
-              </div>
-              <div className="text-sm text-muted-foreground">Processed Documents</div>
-            </CardContent>
-          </Card>
-
-          <Card className="backdrop-blur-sm bg-card/80 border-border/20 shadow-card hover:shadow-glow transition-all duration-300 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-primary opacity-10 rounded-full -mr-8 -mt-8"></div>
-            <CardContent className="p-6 text-center">
-              <div className="flex items-center justify-center mb-3">
-                <div className="p-3 bg-yellow-500/20 rounded-xl">
-                  <Edit className="h-6 w-6 text-yellow-500" />
-                </div>
-              </div>
-              <div className="text-3xl font-bold text-foreground mb-1">
-                {documents.filter(doc => doc.status === 'processing' || doc.status === 'uploaded').length}
-              </div>
-              <div className="text-sm text-muted-foreground">Processing/Pending</div>
             </CardContent>
           </Card>
         </div>
