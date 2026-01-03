@@ -1296,8 +1296,8 @@ const KnowledgeBaseManagement: React.FC = () => {
                         value={columnFilters.name.text}
                         onChange={(e) => setColumnFilters(prev => ({ ...prev, name: { ...prev.name, text: e.target.value } }))}
                         className="h-8"
-                      />
-                    </div>
+                  />
+                </div>
                   </DropdownMenuContent>
                 </DropdownMenu>
 
@@ -1350,7 +1350,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                         onChange={(e) => setColumnFilters(prev => ({ ...prev, version: e.target.value ? parseInt(e.target.value) : null }))}
                         className="h-8"
                       />
-                    </div>
+              </div>
                   </DropdownMenuContent>
                 </DropdownMenu>
 
@@ -1358,7 +1358,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm" className="h-8 text-xs">
-                      <Filter className={`h-3 w-3 mr-1 ${columnFilters.size.value > 0 ? 'text-blue-500' : ''}`} />
+                      <Filter className={`h-3 w-3 mr-1 ${columnFilters.size?.value && columnFilters.size.value > 0 ? 'text-blue-500' : ''}`} />
                       Size
                     </Button>
                   </DropdownMenuTrigger>
@@ -1366,16 +1366,16 @@ const KnowledgeBaseManagement: React.FC = () => {
                     <DropdownMenuLabel>Filter by Size</DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <div className="p-2 space-y-2">
-                      <Input
+                <Input
                         type="number"
                         placeholder="Enter size in bytes..."
-                        value={columnFilters.size.value > 0 ? columnFilters.size.value : ''}
-                        onChange={(e) => setColumnFilters(prev => ({ ...prev, size: { ...prev.size, value: e.target.value ? parseInt(e.target.value) : 0 } }))}
+                        value={columnFilters.size?.value && columnFilters.size.value > 0 ? columnFilters.size.value : ''}
+                        onChange={(e) => setColumnFilters(prev => ({ ...prev, size: prev.size ? { ...prev.size, value: e.target.value ? parseInt(e.target.value) : 0 } : { value: e.target.value ? parseInt(e.target.value) : 0, operator: 'less' } }))}
                         className="h-8"
                       />
                       <div className="flex gap-2">
                         <Button
-                          variant={columnFilters.size.operator === 'less' ? 'default' : 'outline'}
+                          variant={columnFilters.size?.operator === 'less' ? 'default' : 'outline'}
                           size="sm"
                           onClick={() => setColumnFilters(prev => ({ ...prev, size: { ...prev.size, operator: 'less' } }))}
                           className="h-7 text-xs flex-1"
@@ -1383,14 +1383,14 @@ const KnowledgeBaseManagement: React.FC = () => {
                           ≤ Less
                         </Button>
                         <Button
-                          variant={columnFilters.size.operator === 'greater' ? 'default' : 'outline'}
+                          variant={columnFilters.size?.operator === 'greater' ? 'default' : 'outline'}
                           size="sm"
-                          onClick={() => setColumnFilters(prev => ({ ...prev, size: { ...prev.size, operator: 'greater' } }))}
+                          onClick={() => setColumnFilters(prev => ({ ...prev, size: prev.size ? { ...prev.size, operator: 'greater' } : { value: 0, operator: 'greater' } }))}
                           className="h-7 text-xs flex-1"
                         >
                           ≥ Greater
                         </Button>
-                      </div>
+              </div>
                     </div>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -1409,7 +1409,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                     <div className="p-2 space-y-2">
                       <div className="text-xs font-medium mb-1">Quick Filters</div>
                       <div className="grid grid-cols-3 gap-1">
-                        <Button
+              <Button
                           variant="outline"
                           size="sm"
                           onClick={() => applyDatePreset('last1hour')}
@@ -1432,8 +1432,8 @@ const KnowledgeBaseManagement: React.FC = () => {
                           className="h-7 text-xs"
                         >
                           Last 3h
-                        </Button>
-                      </div>
+              </Button>
+            </div>
                       <div className="grid grid-cols-2 gap-1">
                         <Button
                           variant="outline"
@@ -1591,7 +1591,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                         {doc.source === 'upload' && (
               <Button
                             variant="ghost"
-                            size="sm"
+                size="sm"
                             className="h-8 w-8 p-0"
                             onClick={async () => {
                               try {
@@ -1673,20 +1673,20 @@ const KnowledgeBaseManagement: React.FC = () => {
                           title="Delete document"
                         >
                           <Trash2 className="h-4 w-4" />
-                        </Button>
+              </Button>
                       </div>
                     </div>
-                  </div>
-            </CardContent>
-          </Card>
+            </div>
+          </CardContent>
+        </Card>
             ))}
             </div>
           </div>
         ) : (
           // Desktop table view
           <div className={`overflow-x-auto ${isTableExpanded ? 'h-full' : 'max-h-[140px]'} overflow-y-auto`}>
-          <Table>
-            <TableHeader>
+              <Table>
+                <TableHeader>
                 <TableRow className={theme === 'light' ? 'border-gray-200' : 'border-zinc-700'}>
                   {/* Checkbox column */}
                   <TableHead className="w-[40px]">
@@ -2078,8 +2078,8 @@ const KnowledgeBaseManagement: React.FC = () => {
                             </div>
                           </div>
                         </div>
-                      </TableCell>
-                      <TableCell>
+                        </TableCell>
+                        <TableCell>
                         <Badge
                           variant="outline"
                           className={`${isMobile && !isTableExpanded ? 'text-[10px] px-1 py-0' : 'text-xs px-1.5 py-0.5'} ${
@@ -2089,7 +2089,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                           }`}
                         >
                           {doc.source === 'website' ? 'www' : (doc.type || 'unknown').toUpperCase()}
-                        </Badge>
+                          </Badge>
                         </TableCell>
                       {!isMobile && (
                         <TableCell>
