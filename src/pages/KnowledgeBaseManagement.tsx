@@ -1273,7 +1273,169 @@ const KnowledgeBaseManagement: React.FC = () => {
             <p className="text-sm">No documents found</p>
             <p className="text-xs mt-1">Upload files or add URLs to get started</p>
           </div>
+        ) : isMobile && !isTableExpanded ? (
+          // Mobile card view
+          <div className="space-y-3 p-4 max-h-[400px] overflow-y-auto">
+            {sortedDocuments.map((doc) => (
+              <Card key={doc.id} className={`${theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-800 border-zinc-700'}`}>
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    {/* Checkbox */}
+                    <Checkbox
+                      checked={selectedDocIds.has(doc.id)}
+                      onCheckedChange={() => toggleSelectDoc(doc.id)}
+                      className="mt-1"
+                      aria-label={`Select ${doc.name}`}
+                    />
+
+                    {/* File icon */}
+                    <div className="flex-shrink-0">
+                      {getFileIcon(doc.type, doc.source)}
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      {/* Filename */}
+                      <div className="flex items-center justify-between mb-2">
+                        <p className={`text-sm font-medium truncate ${theme === 'light' ? 'text-gray-900' : 'text-white'}`} title={doc.source === 'website' && doc.originalUrl ? doc.originalUrl : doc.name}>
+                          {doc.source === 'website' && doc.originalUrl ? doc.originalUrl : doc.name}
+                        </p>
+                      </div>
+
+                      {/* Storage indicators */}
+                      <div className="flex items-center gap-1 mb-2">
+                        {doc.r2Key && (
+                          <div className="flex items-center gap-1" title="Stored in Cloudflare R2">
+                            <Cloud className={`h-3 w-3 ${theme === 'light' ? 'text-blue-500' : 'text-blue-400'}`} />
+                            <span className={`text-[10px] ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>R2</span>
+                          </div>
+                        )}
+                        {doc.geminiFileName && (
+                          <div className="flex items-center gap-1" title="Indexed in Gemini File Search">
+                            <HardDrive className={`h-3 w-3 ${theme === 'light' ? 'text-green-500' : 'text-green-400'}`} />
+                            <span className={`text-[10px] ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>Gemini</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1" title="Metadata stored in PostgreSQL">
+                          <Database className={`h-3 w-3 ${theme === 'light' ? 'text-purple-500' : 'text-purple-400'}`} />
+                          <span className={`text-[10px] ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>DB</span>
+                        </div>
+                      </div>
+
+                      {/* Badges and info */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-[10px] px-1 py-0">
+                            {doc.source === 'website' ? 'www' : (doc.type || 'unknown').toUpperCase()}
+                          </Badge>
+                          <span className={`text-xs ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
+                            {formatFileSize(doc.size || 0)}
+                          </span>
+                        </div>
+
+                        <Badge variant="outline" className="text-[10px] px-1 py-0">
+                          {getStatusBadge(doc.status)}
+                        </Badge>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="flex items-center justify-end gap-1 mt-3 pt-3 border-t border-gray-200 dark:border-zinc-700">
+                        {/* Download button for uploaded files */}
+                        {doc.source === 'upload' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={async () => {
+                              try {
+                                setSuccess('Preparing download...');
+                                const downloadUrl = `${knowledgeBaseManager.apiBaseUrl}/api/v1/knowledgebase/files/${encodeURIComponent(doc.id)}/download`;
+
+                                const response = await fetch(downloadUrl);
+                                if (!response.ok) {
+                                  throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+                                }
+
+                                const contentDisposition = response.headers.get('Content-Disposition');
+                                let filename = doc.name || 'downloaded-file';
+
+                                if (contentDisposition) {
+                                  const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                                  if (filenameMatch && filenameMatch[1]) {
+                                    filename = filenameMatch[1].replace(/['"]/g, '');
+                                  }
+                                }
+
+                                const blob = await response.blob();
+                                const blobUrl = URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = blobUrl;
+                                link.download = filename;
+                                link.style.display = 'none';
+
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                                URL.revokeObjectURL(blobUrl);
+
+                                setSuccess(null);
+                                setSuccess('Download completed successfully!');
+                                setTimeout(() => setSuccess(null), 3000);
+                              } catch (err: unknown) {
+                                console.error('Download error:', err);
+                                const errorMessage = err instanceof Error ? err.message : 'Failed to download file';
+                                setError(errorMessage);
+                              }
+                            }}
+                            title="Download file"
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        )}
+
+                        {/* External link for websites */}
+                        {doc.source === 'website' && doc.originalUrl && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => window.open(doc.originalUrl, '_blank')}
+                            title="Open source URL"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                        )}
+
+                        {/* Update button */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => handleOpenUpdateDialog(doc)}
+                          title={doc.source === 'website' ? 'Re-scrape website' : 'Replace file'}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+
+                        {/* Delete button */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => handleDeleteDocument(doc.id, doc.name)}
+                          title="Delete document"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         ) : (
+          // Desktop table view
           <div className={`overflow-x-auto ${isTableExpanded ? 'h-full' : 'max-h-[140px]'} overflow-y-auto`}>
           <Table>
             <TableHeader>
@@ -1957,7 +2119,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                 </TableBody>
               </Table>
             </div>
-        )}
+          )}
           </CardContent>
         </Card>
   );
