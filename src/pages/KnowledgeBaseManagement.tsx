@@ -44,6 +44,10 @@ import {
   Download,
   Eye,
   Pencil,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Calendar,
 } from 'lucide-react';
 import {
   KnowledgeBaseManager,
@@ -109,12 +113,23 @@ const KnowledgeBaseManagement: React.FC = () => {
     isOpen: boolean;
     document: Document | null;
     newUrl: string;
+    isUpdating: boolean;
   }>({
     isOpen: false,
     document: null,
     newUrl: '',
+    isUpdating: false,
   });
   const updateFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sorting State
+  type SortField = 'name' | 'source' | 'size' | 'status' | 'updatedAt';
+  type SortDirection = 'asc' | 'desc';
+  const [sortField, setSortField] = useState<SortField>('updatedAt');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+  // Track documents being updated (for async UI updates)
+  const [updatingDocIds, setUpdatingDocIds] = useState<Set<string>>(new Set());
 
   const { theme } = useTheme();
   const isMobile = useIsMobile();
@@ -337,6 +352,7 @@ const KnowledgeBaseManagement: React.FC = () => {
       isOpen: true,
       document: doc,
       newUrl: doc.originalUrl || '',
+      isUpdating: false,
     });
   };
 
@@ -354,9 +370,11 @@ const KnowledgeBaseManagement: React.FC = () => {
       }
 
       try {
-        setIsLoading(true);
         setError(null);
         setUpdateDialog(prev => ({ ...prev, isOpen: false }));
+        
+        // Mark this document as updating (async UI update without full reload)
+        setUpdatingDocIds(prev => new Set(prev).add(doc.id));
 
         // Delete the old document first
         await knowledgeBaseManager.deleteDocument(doc.id);
@@ -366,15 +384,23 @@ const KnowledgeBaseManagement: React.FC = () => {
 
         setSuccess(`Website "${url}" is being re-scraped. Content will be updated shortly.`);
         
-        // Reload documents after a delay
-        setTimeout(() => {
-          loadDocuments();
+        // Reload documents in background after a delay
+        setTimeout(async () => {
+          await loadDocuments();
+          setUpdatingDocIds(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(doc.id);
+            return newSet;
+          });
         }, 3000);
       } catch (err: any) {
         console.error('Update error:', err);
         setError(err.message || 'Failed to update website');
-      } finally {
-        setIsLoading(false);
+        setUpdatingDocIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(doc.id);
+          return newSet;
+        });
       }
     } else {
       // For uploaded files, trigger file input
@@ -390,9 +416,11 @@ const KnowledgeBaseManagement: React.FC = () => {
     const doc = updateDialog.document;
 
     try {
-      setIsLoading(true);
       setError(null);
       setUpdateDialog(prev => ({ ...prev, isOpen: false }));
+      
+      // Mark this document as updating (async UI update without full reload)
+      setUpdatingDocIds(prev => new Set(prev).add(doc.id));
 
       // Delete the old document first
       await knowledgeBaseManager.deleteDocument(doc.id);
@@ -401,12 +429,23 @@ const KnowledgeBaseManagement: React.FC = () => {
       await knowledgeBaseManager.uploadDocument(file, {}, true);
 
       setSuccess(`Document "${doc.name}" has been replaced with "${file.name}"`);
+      
+      // Reload documents in background
       await loadDocuments();
+      setUpdatingDocIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(doc.id);
+        return newSet;
+      });
     } catch (err: any) {
       console.error('Update error:', err);
       setError(err.message || 'Failed to update document');
+      setUpdatingDocIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(doc.id);
+        return newSet;
+      });
     } finally {
-      setIsLoading(false);
       // Reset file input
       if (updateFileInputRef.current) {
         updateFileInputRef.current.value = '';
@@ -476,6 +515,74 @@ const KnowledgeBaseManagement: React.FC = () => {
     doc.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
     doc.metadata.sourceUrl?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Sort documents
+  const sortedDocuments = [...filteredDocuments].sort((a, b) => {
+    let comparison = 0;
+    
+    switch (sortField) {
+      case 'name':
+        comparison = a.name.localeCompare(b.name);
+        break;
+      case 'source':
+        comparison = a.source.localeCompare(b.source);
+        break;
+      case 'size':
+        comparison = (a.size || 0) - (b.size || 0);
+        break;
+      case 'status':
+        comparison = a.status.localeCompare(b.status);
+        break;
+      case 'updatedAt':
+        comparison = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
+        break;
+      default:
+        comparison = 0;
+    }
+    
+    return sortDirection === 'asc' ? comparison : -comparison;
+  });
+
+  // Handle column header click for sorting
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  // Get sort icon for column header
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />;
+    }
+    return sortDirection === 'asc' 
+      ? <ArrowUp className="h-3 w-3 ml-1" />
+      : <ArrowDown className="h-3 w-3 ml-1" />;
+  };
+
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    
+    return date.toLocaleDateString('en-GB', { 
+      day: '2-digit', 
+      month: 'short', 
+      year: 'numeric' 
+    });
+  };
 
   // Calculate total size
   const totalSize = documents.reduce((acc, doc) => acc + (doc.size || 0), 0);
@@ -839,27 +946,57 @@ const KnowledgeBaseManagement: React.FC = () => {
                 <Table>
                   <TableHeader>
                     <TableRow className={theme === 'light' ? 'border-gray-200' : 'border-zinc-700'}>
-                      <TableHead className={`${isMobile ? 'w-[40%]' : 'w-[35%]'} ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
-                        Name
+                      <TableHead 
+                        className={`${isMobile ? 'w-[35%]' : 'w-[30%]'} ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'} cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-800`}
+                        onClick={() => handleSort('name')}
+                      >
+                        <div className="flex items-center">
+                          Name {getSortIcon('name')}
+                        </div>
                       </TableHead>
                       {!isMobile && (
-                        <TableHead className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
-                          Source
+                        <TableHead 
+                          className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'} cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-800`}
+                          onClick={() => handleSort('source')}
+                        >
+                          <div className="flex items-center">
+                            Source {getSortIcon('source')}
+                          </div>
                         </TableHead>
                       )}
-                      <TableHead className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
-                        Size
+                      <TableHead 
+                        className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'} cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-800`}
+                        onClick={() => handleSort('size')}
+                      >
+                        <div className="flex items-center">
+                          Size {getSortIcon('size')}
+                        </div>
                       </TableHead>
-                      <TableHead className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
-                        Status
+                      <TableHead 
+                        className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'} cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-800`}
+                        onClick={() => handleSort('status')}
+                      >
+                        <div className="flex items-center">
+                          Status {getSortIcon('status')}
+                        </div>
                       </TableHead>
+                      {!isMobile && (
+                        <TableHead 
+                          className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'} cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-800`}
+                          onClick={() => handleSort('updatedAt')}
+                        >
+                          <div className="flex items-center">
+                            Last Updated {getSortIcon('updatedAt')}
+                          </div>
+                        </TableHead>
+                      )}
                       <TableHead className={`text-right ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
                         Actions
                       </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredDocuments.map((doc) => (
+                    {sortedDocuments.map((doc) => (
                       <TableRow 
                         key={doc.id}
                         className={`${theme === 'light' ? 'border-gray-100 hover:bg-gray-50' : 'border-zinc-800 hover:bg-zinc-800'}`}
@@ -916,8 +1053,22 @@ const KnowledgeBaseManagement: React.FC = () => {
                           </span>
                         </TableCell>
                         <TableCell>
-                          {getStatusBadge(doc.status)}
+                          {updatingDocIds.has(doc.id) ? (
+                            <Badge className="bg-blue-100 text-blue-700 border-blue-200">
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" /> Updating
+                            </Badge>
+                          ) : (
+                            getStatusBadge(doc.status)
+                          )}
                         </TableCell>
+                        {!isMobile && (
+                          <TableCell>
+                            <span className={`text-sm flex items-center gap-1 ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`} title={new Date(doc.updatedAt).toLocaleString()}>
+                              <Calendar className="h-3 w-3" />
+                              {formatDate(doc.updatedAt)}
+                            </span>
+                          </TableCell>
+                        )}
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
                             {/* Download button for uploaded files with R2 URL or R2 Key */}
