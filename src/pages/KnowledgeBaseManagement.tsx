@@ -823,14 +823,39 @@ const KnowledgeBaseManagement: React.FC = () => {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
-                            {doc.metadata.sourceUrl && (
+                            {/* Download button for uploaded files with R2 URL */}
+                            {doc.source === 'upload' && doc.r2Url && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className={`h-8 w-8 p-0 ${
+                                  theme === 'light' ? 'hover:bg-blue-50' : 'hover:bg-blue-950'
+                                }`}
+                                onClick={() => {
+                                  const link = document.createElement('a');
+                                  link.href = doc.r2Url!;
+                                  link.download = doc.name;
+                                  link.target = '_blank';
+                                  document.body.appendChild(link);
+                                  link.click();
+                                  document.body.removeChild(link);
+                                }}
+                                title="Download file"
+                              >
+                                <Download className={`h-4 w-4 ${
+                                  theme === 'light' ? 'text-blue-500' : 'text-blue-400'
+                                }`} />
+                              </Button>
+                            )}
+                            {/* External link for websites */}
+                            {doc.source === 'website' && doc.originalUrl && (
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 className={`h-8 w-8 p-0 ${
                                   theme === 'light' ? 'hover:bg-gray-100' : 'hover:bg-zinc-700'
                                 }`}
-                                onClick={() => window.open(doc.metadata.sourceUrl, '_blank')}
+                                onClick={() => window.open(doc.originalUrl, '_blank')}
                                 title="Open source URL"
                               >
                                 <ExternalLink className={`h-4 w-4 ${

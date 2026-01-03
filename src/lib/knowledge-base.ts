@@ -25,6 +25,8 @@ export interface Document {
   updatedAt: string;
   source: 'upload' | 'website';
   originalUrl?: string; // For scraped websites
+  r2Url?: string; // For downloadable files from R2
+  r2Key?: string; // R2 storage key
 }
 
 export interface DocumentUploadResponse {
@@ -314,15 +316,15 @@ export class KnowledgeBaseManager {
       // Define response document type (matches new backend format)
       interface ResponseDocument {
         key?: string;
-        id?: string;
+        id?: string | number;
         name?: string;
         original_name?: string;
         display_name?: string;
         file_type?: string;
         type?: string;
         mime_type?: string;
-        size?: number;
-        size_bytes?: number;
+        size?: number | string;
+        size_bytes?: number | string;
         source?: 'upload' | 'scrape' | 'gemini';
         source_url?: string;
         url?: string;
@@ -335,6 +337,17 @@ export class KnowledgeBaseManager {
         created_at?: string;
         last_modified?: string;
       }
+
+      // Helper to parse size - handles string or number
+      const parseSize = (value: number | string | undefined | null): number => {
+        if (value === undefined || value === null) return 0;
+        if (typeof value === 'number') return isNaN(value) ? 0 : value;
+        if (typeof value === 'string') {
+          const parsed = parseInt(value, 10);
+          return isNaN(parsed) ? 0 : parsed;
+        }
+        return 0;
+      };
       
       // Transform response to include proper document information
       const documents: Document[] = (response.data.files || []).map((doc: ResponseDocument) => {
@@ -348,15 +361,14 @@ export class KnowledgeBaseManager {
         // Get file extension/type - for websites, show 'url'
         const extension = isScraped ? 'url' : (doc.file_type || doc.type || getFileExtension(name));
         
-        // Get size (backend now provides size_bytes) - ensure it's a valid number
-        const rawSize = doc.size_bytes || doc.size;
-        const size = typeof rawSize === 'number' && !isNaN(rawSize) ? rawSize : 0;
+        // Get size (backend provides size_bytes) - parse string or number
+        const size = parseSize(doc.size_bytes) || parseSize(doc.size);
 
         // Get original URL for scraped websites
         const originalUrl = doc.source_url || doc.url;
 
         return {
-          id: doc.key || doc.id || Math.random().toString(),
+          id: doc.key || String(doc.id) || Math.random().toString(),
           name: name,
           type: extension,
           status: (doc.status || 'processed') as 'uploaded' | 'processing' | 'processed' | 'failed',
@@ -373,7 +385,9 @@ export class KnowledgeBaseManager {
           createdAt: doc.created_at || new Date().toISOString(),
           updatedAt: doc.last_modified || doc.created_at || new Date().toISOString(),
           source: source,
-          originalUrl: originalUrl
+          originalUrl: originalUrl,
+          r2Url: doc.r2_url,
+          r2Key: doc.r2_key
         };
       });
 
@@ -389,9 +403,8 @@ export class KnowledgeBaseManager {
 
   async deleteDocument(documentKey: string): Promise<{ success: boolean; message: string }> {
     try {
-      const response = await axios.post(`${this.apiBaseUrl}/delete-document`, {
-        document_key: documentKey
-      });
+      // Use DELETE method with the file name/key as path parameter
+      const response = await axios.delete(`${this.apiBaseUrl}/api/v1/knowledgebase/files/${encodeURIComponent(documentKey)}`);
       
       return {
         success: true,
@@ -399,8 +412,38 @@ export class KnowledgeBaseManager {
       };
     } catch (error: unknown) {
       console.error('Delete failed:', error);
-      const axiosError = error as { response?: { data?: { message?: string } } };
-      throw new Error(axiosError.response?.data?.message || 'Failed to delete document');
+      const axiosError = error as { 
+        response?: { 
+          status?: number;
+          data?: { 
+            message?: string; 
+            detail?: string | { message?: string };
+          } 
+        };
+        message?: string;
+      };
+      
+      // Handle detail field (FastAPI style)
+      if (axiosError.response?.data?.detail) {
+        const detail = axiosError.response.data.detail;
+        const message = typeof detail === 'string' ? detail : detail.message || JSON.stringify(detail);
+        throw new Error(`Delete failed: ${message}`);
+      }
+      
+      // Handle message field
+      if (axiosError.response?.data?.message) {
+        throw new Error(`Delete failed: ${axiosError.response.data.message}`);
+      }
+      
+      // Handle HTTP status codes
+      if (axiosError.response?.status) {
+        const status = axiosError.response.status;
+        if (status === 404) throw new Error('Delete failed: Document not found');
+        if (status === 503) throw new Error('Delete failed: Service temporarily unavailable');
+        if (status >= 500) throw new Error(`Delete failed: Server error (${status})`);
+      }
+      
+      throw new Error(axiosError.message || 'Delete failed: Unknown error');
     }
   }
 
