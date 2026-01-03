@@ -846,8 +846,62 @@ const KnowledgeBaseManagement: React.FC = () => {
       } catch (err: unknown) {
         const errorObj = err as any;
         const errorMessage = errorObj?.message || errorObj?.response?.data?.detail?.message || (err instanceof Error ? err.message : 'Failed to scrape');
+        const statusCode = errorObj?.response?.status;
 
-        // Regular error handling
+        // Check if this is a "website already exists" error from backend
+        // This can happen if checkWebsiteExists didn't catch it (e.g., URL normalization mismatch)
+        const isDuplicateError = statusCode === 409 || 
+                                errorMessage.includes("has already been scraped") ||
+                                errorMessage.includes("Set replace_existing=true");
+
+        if (isDuplicateError) {
+          // Show confirmation dialog for rescraping
+          return new Promise((resolve) => {
+            setConfirmDialog({
+              isOpen: true,
+              title: 'Website Already Exists',
+              message: `The website "${fullUrl}" has already been scraped. Would you like to re-crawl it and create a new version?`,
+              onConfirm: async () => {
+                try {
+                  // Update status to show rescraping
+                  setCrawlUrls(prev => prev.map(e =>
+                    e.id === entry.id ? { ...e, status: 'rescraping' } : e
+                  ));
+
+                  // Scrape with replaceExisting = true after user confirmation
+                  console.log('User confirmed rescraping after backend error. Calling scrapeWebsite with replaceExisting=true for:', fullUrl);
+                  await knowledgeBaseManager.scrapeWebsite(fullUrl, { replaceExisting: true });
+                  console.log('Rescraping completed successfully');
+
+                  // Update status to success
+                  setCrawlUrls(prev => prev.map(e =>
+                    e.id === entry.id ? { ...e, status: 'success' } : e
+                  ));
+
+                  resolve({ url: fullUrl, success: true });
+                } catch (retryErr: unknown) {
+                  const retryErrorObj = retryErr as any;
+                  const retryErrorMessage = retryErrorObj?.message || retryErrorObj?.response?.data?.detail?.message || (retryErr instanceof Error ? retryErr.message : 'Failed to rescrape');
+                  
+                  setCrawlUrls(prev => prev.map(e =>
+                    e.id === entry.id ? { ...e, status: 'failed', error: retryErrorMessage } : e
+                  ));
+                  
+                  resolve({ url: fullUrl, success: false, error: retryErrorMessage });
+                }
+              },
+              onCancel: () => {
+                // User cancelled - mark as cancelled
+                setCrawlUrls(prev => prev.map(e =>
+                  e.id === entry.id ? { ...e, status: 'failed', error: 'Cancelled by user' } : e
+                ));
+                resolve({ url: fullUrl, success: false, error: 'Cancelled by user' });
+              }
+            });
+          });
+        }
+
+        // Regular error handling for non-duplicate errors
         setCrawlUrls(prev => prev.map(e =>
           e.id === entry.id ? { ...e, status: 'failed', error: errorMessage } : e
         ));
