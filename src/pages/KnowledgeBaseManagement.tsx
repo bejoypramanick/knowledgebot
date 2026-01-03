@@ -40,7 +40,7 @@ import {
   HardDrive,
   AlertTriangle,
   X,
-  Map,
+  MapPin,
   Download,
   Eye,
 } from 'lucide-react';
@@ -647,7 +647,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                 <label className={`text-xs font-medium block mb-1.5 ${
                   theme === 'light' ? 'text-gray-700' : 'text-gray-300'
                 }`}>
-                  <Map className="h-3 w-3 inline mr-1" />
+                  <MapPin className="h-3 w-3 inline mr-1" />
                   Sitemap URL (auto-detected)
                 </label>
                 <div className="flex gap-2">
