@@ -1948,10 +1948,15 @@ const KnowledgeBaseManagement: React.FC = () => {
           <Card className={`${theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-900 border-zinc-700'}`}>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle className={`text-lg flex items-center gap-2 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
-                  <Globe className="h-5 w-5" />
-                  Scrape Websites
-                </CardTitle>
+                <div>
+                  <CardTitle className={`text-lg flex items-center gap-2 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
+                    <Globe className="h-5 w-5" />
+                    Scrape Websites
+                  </CardTitle>
+                  <p className={`text-sm mt-1 ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
+                    Add website URLs to scrape. Existing websites will be automatically re-scraped.
+                  </p>
+                </div>
                 <Button
                   variant="outline"
                   size="sm"
