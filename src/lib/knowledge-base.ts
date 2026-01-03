@@ -8,6 +8,7 @@ export interface DocumentMetadata {
   sourceUrl?: string;
   description?: string;
   key?: string;
+  geminiFileName?: string;
   size?: number;
   originalFilename?: string;
   fileType?: string;
@@ -27,6 +28,7 @@ export interface Document {
   originalUrl?: string; // For scraped websites
   r2Url?: string; // For downloadable files from R2
   r2Key?: string; // R2 storage key
+  version?: number; // Document version number
 }
 
 export interface DocumentUploadResponse {
@@ -335,7 +337,9 @@ export class KnowledgeBaseManager {
         r2_url?: string;
         r2_key?: string;
         created_at?: string;
+        updated_at?: string;
         last_modified?: string;
+        version?: number;
       }
 
       // Helper to parse size - handles string or number
@@ -384,8 +388,12 @@ export class KnowledgeBaseManager {
           originalUrl = `https://${scrapedDomain}`;
         }
 
+        // Use gemini_file_name (doc.name) as the primary identifier for deletion
+        // doc.name is the Gemini file name like 'files/xyz123'
+        const documentId = doc.key || doc.gemini_file_name || doc.name || String(doc.id) || Math.random().toString();
+        
         return {
-          id: doc.key || String(doc.id) || Math.random().toString(),
+          id: documentId,
           name: name,
           type: extension,
           status: (doc.status || 'processed') as 'uploaded' | 'processing' | 'processed' | 'failed',
@@ -395,16 +403,18 @@ export class KnowledgeBaseManager {
             title: name,
             sourceUrl: originalUrl,
             key: doc.key,
+            geminiFileName: doc.gemini_file_name || doc.name,
             size: size,
             originalFilename: name,
             fileType: extension
           },
           createdAt: doc.created_at || new Date().toISOString(),
-          updatedAt: doc.last_modified || doc.created_at || new Date().toISOString(),
+          updatedAt: doc.updated_at || doc.last_modified || doc.created_at || new Date().toISOString(),
           source: source,
           originalUrl: originalUrl,
           r2Url: doc.r2_url,
-          r2Key: doc.r2_key
+          r2Key: doc.r2_key,
+          version: doc.version || 1
         };
       });
 
@@ -477,6 +487,32 @@ export class KnowledgeBaseManager {
         doc => doc.name.toLowerCase() === filename.toLowerCase() ||
                (doc.metadata.originalFilename?.toLowerCase() === filename.toLowerCase())
       );
+      return existingDoc || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async checkWebsiteExists(url: string): Promise<Document | null> {
+    try {
+      const response = await this.getDocuments();
+      // Normalize URL for comparison (remove trailing slashes, protocol variations)
+      const normalizeUrl = (u: string) => {
+        return u.toLowerCase()
+          .replace(/^https?:\/\//, '')
+          .replace(/\/$/, '')
+          .replace(/^www\./, '');
+      };
+      
+      const normalizedInput = normalizeUrl(url);
+      
+      const existingDoc = response.documents.find(doc => {
+        if (doc.source !== 'website') return false;
+        const docUrl = doc.originalUrl || doc.metadata.sourceUrl;
+        if (!docUrl) return false;
+        return normalizeUrl(docUrl) === normalizedInput;
+      });
+      
       return existingDoc || null;
     } catch {
       return null;

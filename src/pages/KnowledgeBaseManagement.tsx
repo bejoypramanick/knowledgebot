@@ -123,7 +123,7 @@ const KnowledgeBaseManagement: React.FC = () => {
   const updateFileInputRef = useRef<HTMLInputElement>(null);
 
   // Sorting State
-  type SortField = 'name' | 'source' | 'size' | 'status' | 'updatedAt';
+  type SortField = 'name' | 'source' | 'version' | 'size' | 'status' | 'updatedAt';
   type SortDirection = 'asc' | 'desc';
   const [sortField, setSortField] = useState<SortField>('updatedAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -220,23 +220,16 @@ const KnowledgeBaseManagement: React.FC = () => {
       const existingDoc = await knowledgeBaseManager.checkDocumentExists(file.name, getFileExtension(file.name));
       
       if (existingDoc) {
-        // Check if name or type differs
-        const existingExt = existingDoc.type?.toLowerCase() || '';
-        const newExt = getFileExtension(file.name);
-        const namesDiffer = existingDoc.name.toLowerCase() !== file.name.toLowerCase();
-        const typesDiffer = existingExt !== newExt;
-
-        if (namesDiffer || typesDiffer) {
-          setConfirmDialog({
-            isOpen: true,
-            title: 'Replace Existing Document?',
-            message: `A document "${existingDoc.name}" already exists. The file name or type is different than previously uploaded. This will replace the old content with new. Proceed?`,
-            existingDoc,
-            newFile: file,
-            onConfirm: () => uploadFile(file, fileId, true), // Pass replaceExisting=true
-          });
-          return;
-        }
+        // Show confirmation dialog for duplicate file
+        setConfirmDialog({
+          isOpen: true,
+          title: 'Duplicate File Detected',
+          message: `A file "${existingDoc.name}" already exists (Version ${existingDoc.version || 1}). Do you want to upload it again? This will create a new version.`,
+          existingDoc,
+          newFile: file,
+          onConfirm: () => uploadFile(file, fileId, true), // Pass replaceExisting=true
+        });
+        return;
       }
 
       await uploadFile(file, fileId, false);
@@ -551,15 +544,33 @@ const KnowledgeBaseManagement: React.FC = () => {
       return;
     }
 
+    // Check if URL already exists
+    const existingWebsite = await knowledgeBaseManager.checkWebsiteExists(urlToValidate);
+    if (existingWebsite) {
+      // Show confirmation dialog for duplicate website
+      setConfirmDialog({
+        isOpen: true,
+        title: 'Duplicate Website Detected',
+        message: `This website "${urlToValidate}" has already been scraped (Version ${existingWebsite.version || 1}). Do you want to scrape it again? This will create a new version.`,
+        existingDoc: existingWebsite,
+        onConfirm: async () => await performScrapeWebsite(urlToValidate, true),
+      });
+      return;
+    }
+
+    await performScrapeWebsite(urlToValidate, false);
+  };
+
+  const performScrapeWebsite = async (url: string, isNewVersion: boolean) => {
     try {
       setIsScraping(true);
       setError(null);
       setSuccess(null);
       setUrlError(null);
 
-      const response = await knowledgeBaseManager.scrapeWebsite(urlToValidate);
+      const response = await knowledgeBaseManager.scrapeWebsite(url);
       
-      setSuccess(`Scraping started for ${urlToValidate}. Content will appear in the list once processed.`);
+      setSuccess(`Scraping started for ${url}. Content will appear in the list once processed.`);
       setCrawlUrl('');
       setSitemapUrl('');
 
@@ -567,9 +578,10 @@ const KnowledgeBaseManagement: React.FC = () => {
       setTimeout(() => {
         loadDocuments();
       }, 3000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Scrape error:', err);
-      setError(err.message || 'Failed to start scraping');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to start scraping';
+      setError(errorMessage);
     } finally {
       setIsScraping(false);
     }
@@ -592,6 +604,9 @@ const KnowledgeBaseManagement: React.FC = () => {
         break;
       case 'source':
         comparison = a.source.localeCompare(b.source);
+        break;
+      case 'version':
+        comparison = (a.version || 1) - (b.version || 1);
         break;
       case 'size':
         comparison = (a.size || 0) - (b.size || 0);
@@ -1030,6 +1045,16 @@ const KnowledgeBaseManagement: React.FC = () => {
                           </div>
                         </TableHead>
                       )}
+                      {!isMobile && (
+                        <TableHead 
+                          className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'} cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-800`}
+                          onClick={() => handleSort('version')}
+                        >
+                          <div className="flex items-center">
+                            Version {getSortIcon('version')}
+                          </div>
+                        </TableHead>
+                      )}
                       <TableHead 
                         className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'} cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-800`}
                         onClick={() => handleSort('size')}
@@ -1110,6 +1135,20 @@ const KnowledgeBaseManagement: React.FC = () => {
                               ) : (
                                 <><Upload className="h-3 w-3 mr-1" /> Upload</>
                               )}
+                            </Badge>
+                          </TableCell>
+                        )}
+                        {!isMobile && (
+                          <TableCell>
+                            <Badge 
+                              variant="outline"
+                              className={`text-xs ${
+                                theme === 'light' 
+                                  ? 'bg-gray-50 text-gray-600 border-gray-200' 
+                                  : 'bg-zinc-800 text-gray-300 border-zinc-700'
+                              }`}
+                            >
+                              v{doc.version || 1}
                             </Badge>
                           </TableCell>
                         )}
