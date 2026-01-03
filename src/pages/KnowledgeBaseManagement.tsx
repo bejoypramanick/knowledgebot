@@ -781,26 +781,47 @@ const KnowledgeBaseManagement: React.FC = () => {
         }
 
         // Try to scrape with replaceExisting flag
+        console.log(`Attempting to scrape ${fullUrl} with replaceExisting=${replaceExisting}`);
         try {
           await knowledgeBaseManager.scrapeWebsite(fullUrl, { replaceExisting });
+          console.log('Scrape successful on first attempt');
         } catch (scrapeError: unknown) {
           const errorObj = scrapeError as any;
           const statusCode = errorObj?.response?.status;
           const errorMessage = errorObj?.message || errorObj?.response?.data?.detail?.message || (scrapeError instanceof Error ? scrapeError.message : 'Failed to scrape');
 
-          console.log('Scrape error - Status:', statusCode, 'Message:', errorMessage);
-          console.log('replaceExisting was:', replaceExisting);
+          console.log('Scrape error details:');
+          console.log('- Full error object:', JSON.stringify(errorObj, null, 2));
+          console.log('- Status code:', statusCode);
+          console.log('- Error message:', errorMessage);
+          console.log('- replaceExisting was:', replaceExisting);
+          console.log('- Error instanceof Error:', scrapeError instanceof Error);
 
           // Check if this is a 409 Conflict (duplicate) error and we haven't already tried with replaceExisting=true
-          if (statusCode === 409 && errorMessage.includes("has already been scraped") && !replaceExisting) {
-            console.log('Detected 409 duplicate error, retrying with replaceExisting=true');
+          const isDuplicateError = statusCode === 409 && errorMessage.includes("has already been scraped");
+
+          console.log('Duplicate error check:', {
+            statusCodeIs409: statusCode === 409,
+            messageContainsDuplicate: errorMessage.includes("has already been scraped"),
+            replaceExistingIsFalse: !replaceExisting,
+            isDuplicateError
+          });
+
+          if (isDuplicateError && !replaceExisting) {
+            console.log('✅ Detected 409 duplicate error, retrying with replaceExisting=true');
             setCrawlUrls(prev => prev.map(e =>
               e.id === entry.id ? { ...e, status: 'rescraping' } : e
             ));
 
-            await knowledgeBaseManager.scrapeWebsite(fullUrl, { replaceExisting: true });
+            try {
+              await knowledgeBaseManager.scrapeWebsite(fullUrl, { replaceExisting: true });
+              console.log('✅ Rescraping successful on retry');
+            } catch (retryError) {
+              console.log('❌ Rescraping failed on retry:', retryError);
+              throw retryError;
+            }
           } else {
-            console.log('Not retrying - Status:', statusCode, 'Already tried replaceExisting:', replaceExisting);
+            console.log('❌ Not retrying - conditions not met');
             throw scrapeError; // Re-throw if it's not a duplicate error or we've already tried
           }
         }

@@ -302,6 +302,12 @@ export class KnowledgeBaseManager {
         if (status === 403) throw new Error('Scraping failed: Access denied to this website');
         if (status === 404) throw new Error('Scraping failed: Website not found');
         if (status === 408) throw new Error('Scraping failed: Request timeout');
+        if (status === 409) {
+          // For 409 conflicts, preserve the detailed error message from backend
+          const detail = axiosError.response.data?.detail;
+          const message = typeof detail === 'string' ? detail : detail?.message || `Request conflict (${status})`;
+          throw new Error(`Scraping failed: ${message}`);
+        }
         if (status === 503) throw new Error('Scraping failed: Service temporarily unavailable');
         if (status >= 500) throw new Error(`Scraping failed: Server error (${status})`);
         if (status >= 400) throw new Error(`Scraping failed: Request error (${status})`);
