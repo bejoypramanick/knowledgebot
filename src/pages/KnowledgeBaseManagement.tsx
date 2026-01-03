@@ -450,8 +450,6 @@ const KnowledgeBaseManagement: React.FC = () => {
   };
 
   const handleDeleteDocument = async (documentKey: string, documentName: string) => {
-    console.log('handleDeleteDocument called with key:', documentKey, 'name:', documentName);
-
     setConfirmDialog({
       isOpen: true,
       title: 'Delete Document?',
@@ -460,12 +458,13 @@ const KnowledgeBaseManagement: React.FC = () => {
         try {
           setIsLoading(true);
           setError(null);
-          console.log('Calling deleteDocument...');
           await knowledgeBaseManager.deleteDocument(documentKey);
-          console.log('Delete successful, calling loadDocuments...');
           setSuccess(`Document "${documentName}" deleted successfully!`);
-          await loadDocuments();
-          console.log('loadDocuments completed');
+
+          // Force refresh documents after a short delay to ensure backend changes are committed
+          setTimeout(async () => {
+            await loadDocuments();
+          }, 1000);
     } catch (err: any) {
       console.error('Error deleting document:', err);
       setError(err.message || 'Failed to delete document');

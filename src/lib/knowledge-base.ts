@@ -433,21 +433,14 @@ export class KnowledgeBaseManager {
 
   async deleteDocument(documentKey: string): Promise<{ success: boolean; message: string }> {
     try {
-      console.log('DeleteDocument called with key:', documentKey);
-
       // Extract just the file ID if the key is in 'files/xyz123' format
       // The backend will normalize it to the proper Gemini format
       const fileId = documentKey.startsWith('files/')
         ? documentKey.substring(6)  // Remove 'files/' prefix
         : documentKey;
 
-      console.log('Extracted fileId:', fileId);
-      console.log('Making DELETE request to:', `${this.apiBaseUrl}/api/v1/knowledgebase/files/${encodeURIComponent(fileId)}`);
-
       // Use DELETE method with the file ID as path parameter
       const response = await axios.delete(`${this.apiBaseUrl}/api/v1/knowledgebase/files/${encodeURIComponent(fileId)}`);
-
-      console.log('Delete response:', response.data);
 
       return {
         success: true,
