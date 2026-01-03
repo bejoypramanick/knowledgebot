@@ -48,7 +48,18 @@ import {
   Calendar,
   Plus,
   Minus,
+  Filter,
+  RefreshCw,
 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from '@/components/ui/dropdown-menu';
 import {
   KnowledgeBaseManager,
   Document,
@@ -138,6 +149,22 @@ const KnowledgeBaseManagement: React.FC = () => {
 
   // Track documents being updated (for async UI updates)
   const [updatingDocIds, setUpdatingDocIds] = useState<Set<string>>(new Set());
+
+  // Multi-select for bulk operations
+  const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Column Filters
+  interface ColumnFilters {
+    type: string[];
+    source: string[];
+    status: string[];
+  }
+  const [columnFilters, setColumnFilters] = useState<ColumnFilters>({
+    type: [],
+    source: [],
+    status: [],
+  });
 
   const { theme } = useTheme();
   const isMobile = useIsMobile();
@@ -621,9 +648,9 @@ const KnowledgeBaseManagement: React.FC = () => {
       try {
         // Check for existing website
         const existingWebsite = await knowledgeBaseManager.checkWebsiteExists(fullUrl);
-        const replaceExisting = existingWebsite ? true : false;
+        const replaceExisting = !!existingWebsite;
         
-        await knowledgeBaseManager.scrapeWebsite(fullUrl, replaceExisting);
+        await knowledgeBaseManager.scrapeWebsite(fullUrl, { replaceExisting });
         
         // Update status to success
         setCrawlUrls(prev => prev.map(e => 
@@ -667,12 +694,116 @@ const KnowledgeBaseManagement: React.FC = () => {
     }
   };
 
-  // Filter documents based on search
-  const filteredDocuments = documents.filter(doc => 
-    doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    doc.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    doc.metadata.sourceUrl?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Get unique values for filter dropdowns
+  const getUniqueValues = useCallback((field: 'type' | 'source' | 'status') => {
+    const values = documents.map(doc => {
+      if (field === 'type') {
+        return doc.source === 'website' ? 'www' : (doc.type || 'unknown').toUpperCase();
+      }
+      return doc[field];
+    });
+    return [...new Set(values)].sort();
+  }, [documents]);
+
+  // Toggle column filter value
+  const toggleColumnFilter = (column: keyof ColumnFilters, value: string) => {
+    setColumnFilters(prev => {
+      const current = prev[column];
+      const newValues = current.includes(value)
+        ? current.filter(v => v !== value)
+        : [...current, value];
+      return { ...prev, [column]: newValues };
+    });
+  };
+
+  // Clear all filters for a column
+  const clearColumnFilter = (column: keyof ColumnFilters) => {
+    setColumnFilters(prev => ({ ...prev, [column]: [] }));
+  };
+
+  // Selection handlers
+  const toggleSelectAll = () => {
+    if (selectedDocIds.size === sortedDocuments.length) {
+      setSelectedDocIds(new Set());
+    } else {
+      setSelectedDocIds(new Set(sortedDocuments.map(doc => doc.id)));
+    }
+  };
+
+  const toggleSelectDoc = (docId: string) => {
+    setSelectedDocIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(docId)) {
+        newSet.delete(docId);
+      } else {
+        newSet.add(docId);
+      }
+      return newSet;
+    });
+  };
+
+  // Bulk delete handler
+  const handleBulkDelete = async () => {
+    if (selectedDocIds.size === 0) return;
+    
+    const count = selectedDocIds.size;
+    if (!confirm(`Are you sure you want to delete ${count} document(s)? This action cannot be undone.`)) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setError(null);
+    
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const docId of selectedDocIds) {
+      try {
+        await knowledgeBaseManager.deleteDocument(docId);
+        successCount++;
+      } catch (err) {
+        console.error(`Failed to delete ${docId}:`, err);
+        failCount++;
+      }
+    }
+
+    setIsDeleting(false);
+    setSelectedDocIds(new Set());
+
+    if (successCount > 0) {
+      setSuccess(`Deleted ${successCount} document(s).${failCount > 0 ? ` ${failCount} failed.` : ''}`);
+      loadDocuments();
+    } else {
+      setError(`Failed to delete ${failCount} document(s).`);
+    }
+  };
+
+  // Filter documents based on search and column filters
+  const filteredDocuments = documents.filter(doc => {
+    // Search filter
+    const matchesSearch = 
+      doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      doc.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      doc.metadata.sourceUrl?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    if (!matchesSearch) return false;
+
+    // Column filters
+    if (columnFilters.type.length > 0) {
+      const docType = doc.source === 'website' ? 'www' : (doc.type || 'unknown').toUpperCase();
+      if (!columnFilters.type.includes(docType)) return false;
+    }
+
+    if (columnFilters.source.length > 0) {
+      if (!columnFilters.source.includes(doc.source)) return false;
+    }
+
+    if (columnFilters.status.length > 0) {
+      if (!columnFilters.status.includes(doc.status)) return false;
+    }
+
+    return true;
+  });
 
   // Sort documents
   const sortedDocuments = [...filteredDocuments].sort((a, b) => {
@@ -682,12 +813,13 @@ const KnowledgeBaseManagement: React.FC = () => {
       case 'name':
         comparison = a.name.localeCompare(b.name);
         break;
-      case 'type':
+      case 'type': {
         // For websites, use 'www', otherwise use the file type
         const typeA = a.source === 'website' ? 'www' : (a.type || '').toUpperCase();
         const typeB = b.source === 'website' ? 'www' : (b.type || '').toUpperCase();
         comparison = typeA.localeCompare(typeB);
         break;
+      }
       case 'source':
         comparison = a.source.localeCompare(b.source);
         break;
@@ -854,7 +986,6 @@ const KnowledgeBaseManagement: React.FC = () => {
                   multiple
                   onChange={(e) => handleFileChange(e.target.files)}
                   accept={VALIDATION.ALLOWED_FILE_TYPES.map(t => `.${t}`).join(',')}
-                  multiple
                 />
                 <Upload className={`h-10 w-10 mx-auto mb-3 ${
                   theme === 'light' ? 'text-gray-400' : 'text-gray-500'
@@ -1054,10 +1185,35 @@ const KnowledgeBaseManagement: React.FC = () => {
         <Card className={`${theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-900 border-zinc-700'}`}>
           <CardHeader className="pb-3">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <CardTitle className={`text-lg flex items-center gap-2 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
-                <FileText className="h-5 w-5" />
-                Documents ({filteredDocuments.length})
-            </CardTitle>
+              <div className="flex items-center gap-3">
+                <CardTitle className={`text-lg flex items-center gap-2 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
+                  <FileText className="h-5 w-5" />
+                  Documents ({filteredDocuments.length})
+                </CardTitle>
+                {selectedDocIds.size > 0 && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleBulkDelete}
+                    disabled={isDeleting}
+                    className="h-8"
+                  >
+                    {isDeleting ? (
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4 mr-1" />
+                    )}
+                    Delete ({selectedDocIds.size})
+                  </Button>
+                )}
+                {/* Active filters indicator */}
+                {(columnFilters.type.length > 0 || columnFilters.source.length > 0 || columnFilters.status.length > 0) && (
+                  <Badge variant="secondary" className="text-xs">
+                    <Filter className="h-3 w-3 mr-1" />
+                    Filtered
+                  </Badge>
+                )}
+              </div>
               <div className="relative w-full sm:w-64">
                 <Search className={`absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 ${
                   theme === 'light' ? 'text-gray-400' : 'text-gray-500'
@@ -1089,29 +1245,91 @@ const KnowledgeBaseManagement: React.FC = () => {
               <Table>
                 <TableHeader>
                     <TableRow className={theme === 'light' ? 'border-gray-200' : 'border-zinc-700'}>
+                      {/* Checkbox column */}
+                      <TableHead className="w-[40px]">
+                        <Checkbox
+                          checked={selectedDocIds.size === sortedDocuments.length && sortedDocuments.length > 0}
+                          onCheckedChange={toggleSelectAll}
+                          aria-label="Select all"
+                        />
+                      </TableHead>
                       <TableHead 
-                        className={`${isMobile ? 'w-[35%]' : 'w-[25%]'} ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'} cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-800`}
+                        className={`${isMobile ? 'w-[30%]' : 'w-[20%]'} ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'} cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-800`}
                         onClick={() => handleSort('name')}
                       >
                         <div className="flex items-center">
                           Name {getSortIcon('name')}
                         </div>
                       </TableHead>
-                      <TableHead 
-                        className={`w-[60px] ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'} cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-800`}
-                        onClick={() => handleSort('type')}
-                      >
-                        <div className="flex items-center">
-                          Type {getSortIcon('type')}
+                      <TableHead className={`w-[70px] ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
+                        <div className="flex items-center gap-1">
+                          <span className="cursor-pointer" onClick={() => handleSort('type')}>
+                            Type {getSortIcon('type')}
+                          </span>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                <Filter className={`h-3 w-3 ${columnFilters.type.length > 0 ? 'text-blue-500' : ''}`} />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
+                              <DropdownMenuLabel>Filter by Type</DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              {getUniqueValues('type').map(value => (
+                                <DropdownMenuCheckboxItem
+                                  key={value}
+                                  checked={columnFilters.type.includes(value)}
+                                  onCheckedChange={() => toggleColumnFilter('type', value)}
+                                >
+                                  {value}
+                                </DropdownMenuCheckboxItem>
+                              ))}
+                              {columnFilters.type.length > 0 && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuCheckboxItem onCheckedChange={() => clearColumnFilter('type')}>
+                                    Clear filter
+                                  </DropdownMenuCheckboxItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </TableHead>
                       {!isMobile && (
-                        <TableHead 
-                          className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'} cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-800`}
-                          onClick={() => handleSort('source')}
-                        >
-                          <div className="flex items-center">
-                            Source {getSortIcon('source')}
+                        <TableHead className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
+                          <div className="flex items-center gap-1">
+                            <span className="cursor-pointer" onClick={() => handleSort('source')}>
+                              Source {getSortIcon('source')}
+                            </span>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                  <Filter className={`h-3 w-3 ${columnFilters.source.length > 0 ? 'text-blue-500' : ''}`} />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
+                                <DropdownMenuLabel>Filter by Source</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                {getUniqueValues('source').map(value => (
+                                  <DropdownMenuCheckboxItem
+                                    key={value}
+                                    checked={columnFilters.source.includes(value)}
+                                    onCheckedChange={() => toggleColumnFilter('source', value)}
+                                  >
+                                    {value === 'website' ? 'Website' : 'Upload'}
+                                  </DropdownMenuCheckboxItem>
+                                ))}
+                                {columnFilters.source.length > 0 && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuCheckboxItem onCheckedChange={() => clearColumnFilter('source')}>
+                                      Clear filter
+                                    </DropdownMenuCheckboxItem>
+                                  </>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </TableHead>
                       )}
@@ -1133,12 +1351,39 @@ const KnowledgeBaseManagement: React.FC = () => {
                           Size {getSortIcon('size')}
                         </div>
                       </TableHead>
-                      <TableHead 
-                        className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'} cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-800`}
-                        onClick={() => handleSort('status')}
-                      >
-                        <div className="flex items-center">
-                          Status {getSortIcon('status')}
+                      <TableHead className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
+                        <div className="flex items-center gap-1">
+                          <span className="cursor-pointer" onClick={() => handleSort('status')}>
+                            Status {getSortIcon('status')}
+                          </span>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                <Filter className={`h-3 w-3 ${columnFilters.status.length > 0 ? 'text-blue-500' : ''}`} />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
+                              <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              {getUniqueValues('status').map(value => (
+                                <DropdownMenuCheckboxItem
+                                  key={value}
+                                  checked={columnFilters.status.includes(value)}
+                                  onCheckedChange={() => toggleColumnFilter('status', value)}
+                                >
+                                  {value}
+                                </DropdownMenuCheckboxItem>
+                              ))}
+                              {columnFilters.status.length > 0 && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuCheckboxItem onCheckedChange={() => clearColumnFilter('status')}>
+                                    Clear filter
+                                  </DropdownMenuCheckboxItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </TableHead>
                       {!isMobile && (
@@ -1160,8 +1405,16 @@ const KnowledgeBaseManagement: React.FC = () => {
                     {sortedDocuments.map((doc) => (
                       <TableRow 
                         key={doc.id}
-                        className={`${theme === 'light' ? 'border-gray-100 hover:bg-gray-50' : 'border-zinc-800 hover:bg-zinc-800'}`}
+                        className={`${theme === 'light' ? 'border-gray-100 hover:bg-gray-50' : 'border-zinc-800 hover:bg-zinc-800'} ${selectedDocIds.has(doc.id) ? (theme === 'light' ? 'bg-blue-50' : 'bg-blue-950') : ''}`}
                       >
+                        {/* Checkbox cell */}
+                        <TableCell className="w-[40px]">
+                          <Checkbox
+                            checked={selectedDocIds.has(doc.id)}
+                            onCheckedChange={() => toggleSelectDoc(doc.id)}
+                            aria-label={`Select ${doc.name}`}
+                          />
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2 min-w-0">
                             {getFileIcon(doc.type, doc.source)}

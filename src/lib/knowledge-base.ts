@@ -227,7 +227,7 @@ export class KnowledgeBaseManager {
     }
   }
 
-  async scrapeWebsite(url: string, options: { maxDepth?: number; maxPages?: number } = {}): Promise<ScrapeResponse> {
+  async scrapeWebsite(url: string, options: { maxDepth?: number; maxPages?: number; replaceExisting?: boolean } = {}): Promise<ScrapeResponse> {
     // Client-side validation
     const validation = validateUrl(url);
     if (!validation.valid) {
@@ -237,7 +237,8 @@ export class KnowledgeBaseManager {
     const payload = {
       url: url,
       max_depth: options.maxDepth || 2,
-      max_pages: options.maxPages || 10
+      max_pages: options.maxPages || 10,
+      replace_existing: options.replaceExisting || false
     };
 
     try {
