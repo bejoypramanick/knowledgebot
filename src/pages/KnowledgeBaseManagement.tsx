@@ -474,13 +474,13 @@ const KnowledgeBaseManagement: React.FC = () => {
           const deleteResult = await knowledgeBaseManager.deleteDocument(documentKey);
           console.log('Delete result:', deleteResult);
 
-          setSuccess(`Document "${documentName}" deleted successfully!`);
+      setSuccess(`Document "${documentName}" deleted successfully!`);
 
           // Force refresh documents after a delay to ensure backend changes are committed
           console.log('Scheduling document refresh in 2 seconds...');
           setTimeout(async () => {
             console.log('Refreshing documents after deletion...');
-            await loadDocuments();
+      await loadDocuments();
             console.log('Document refresh completed');
 
             // Double-check after another delay in case of caching issues
@@ -488,7 +488,7 @@ const KnowledgeBaseManagement: React.FC = () => {
               console.log('Double-checking document list...');
               await loadDocuments();
             }, 500);
-          }, 2000);
+      }, 2000);
     } catch (err: any) {
       console.error('Error deleting document:', err);
       setError(err.message || 'Failed to delete document');
@@ -770,78 +770,72 @@ const KnowledgeBaseManagement: React.FC = () => {
       ));
 
       try {
-        // First try with automatic rescraping detection
         // First ensure documents are loaded
         if (documents.length === 0) {
           console.log('No documents loaded, fetching documents first...');
           await loadDocuments();
         }
 
+        // Check if website already exists BEFORE attempting to scrape
         let existingWebsite = await knowledgeBaseManager.checkWebsiteExists(fullUrl);
-        let replaceExisting = !!existingWebsite;
-
-        console.log(`Rescraping check for ${fullUrl}:`, {
-          existingWebsite: !!existingWebsite,
-          replaceExisting,
-          existingVersion: existingWebsite?.version,
-          existingOriginalUrl: existingWebsite?.originalUrl
-        });
 
         if (existingWebsite) {
-          console.log(`Website ${fullUrl} already exists (version ${existingWebsite.version}), rescraping with replaceExisting=true`);
-          // Update status to show it's rescraping
-          setCrawlUrls(prev => prev.map(e =>
-            e.id === entry.id ? { ...e, status: 'rescraping' } : e
-          ));
-        } else {
-          console.log(`Website ${fullUrl} not found in existing documents, will create new entry`);
-        }
+          // Website exists - show confirmation dialog BEFORE scraping
+          return new Promise((resolve) => {
+            setConfirmDialog({
+              isOpen: true,
+              title: 'Website Already Exists',
+              message: `The website "${fullUrl}" has already been scraped (Version ${existingWebsite.version || 1}). Would you like to re-crawl it and create a new version?`,
+              onConfirm: async () => {
+                try {
+                  // Update status to show rescraping
+                  setCrawlUrls(prev => prev.map(e =>
+                    e.id === entry.id ? { ...e, status: 'rescraping' } : e
+                  ));
 
-        // Try to scrape with replaceExisting flag
-        console.log(`Attempting to scrape ${fullUrl} with replaceExisting=${replaceExisting}`);
-        try {
-          await knowledgeBaseManager.scrapeWebsite(fullUrl, { replaceExisting });
-          console.log('Scrape successful on first attempt');
-        } catch (scrapeError: unknown) {
-          const errorObj = scrapeError as any;
-          const statusCode = errorObj?.response?.status;
-          const errorMessage = errorObj?.message || errorObj?.response?.data?.detail?.message || (scrapeError instanceof Error ? scrapeError.message : 'Failed to scrape');
+                  // Scrape with replaceExisting = true after user confirmation
+                  console.log('User confirmed rescraping. Calling scrapeWebsite with replaceExisting=true for:', fullUrl);
+                  await knowledgeBaseManager.scrapeWebsite(fullUrl, { replaceExisting: true });
+                  console.log('Rescraping completed successfully');
 
-          console.log('Scrape error details:');
-          console.log('- Full error object:', JSON.stringify(errorObj, null, 2));
-          console.log('- Status code:', statusCode);
-          console.log('- Error message:', errorMessage);
-          console.log('- replaceExisting was:', replaceExisting);
-          console.log('- Error instanceof Error:', scrapeError instanceof Error);
+                  // Update status to success
+                  setCrawlUrls(prev => prev.map(e =>
+                    e.id === entry.id ? { ...e, status: 'success' } : e
+                  ));
 
-          // Check if this is a 409 Conflict (duplicate) error and we haven't already tried with replaceExisting=true
-          const isDuplicateError = statusCode === 409 && errorMessage.includes("has already been scraped");
-
-          console.log('Duplicate error check:', {
-            statusCodeIs409: statusCode === 409,
-            messageContainsDuplicate: errorMessage.includes("has already been scraped"),
-            replaceExistingIsFalse: !replaceExisting,
-            isDuplicateError
+                  resolve({ url: fullUrl, success: true });
+                } catch (err: unknown) {
+                  const errorObj = err as any;
+                  const errorMessage = errorObj?.message || errorObj?.response?.data?.detail?.message || (err instanceof Error ? err.message : 'Failed to scrape');
+                  
+                  setCrawlUrls(prev => prev.map(e =>
+                    e.id === entry.id ? { ...e, status: 'failed', error: errorMessage } : e
+                  ));
+                  
+                  resolve({ url: fullUrl, success: false, error: errorMessage });
+                }
+              },
+              onCancel: () => {
+                // User cancelled - mark as cancelled
+                setCrawlUrls(prev => prev.map(e =>
+                  e.id === entry.id ? { ...e, status: 'failed', error: 'Cancelled by user' } : e
+                ));
+                resolve({ url: fullUrl, success: false, error: 'Cancelled by user' });
+              }
+            });
           });
-
-          if (isDuplicateError && !replaceExisting) {
-            console.log('✅ Detected 409 duplicate error, retrying with replaceExisting=true');
-            setCrawlUrls(prev => prev.map(e =>
-              e.id === entry.id ? { ...e, status: 'rescraping' } : e
-            ));
-
-            try {
-              await knowledgeBaseManager.scrapeWebsite(fullUrl, { replaceExisting: true });
-              console.log('✅ Rescraping successful on retry');
-            } catch (retryError) {
-              console.log('❌ Rescraping failed on retry:', retryError);
-              throw retryError;
-            }
-          } else {
-            console.log('❌ Not retrying - conditions not met');
-            throw scrapeError; // Re-throw if it's not a duplicate error or we've already tried
-          }
         }
+
+        // Website doesn't exist - proceed with normal scraping
+        console.log(`Website ${fullUrl} not found in existing documents, will create new entry`);
+        
+        // Update status to scraping
+        setCrawlUrls(prev => prev.map(e =>
+          e.id === entry.id ? { ...e, status: 'scraping' } : e
+        ));
+
+        // Scrape without replaceExisting (new website)
+        await knowledgeBaseManager.scrapeWebsite(fullUrl, { replaceExisting: false });
 
         // Update status to success
         setCrawlUrls(prev => prev.map(e =>
@@ -853,77 +847,23 @@ const KnowledgeBaseManagement: React.FC = () => {
         const errorObj = err as any;
         const errorMessage = errorObj?.message || errorObj?.response?.data?.detail?.message || (err instanceof Error ? err.message : 'Failed to scrape');
 
-        // Check if this is a "website already exists" error
-        const isDuplicateError = errorMessage.includes("has already been scraped") ||
-                                errorMessage.includes("Set replace_existing=true");
+        // Regular error handling
+        setCrawlUrls(prev => prev.map(e =>
+          e.id === entry.id ? { ...e, status: 'failed', error: errorMessage } : e
+        ));
 
-        if (isDuplicateError) {
-          // Show confirmation dialog for rescraping
-          return new Promise((resolve) => {
-            setConfirmDialog({
-              isOpen: true,
-              title: 'Website Already Exists',
-              message: `The website "${fullUrl}" has already been scraped. Would you like to re-scrape it and create a new version?`,
-              onConfirm: async () => {
-                try {
-                  // Update status to show rescraping
-                  setCrawlUrls(prev => prev.map(e =>
-                    e.id === entry.id ? { ...e, status: 'rescraping' } : e
-                  ));
-
-                  // Retry with replaceExisting = true
-                  console.log('Calling scrapeWebsite with replaceExisting=true for:', fullUrl);
-                  console.log('Sending payload:', { url: fullUrl, replaceExisting: true });
-                  const result = await knowledgeBaseManager.scrapeWebsite(fullUrl, { replaceExisting: true });
-                  console.log('ScrapeWebsite call completed successfully, result:', result);
-
-                  // Update status to success
-                  setCrawlUrls(prev => prev.map(e =>
-                    e.id === entry.id ? { ...e, status: 'success' } : e
-                  ));
-
-                  resolve({ url: fullUrl, success: true });
-                } catch (retryErr: unknown) {
-                  const retryErrorMessage = retryErr instanceof Error ? retryErr.message : 'Failed to rescrape';
-
-                  // Update status to failed
-                  setCrawlUrls(prev => prev.map(e =>
-                    e.id === entry.id ? { ...e, status: 'failed', error: retryErrorMessage } : e
-                  ));
-
-                  resolve({ url: fullUrl, success: false, error: retryErrorMessage });
-                }
-              },
-              onCancel: () => {
-                // Update status to cancelled/failed
-                setCrawlUrls(prev => prev.map(e =>
-                  e.id === entry.id ? { ...e, status: 'failed', error: 'Cancelled by user' } : e
-                ));
-                resolve({ url: fullUrl, success: false, error: 'Cancelled by user' });
-              },
-              confirmText: 'Re-scrape',
-              cancelText: 'Cancel'
-            });
-          });
-        } else {
-          // Regular error handling
-          setCrawlUrls(prev => prev.map(e =>
-            e.id === entry.id ? { ...e, status: 'failed', error: errorMessage } : e
-          ));
-
-          return { url: fullUrl, success: false, error: errorMessage };
-        }
+        return { url: fullUrl, success: false, error: errorMessage };
       }
     });
 
-    const results = await Promise.all(scrapePromises);
+    const results = await Promise.all(scrapePromises) as Array<{ url: string; success: boolean; error?: string }>;
     const successCount = results.filter(r => r.success).length;
     const failCount = results.filter(r => !r.success).length;
 
     setIsScraping(false);
 
     if (successCount > 0) {
-      setSuccess(`Successfully scraped ${successCount} website(s).${failCount > 0 ? ` ${failCount} failed.` : ''}`);
+      setSuccess(`Successfully crawled ${successCount} website(s).${failCount > 0 ? ` ${failCount} failed.` : ''}`);
       // Reset successful entries
       setCrawlUrls(prev => {
         const remaining = prev.filter(e => e.status !== 'success');
@@ -936,7 +876,7 @@ const KnowledgeBaseManagement: React.FC = () => {
     }
 
     if (failCount > 0 && successCount === 0) {
-      setError(`Failed to scrape ${failCount} website(s). Please check the errors.`);
+      setError(`Failed to crawl ${failCount} website(s). Please check the errors.`);
     }
   };
 
@@ -1303,8 +1243,289 @@ const KnowledgeBaseManagement: React.FC = () => {
             <p className="text-xs mt-1">Upload files or add URLs to get started</p>
           </div>
         ) : isMobile && !isTableExpanded ? (
-          // Mobile card view
-          <div className="space-y-3 p-4 max-h-[400px] overflow-y-auto">
+          // Mobile card view with filters
+          <div className="space-y-3">
+            {/* Mobile Filters */}
+            <div className="p-4 border-b border-gray-200 dark:border-zinc-700 space-y-2">
+              <div className="flex items-center justify-between mb-2">
+                <span className={`text-sm font-medium ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>Filters</span>
+                {hasActiveFilters && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearAllFilters}
+                    className="h-7 text-xs"
+                  >
+                    Clear All
+                  </Button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {/* Name Filter */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 text-xs">
+                      <Filter className={`h-3 w-3 mr-1 ${columnFilters.name.text.trim() !== '' ? 'text-blue-500' : ''}`} />
+                      Name
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className={`${theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'} w-64`}>
+                    <DropdownMenuLabel>Filter by Name</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <div className="p-2 space-y-2">
+                      <div className="flex gap-2">
+                        <Button
+                          variant={columnFilters.name.mode === 'starts' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setColumnFilters(prev => ({ ...prev, name: { ...prev.name, mode: 'starts' } }))}
+                          className="h-7 text-xs"
+                        >
+                          Starts with
+                        </Button>
+                        <Button
+                          variant={columnFilters.name.mode === 'contains' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setColumnFilters(prev => ({ ...prev, name: { ...prev.name, mode: 'contains' } }))}
+                          className="h-7 text-xs"
+                        >
+                          Contains
+                        </Button>
+                      </div>
+                      <Input
+                        placeholder="Enter text..."
+                        value={columnFilters.name.text}
+                        onChange={(e) => setColumnFilters(prev => ({ ...prev, name: { ...prev.name, text: e.target.value } }))}
+                        className="h-8"
+                      />
+                    </div>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {/* Type Filter */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 text-xs">
+                      <Filter className={`h-3 w-3 mr-1 ${columnFilters.type.length > 0 ? 'text-blue-500' : ''}`} />
+                      Type
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className={`${theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'} w-48`}>
+                    <DropdownMenuLabel>Filter by Type</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {Array.from(new Set(documents.map(d => d.source === 'website' ? 'www' : (d.type || 'unknown').toUpperCase()))).sort().map((type) => (
+                      <DropdownMenuCheckboxItem
+                        key={type}
+                        checked={columnFilters.type.includes(type)}
+                        onCheckedChange={(checked) => {
+                          setColumnFilters(prev => ({
+                            ...prev,
+                            type: checked
+                              ? [...prev.type, type]
+                              : prev.type.filter(t => t !== type)
+                          }));
+                        }}
+                      >
+                        {type}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {/* Version Filter */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 text-xs">
+                      <Filter className={`h-3 w-3 mr-1 ${columnFilters.version !== null ? 'text-blue-500' : ''}`} />
+                      Version
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className={`${theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'} w-48`}>
+                    <DropdownMenuLabel>Filter by Version</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <div className="p-2">
+                      <Input
+                        type="number"
+                        placeholder="Enter version..."
+                        value={columnFilters.version || ''}
+                        onChange={(e) => setColumnFilters(prev => ({ ...prev, version: e.target.value ? parseInt(e.target.value) : null }))}
+                        className="h-8"
+                      />
+                    </div>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {/* Size Filter */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 text-xs">
+                      <Filter className={`h-3 w-3 mr-1 ${columnFilters.size.value > 0 ? 'text-blue-500' : ''}`} />
+                      Size
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className={`${theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'} w-48`}>
+                    <DropdownMenuLabel>Filter by Size</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <div className="p-2 space-y-2">
+                      <Input
+                        type="number"
+                        placeholder="Enter size in bytes..."
+                        value={columnFilters.size.value > 0 ? columnFilters.size.value : ''}
+                        onChange={(e) => setColumnFilters(prev => ({ ...prev, size: { ...prev.size, value: e.target.value ? parseInt(e.target.value) : 0 } }))}
+                        className="h-8"
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          variant={columnFilters.size.operator === 'less' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setColumnFilters(prev => ({ ...prev, size: { ...prev.size, operator: 'less' } }))}
+                          className="h-7 text-xs flex-1"
+                        >
+                          ≤ Less
+                        </Button>
+                        <Button
+                          variant={columnFilters.size.operator === 'greater' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setColumnFilters(prev => ({ ...prev, size: { ...prev.size, operator: 'greater' } }))}
+                          className="h-7 text-xs flex-1"
+                        >
+                          ≥ Greater
+                        </Button>
+                      </div>
+                    </div>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {/* Last Updated Filter */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 text-xs">
+                      <Filter className={`h-3 w-3 mr-1 ${columnFilters.updatedAt.from !== '' || columnFilters.updatedAt.to !== '' || columnFilters.updatedAt.fromTime !== '00:00' || columnFilters.updatedAt.toTime !== '23:59' ? 'text-blue-500' : ''}`} />
+                      Last Updated
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className={`${theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'} w-64 ${isTableExpanded ? 'z-[10000]' : ''}`}>
+                    <DropdownMenuLabel>Filter by Last Updated</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <div className="p-2 space-y-2">
+                      <div className="text-xs font-medium mb-1">Quick Filters</div>
+                      <div className="grid grid-cols-3 gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => applyDatePreset('last1hour')}
+                          className="h-7 text-xs"
+                        >
+                          Last 1h
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => applyDatePreset('last2hours')}
+                          className="h-7 text-xs"
+                        >
+                          Last 2h
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => applyDatePreset('last3hours')}
+                          className="h-7 text-xs"
+                        >
+                          Last 3h
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => applyDatePreset('last4hours')}
+                          className="h-7 text-xs"
+                        >
+                          Last 4h
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => applyDatePreset('last5hours')}
+                          className="h-7 text-xs"
+                        >
+                          Last 5h
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-3 gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => applyDatePreset('lastWeek')}
+                          className="h-7 text-xs"
+                        >
+                          Last Week
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => applyDatePreset('lastMonth')}
+                          className="h-7 text-xs"
+                        >
+                          Last Month
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => applyDatePreset('lastYear')}
+                          className="h-7 text-xs"
+                        >
+                          Last Year
+                        </Button>
+                      </div>
+                      <DropdownMenuSeparator />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-xs text-gray-500 mb-1 block">From Date</label>
+                          <Input
+                            type="date"
+                            value={columnFilters.updatedAt.from}
+                            onChange={(e) => setColumnFilters(prev => ({ ...prev, updatedAt: { ...prev.updatedAt, from: e.target.value } }))}
+                            className="h-8"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 mb-1 block">From Time</label>
+                          <Input
+                            type="time"
+                            value={columnFilters.updatedAt.fromTime}
+                            onChange={(e) => setColumnFilters(prev => ({ ...prev, updatedAt: { ...prev.updatedAt, fromTime: e.target.value } }))}
+                            className="h-8"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-xs text-gray-500 mb-1 block">To Date</label>
+                          <Input
+                            type="date"
+                            value={columnFilters.updatedAt.to}
+                            onChange={(e) => setColumnFilters(prev => ({ ...prev, updatedAt: { ...prev.updatedAt, to: e.target.value } }))}
+                            className="h-8"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 mb-1 block">To Time</label>
+                          <Input
+                            type="time"
+                            value={columnFilters.updatedAt.toTime}
+                            onChange={(e) => setColumnFilters(prev => ({ ...prev, updatedAt: { ...prev.updatedAt, toTime: e.target.value } }))}
+                            className="h-8"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+            {/* Mobile Cards */}
+            <div className="space-y-3 p-4 max-h-[400px] overflow-y-auto">
             {sortedDocuments.map((doc) => (
               <Card key={doc.id} className={`${theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-800 border-zinc-700'}`}>
                 <CardContent className="p-4">
@@ -1320,7 +1541,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                     {/* File icon */}
                     <div className="flex-shrink-0">
                       {getFileIcon(doc.type, doc.source)}
-                    </div>
+                </div>
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
@@ -1329,7 +1550,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                         <p className={`text-sm font-medium truncate ${theme === 'light' ? 'text-gray-900' : 'text-white'}`} title={doc.source === 'website' && doc.originalUrl ? doc.originalUrl : doc.name}>
                           {doc.source === 'website' && doc.originalUrl ? doc.originalUrl : doc.name}
                         </p>
-                      </div>
+              </div>
 
                       {/* Storage indicators */}
                       <div className="flex items-center gap-1 mb-2">
@@ -1360,7 +1581,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                           <span className={`text-xs ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
                             {formatFileSize(doc.size || 0)}
                           </span>
-                        </div>
+              </div>
 
                       </div>
 
@@ -1368,7 +1589,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                       <div className="flex items-center justify-end gap-1 mt-3 pt-3 border-t border-gray-200 dark:border-zinc-700">
                         {/* Download button for uploaded files */}
                         {doc.source === 'upload' && (
-                          <Button
+              <Button
                             variant="ghost"
                             size="sm"
                             className="h-8 w-8 p-0"
@@ -1416,7 +1637,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                             title="Download file"
                           >
                             <Download className="h-4 w-4" />
-                          </Button>
+              </Button>
                         )}
 
                         {/* External link for websites */}
@@ -1456,9 +1677,10 @@ const KnowledgeBaseManagement: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+            </CardContent>
+          </Card>
             ))}
+            </div>
           </div>
         ) : (
           // Desktop table view
@@ -1576,7 +1798,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                             <DropdownMenuLabel>Filter by Version</DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             <div className="p-2">
-                              <Input
+                <Input
                                 type="number"
                                 placeholder="Version number"
                                 value={columnFilters.version || ''}
@@ -1593,7 +1815,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                                   Clear
                                 </Button>
                               )}
-            </div>
+              </div>
                           </DropdownMenuContent>
                         </DropdownMenu>
                         <span className="cursor-pointer" onClick={() => handleSort('version')}>
@@ -1615,9 +1837,9 @@ const KnowledgeBaseManagement: React.FC = () => {
                           <DropdownMenuSeparator />
                           <div className="p-2 space-y-2">
                             <div className="flex gap-2">
-                              <Button
+              <Button
                                 variant={columnFilters.size?.operator === 'less' ? 'default' : 'outline'}
-                                size="sm"
+                size="sm"
                                 onClick={() => setColumnFilters(prev => ({ ...prev, size: prev.size ? { ...prev.size, operator: 'less' } : { value: 0, operator: 'less' } }))}
                                 className="h-7 text-xs"
                               >
@@ -1869,24 +2091,6 @@ const KnowledgeBaseManagement: React.FC = () => {
                           {doc.source === 'website' ? 'www' : (doc.type || 'unknown').toUpperCase()}
                         </Badge>
                         </TableCell>
-                      {!isMobile && (
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={`${isTableExpanded ? 'text-xs px-2 py-1' : 'text-xs px-2 py-1'} ${
-                              doc.source === 'website'
-                                ? 'bg-purple-50 text-purple-600 border-purple-200'
-                                : 'bg-blue-50 text-blue-600 border-blue-200'
-                            }`}
-                          >
-                            {doc.source === 'website' ? (
-                              <><Globe className={`${isTableExpanded ? 'h-3 w-3' : 'h-3 w-3'} mr-1`} /> Website</>
-                            ) : (
-                              <><Upload className={`${isTableExpanded ? 'h-3 w-3' : 'h-3 w-3'} mr-1`} /> Upload</>
-                            )}
-                          </Badge>
-                        </TableCell>
-                      )}
                       {!isMobile && (
                         <TableCell>
                           <Badge
@@ -2249,10 +2453,10 @@ const KnowledgeBaseManagement: React.FC = () => {
                 <div>
                   <CardTitle className={`text-lg flex items-center gap-2 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
                     <Globe className="h-5 w-5" />
-                    Scrape Websites
+                    Crawl Websites
                   </CardTitle>
                   <p className={`text-sm mt-1 ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
-                    Add website URLs to scrape. Existing websites will be automatically re-scraped.
+                    Add website URLs to crawl.
                   </p>
                 </div>
                 <Button
@@ -2370,12 +2574,12 @@ const KnowledgeBaseManagement: React.FC = () => {
                 {isScraping ? (
                   <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Scraping {crawlUrls.filter(e => e.status === 'scraping' || e.status === 'rescraping').length} website(s)...
+                    Crawling {crawlUrls.filter(e => e.status === 'scraping' || e.status === 'rescraping').length} website(s)...
                   </>
                 ) : (
                   <>
                     <Globe className="h-4 w-4 mr-2" />
-                    Scrape Website{crawlUrls.filter(e => e.url.trim()).length > 1 ? 's' : ''}
+                    Crawl Website{crawlUrls.filter(e => e.url.trim()).length > 1 ? 's' : ''}
                   </>
                 )}
               </Button>
