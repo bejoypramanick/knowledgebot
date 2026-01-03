@@ -1488,10 +1488,23 @@ const KnowledgeBaseManagement: React.FC = () => {
                         </TableCell>
                         {!isMobile && (
                           <TableCell>
-                            <span className={`text-sm flex items-center gap-1 ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`} title={new Date(doc.updatedAt).toLocaleString()}>
-                              <Calendar className="h-3 w-3" />
-                              {formatDate(doc.updatedAt)}
-                            </span>
+                            <div className="flex flex-col">
+                              <span className={`text-sm flex items-center gap-1 ${theme === 'light' ? 'text-gray-600' : 'text-gray-300'}`}>
+                                <Calendar className="h-3 w-3" />
+                                {formatDate(doc.updatedAt)}
+                              </span>
+                              <span className={`text-[10px] ${theme === 'light' ? 'text-gray-400' : 'text-gray-500'}`}>
+                                {new Date(doc.updatedAt).toLocaleString('en-GB', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  second: '2-digit',
+                                  hour12: false
+                                })}
+                              </span>
+                            </div>
                           </TableCell>
                         )}
                         <TableCell className="text-right">
