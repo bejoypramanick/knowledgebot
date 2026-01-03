@@ -255,15 +255,13 @@ const KnowledgeBaseManagement: React.FC = () => {
 
       setSuccess(`Document "${file.name}" uploaded successfully!`);
       
-      setTimeout(() => {
-        setSuccess(null);
-        setUploadingFiles(prev => {
-          const newMap = new Map(prev);
-          newMap.delete(fileId);
-          return newMap;
-        });
-        loadDocuments();
-      }, 2000);
+      // Clean up uploading state and reload documents
+      setUploadingFiles(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(fileId);
+        return newMap;
+      });
+      loadDocuments();
     } catch (err: any) {
       console.error('Upload error:', err);
       setUploadingFiles(prev => {
@@ -272,7 +270,6 @@ const KnowledgeBaseManagement: React.FC = () => {
         return newMap;
       });
       setError(err.message || `Failed to upload ${file.name}`);
-      setTimeout(() => setError(null), 5000);
     }
   };
 
@@ -312,7 +309,6 @@ const KnowledgeBaseManagement: React.FC = () => {
           await knowledgeBaseManager.deleteDocument(documentKey);
           setSuccess(`Document "${documentName}" deleted successfully!`);
           await loadDocuments();
-          setTimeout(() => setSuccess(null), 2000);
         } catch (err: any) {
           console.error('Error deleting document:', err);
           setError(err.message || 'Failed to delete document');
@@ -367,14 +363,13 @@ const KnowledgeBaseManagement: React.FC = () => {
       setCrawlUrl('');
       setSitemapUrl('');
 
+      // Reload documents after a delay to allow processing
       setTimeout(() => {
         loadDocuments();
-        setSuccess(null);
       }, 3000);
     } catch (err: any) {
       console.error('Scrape error:', err);
       setError(err.message || 'Failed to start scraping');
-      setTimeout(() => setError(null), 5000);
     } finally {
       setIsScraping(false);
     }
@@ -498,6 +493,9 @@ const KnowledgeBaseManagement: React.FC = () => {
           }`}>
             <CheckCircle className={`h-5 w-5 flex-shrink-0 ${theme === 'light' ? 'text-green-600' : 'text-green-400'}`} />
             <p className={`text-sm flex-1 ${theme === 'light' ? 'text-green-700' : 'text-green-300'}`}>{success}</p>
+            <Button variant="ghost" size="sm" onClick={() => setSuccess(null)} className="h-8 w-8 p-0">
+              <X className="h-4 w-4" />
+            </Button>
           </div>
         )}
 
@@ -777,14 +775,18 @@ const KnowledgeBaseManagement: React.FC = () => {
                             <div className="min-w-0 flex-1">
                               <p className={`text-sm font-medium truncate ${
                                 theme === 'light' ? 'text-gray-900' : 'text-white'
-                              }`}>
-                                {doc.name}
+                              }`} title={doc.source === 'website' && doc.originalUrl ? doc.originalUrl : doc.name}>
+                                {/* For websites, show original URL as the name */}
+                                {doc.source === 'website' && doc.originalUrl ? doc.originalUrl : doc.name}
                               </p>
                               <p className={`text-xs truncate ${
                                 theme === 'light' ? 'text-gray-500' : 'text-gray-400'
                               }`}>
-                                {doc.source === 'website' && doc.originalUrl ? (
-                                  <span className="truncate" title={doc.originalUrl}>{doc.originalUrl}</span>
+                                {doc.source === 'website' ? (
+                                  <span className="flex items-center gap-1">
+                                    <Globe className="h-3 w-3 inline" />
+                                    <span>Scraped website</span>
+                                  </span>
                                 ) : (
                                   <>.{doc.type}</>
                                 )}
