@@ -166,7 +166,7 @@ const KnowledgeBaseManagement: React.FC = () => {
     status: string[];
     size: { value: number; operator: 'less' | 'greater' } | null;
     version: number | null;
-    updatedAt: { from: string; to: string };
+    updatedAt: { from: string; fromTime: string; to: string; toTime: string };
   }
   const [columnFilters, setColumnFilters] = useState<ColumnFilters>({
     name: { text: '', mode: 'contains' },
@@ -175,7 +175,7 @@ const KnowledgeBaseManagement: React.FC = () => {
     status: [],
     size: null,
     version: null,
-    updatedAt: { from: '', to: '' },
+    updatedAt: { from: '', fromTime: '00:00', to: '', toTime: '23:59' },
   });
 
   // Table expansion state
@@ -802,7 +802,7 @@ const KnowledgeBaseManagement: React.FC = () => {
       status: [],
       size: null,
       version: null,
-      updatedAt: { from: '', to: '' },
+      updatedAt: { from: '', fromTime: '00:00', to: '', toTime: '23:59' },
     });
     setSearchQuery('');
   };
@@ -818,7 +818,9 @@ const KnowledgeBaseManagement: React.FC = () => {
       columnFilters.size !== null ||
       columnFilters.version !== null ||
       columnFilters.updatedAt.from !== '' ||
-      columnFilters.updatedAt.to !== ''
+      columnFilters.updatedAt.to !== '' ||
+      columnFilters.updatedAt.fromTime !== '00:00' ||
+      columnFilters.updatedAt.toTime !== '23:59'
     );
   };
 
@@ -876,15 +878,19 @@ const KnowledgeBaseManagement: React.FC = () => {
     }
 
     // Date range filter
-    if (columnFilters.updatedAt.from !== '' || columnFilters.updatedAt.to !== '') {
-      const docDate = new Date(doc.updatedAt).getTime();
+    if (columnFilters.updatedAt.from !== '' || columnFilters.updatedAt.to !== '' ||
+        columnFilters.updatedAt.fromTime !== '00:00' || columnFilters.updatedAt.toTime !== '23:59') {
+      const docDate = new Date(doc.updatedAt);
+
       if (columnFilters.updatedAt.from !== '') {
-        const fromDate = new Date(columnFilters.updatedAt.from).getTime();
-        if (docDate < fromDate) return false;
+        const fromDateTime = new Date(`${columnFilters.updatedAt.from}T${columnFilters.updatedAt.fromTime || '00:00'}`);
+        if (docDate < fromDateTime) return false;
       }
+
       if (columnFilters.updatedAt.to !== '') {
-        const toDate = new Date(columnFilters.updatedAt.to).getTime() + 86400000; // Add 1 day to include the end date
-        if (docDate >= toDate) return false;
+        const toDateTime = new Date(`${columnFilters.updatedAt.to}T${columnFilters.updatedAt.toTime || '23:59'}`);
+        toDateTime.setSeconds(59, 999); // Include the end of the day
+        if (docDate > toDateTime) return false;
       }
     }
 
@@ -1046,7 +1052,7 @@ const KnowledgeBaseManagement: React.FC = () => {
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className={`h-8 w-8 animate-spin ${theme === 'light' ? 'text-gray-400' : 'text-gray-500'}`} />
-          </div>
+                </div>
         ) : filteredDocuments.length === 0 ? (
           <div className={`text-center py-12 ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>
             <FileIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
@@ -1074,7 +1080,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                             <Filter className={`h-3 w-3 ${columnFilters.name.text.trim() !== '' ? 'text-blue-500' : ''}`} />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
+                        <DropdownMenuContent align="start" className={`${theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'} ${isTableExpanded ? 'z-[10000]' : ''}`}>
                           <DropdownMenuLabel>Filter by Name</DropdownMenuLabel>
                           <DropdownMenuSeparator />
                           <div className="p-2 space-y-2">
@@ -1095,15 +1101,15 @@ const KnowledgeBaseManagement: React.FC = () => {
                               >
                                 Contains
                               </Button>
-                            </div>
-                            <Input
+                </div>
+                <Input
                               placeholder={columnFilters.name.mode === 'starts' ? 'Starts with...' : 'Contains...'}
                               value={columnFilters.name.text}
                               onChange={(e) => setColumnFilters(prev => ({ ...prev, name: { ...prev.name, text: e.target.value } }))}
                               className="h-8"
                             />
                             {columnFilters.name.text.trim() !== '' && (
-                              <Button
+              <Button
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => setColumnFilters(prev => ({ ...prev, name: { text: '', mode: 'contains' } }))}
@@ -1128,7 +1134,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                             <Filter className={`h-3 w-3 ${columnFilters.type.length > 0 ? 'text-blue-500' : ''}`} />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
+                        <DropdownMenuContent align="start" className={`${theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'} ${isTableExpanded ? 'z-[10000]' : ''}`}>
                           <DropdownMenuLabel>Filter by Type</DropdownMenuLabel>
                           <DropdownMenuSeparator />
                           {getUniqueValues('type').map(value => (
@@ -1158,16 +1164,13 @@ const KnowledgeBaseManagement: React.FC = () => {
                   {!isMobile && (
                     <TableHead className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
                       <div className="flex items-center gap-1">
-                        <span className="cursor-pointer" onClick={() => handleSort('source')}>
-                          Source {getSortIcon('source')}
-                        </span>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
                               <Filter className={`h-3 w-3 ${columnFilters.source.length > 0 ? 'text-blue-500' : ''}`} />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
+                          <DropdownMenuContent align="start" className={`${theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'} ${isTableExpanded ? 'z-[10000]' : ''}`}>
                             <DropdownMenuLabel>Filter by Source</DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             {getUniqueValues('source').map(value => (
@@ -1185,10 +1188,13 @@ const KnowledgeBaseManagement: React.FC = () => {
                                 <DropdownMenuCheckboxItem onCheckedChange={() => clearColumnFilter('source')}>
                                   Clear filter
                                 </DropdownMenuCheckboxItem>
-                              </>
-                            )}
+                  </>
+                )}
                           </DropdownMenuContent>
                         </DropdownMenu>
+                        <span className="cursor-pointer" onClick={() => handleSort('source')}>
+                          Source {getSortIcon('source')}
+                        </span>
                       </div>
                     </TableHead>
                   )}
@@ -1199,9 +1205,9 @@ const KnowledgeBaseManagement: React.FC = () => {
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
                               <Filter className={`h-3 w-3 ${columnFilters.version !== null ? 'text-blue-500' : ''}`} />
-                            </Button>
+              </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
+                          <DropdownMenuContent align="start" className={`${theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'} ${isTableExpanded ? 'z-[10000]' : ''}`}>
                             <DropdownMenuLabel>Filter by Version</DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             <div className="p-2">
@@ -1222,7 +1228,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                                   Clear
                                 </Button>
                               )}
-                            </div>
+            </div>
                           </DropdownMenuContent>
                         </DropdownMenu>
                         <span className="cursor-pointer" onClick={() => handleSort('version')}>
@@ -1239,7 +1245,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                             <Filter className={`h-3 w-3 ${columnFilters.size !== null ? 'text-blue-500' : ''}`} />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
+                        <DropdownMenuContent align="start" className={`${theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'} ${isTableExpanded ? 'z-[10000]' : ''}`}>
                           <DropdownMenuLabel>Filter by Size</DropdownMenuLabel>
                           <DropdownMenuSeparator />
                           <div className="p-2 space-y-2">
@@ -1288,16 +1294,13 @@ const KnowledgeBaseManagement: React.FC = () => {
                   </TableHead>
                   <TableHead className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
                     <div className="flex items-center gap-1">
-                      <span className="cursor-pointer" onClick={() => handleSort('status')}>
-                        Status {getSortIcon('status')}
-                      </span>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
                             <Filter className={`h-3 w-3 ${columnFilters.status.length > 0 ? 'text-blue-500' : ''}`} />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
+                        <DropdownMenuContent align="start" className={`${theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'} ${isTableExpanded ? 'z-[10000]' : ''}`}>
                           <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
                           <DropdownMenuSeparator />
                           {getUniqueValues('status').map(value => (
@@ -1319,6 +1322,9 @@ const KnowledgeBaseManagement: React.FC = () => {
                           )}
                         </DropdownMenuContent>
                       </DropdownMenu>
+                      <span className="cursor-pointer" onClick={() => handleSort('status')}>
+                        Status {getSortIcon('status')}
+                      </span>
                     </div>
                   </TableHead>
                   {!isMobile && (
@@ -1327,42 +1333,65 @@ const KnowledgeBaseManagement: React.FC = () => {
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                              <Filter className={`h-3 w-3 ${(columnFilters.updatedAt.from !== '' || columnFilters.updatedAt.to !== '') ? 'text-blue-500' : ''}`} />
+                              <Filter className={`h-3 w-3 ${(columnFilters.updatedAt.from !== '' || columnFilters.updatedAt.to !== '' || columnFilters.updatedAt.fromTime !== '00:00' || columnFilters.updatedAt.toTime !== '23:59') ? 'text-blue-500' : ''}`} />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
-                            <DropdownMenuLabel>Filter by Date Range</DropdownMenuLabel>
+                          <DropdownMenuContent align="start" className={`${theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'} ${isTableExpanded ? 'z-[10000]' : ''}`}>
+                            <DropdownMenuLabel>Filter by Date & Time Range</DropdownMenuLabel>
                             <DropdownMenuSeparator />
-                            <div className="p-2 space-y-2">
-                              <div>
-                                <label className="text-xs text-gray-500 mb-1 block">From Date</label>
-                                <Input
-                                  type="date"
-                                  value={columnFilters.updatedAt.from}
-                                  onChange={(e) => setColumnFilters(prev => ({ ...prev, updatedAt: { ...prev.updatedAt, from: e.target.value } }))}
-                                  className="h-8"
-                                />
+                            <div className="p-2 space-y-3">
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="text-xs text-gray-500 mb-1 block">From Date</label>
+                <Input
+                                    type="date"
+                                    value={columnFilters.updatedAt.from}
+                                    onChange={(e) => setColumnFilters(prev => ({ ...prev, updatedAt: { ...prev.updatedAt, from: e.target.value } }))}
+                                    className="h-8"
+                />
+              </div>
+                                <div>
+                                  <label className="text-xs text-gray-500 mb-1 block">From Time</label>
+                                  <Input
+                                    type="time"
+                                    value={columnFilters.updatedAt.fromTime}
+                                    onChange={(e) => setColumnFilters(prev => ({ ...prev, updatedAt: { ...prev.updatedAt, fromTime: e.target.value } }))}
+                                    className="h-8"
+                                  />
+                                </div>
                               </div>
-                              <div>
-                                <label className="text-xs text-gray-500 mb-1 block">To Date</label>
-                                <Input
-                                  type="date"
-                                  value={columnFilters.updatedAt.to}
-                                  onChange={(e) => setColumnFilters(prev => ({ ...prev, updatedAt: { ...prev.updatedAt, to: e.target.value } }))}
-                                  className="h-8"
-                                />
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="text-xs text-gray-500 mb-1 block">To Date</label>
+                                  <Input
+                                    type="date"
+                                    value={columnFilters.updatedAt.to}
+                                    onChange={(e) => setColumnFilters(prev => ({ ...prev, updatedAt: { ...prev.updatedAt, to: e.target.value } }))}
+                                    className="h-8"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs text-gray-500 mb-1 block">To Time</label>
+                                  <Input
+                                    type="time"
+                                    value={columnFilters.updatedAt.toTime}
+                                    onChange={(e) => setColumnFilters(prev => ({ ...prev, updatedAt: { ...prev.updatedAt, toTime: e.target.value } }))}
+                                    className="h-8"
+                                  />
+                                </div>
                               </div>
-                              {(columnFilters.updatedAt.from !== '' || columnFilters.updatedAt.to !== '') && (
-                                <Button
+                              {(columnFilters.updatedAt.from !== '' || columnFilters.updatedAt.to !== '' ||
+                                columnFilters.updatedAt.fromTime !== '00:00' || columnFilters.updatedAt.toTime !== '23:59') && (
+              <Button
                                   variant="ghost"
-                                  size="sm"
-                                  onClick={() => setColumnFilters(prev => ({ ...prev, updatedAt: { from: '', to: '' } }))}
+                size="sm"
+                                  onClick={() => setColumnFilters(prev => ({ ...prev, updatedAt: { from: '', fromTime: '00:00', to: '', toTime: '23:59' } }))}
                                   className="h-7 w-full text-xs"
                                 >
                                   Clear
-                                </Button>
+              </Button>
                               )}
-                            </div>
+            </div>
                           </DropdownMenuContent>
                         </DropdownMenu>
                         <span className="cursor-pointer" onClick={() => handleSort('updatedAt')}>
@@ -1374,9 +1403,9 @@ const KnowledgeBaseManagement: React.FC = () => {
                   <TableHead className={`text-right ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
                     Actions
                   </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {sortedDocuments.map((doc) => (
                     <TableRow 
                       key={doc.id}
@@ -1414,7 +1443,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                         >
                           {doc.source === 'website' ? 'www' : (doc.type || 'unknown').toUpperCase()}
                         </Badge>
-                      </TableCell>
+                        </TableCell>
                       {!isMobile && (
                         <TableCell>
                           <Badge 
@@ -1435,7 +1464,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                       )}
                       {!isMobile && (
                         <TableCell>
-                          <Badge 
+                          <Badge
                             variant="outline" 
                             className={`text-xs ${
                               theme === 'light' ? 'bg-gray-50 text-gray-600 border-gray-200' : 'bg-zinc-800 text-zinc-300 border-zinc-700'
@@ -1480,7 +1509,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                           </div>
                         </TableCell>
                       )}
-                      <TableCell className="text-right">
+                        <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
                           {/* Download button for uploaded files */}
                           {doc.source === 'upload' && (
@@ -1559,20 +1588,20 @@ const KnowledgeBaseManagement: React.FC = () => {
                               theme === 'light' ? '' : 'hover:bg-red-950'
                             }`}
                             onClick={() => handleDeleteDocument(doc.id, doc.name)}
-                            title="Delete document"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                              title="Delete document"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
                   ))}
-              </TableBody>
-            </Table>
-          </div>
+                </TableBody>
+              </Table>
+            </div>
         )}
-      </CardContent>
-    </Card>
+          </CardContent>
+        </Card>
   );
 
   return (
@@ -1591,7 +1620,7 @@ const KnowledgeBaseManagement: React.FC = () => {
             <h1 className={`text-xl sm:text-2xl font-bold ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
               Knowledge Base
             </h1>
-          </div>
+                </div>
           
           {/* Inline Stats */}
           <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
@@ -1599,7 +1628,7 @@ const KnowledgeBaseManagement: React.FC = () => {
               <FileText className="h-4 w-4 text-blue-500" />
               <span className={`text-sm font-medium ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>{documents.length}</span>
               <span className={`text-xs ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>Docs</span>
-            </div>
+              </div>
             <div className={`w-px h-4 ${theme === 'light' ? 'bg-gray-300' : 'bg-zinc-700'}`} />
             <div className="flex items-center gap-1.5">
               <Upload className="h-4 w-4 text-green-500" />
@@ -1632,7 +1661,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                 <Button variant="ghost" size="sm" onClick={() => setError(null)} className="h-8 w-8 p-0">
                   <X className="h-4 w-4" />
                 </Button>
-              </div>
+                </div>
             )}
             
             {success && (
@@ -1690,7 +1719,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                 <p className={`text-xs mt-1 ${theme === 'light' ? 'text-gray-500' : 'text-gray-500'}`}>
                   or click to browse
                 </p>
-                </div>
+              </div>
 
               {/* File Type Info */}
               <div className={`text-xs ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>
@@ -1766,7 +1795,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                   <Plus className="h-4 w-4 mr-1" />
                   Add URL
                 </Button>
-              </div>
+                </div>
             </CardHeader>
             <CardContent className="space-y-3">
               {/* URL List with Scrollbar */}
@@ -1814,7 +1843,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                           <Minus className="h-4 w-4" />
               </Button>
                       )}
-            </div>
+              </div>
                     
                     {/* Sitemap (readonly, auto-detected) */}
                     {entry.sitemap && (
@@ -1823,7 +1852,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                         <span className={`text-xs truncate ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>
                           {entry.sitemap}
                         </span>
-                      </div>
+              </div>
                     )}
                     
                     {/* Status indicators */}
@@ -1871,8 +1900,8 @@ const KnowledgeBaseManagement: React.FC = () => {
                   </>
                 )}
               </Button>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
         </div>
           </>
         )}
@@ -1918,7 +1947,7 @@ const KnowledgeBaseManagement: React.FC = () => {
         onChange={handleUpdateFileSelected}
         accept=".pdf,.doc,.docx,.txt,.rtf,.odt,.ppt,.pptx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.gif,.webp,.mp3,.wav,.html,.json,.xml,.yaml,.yml,.md"
       />
-        </div>
+      </div>
       )}
     </div>
   );
