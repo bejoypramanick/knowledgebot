@@ -1841,13 +1841,33 @@ const KnowledgeBaseManagement: React.FC = () => {
                                     setSuccess('Preparing download...');
 
                                     try {
-                                      // Call the download endpoint directly - it will return the file with proper headers
+                                      // Fetch the file content from the download endpoint
                                       const downloadUrl = `${knowledgeBaseManager.apiBaseUrl}/api/v1/knowledgebase/files/${encodeURIComponent(doc.id)}/download`;
 
-                                      // Create a temporary link element to trigger download
+                                      const response = await fetch(downloadUrl);
+                                      if (!response.ok) {
+                                        throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+                                      }
+
+                                      // Get the filename from the Content-Disposition header or fallback to doc.name
+                                      const contentDisposition = response.headers.get('Content-Disposition');
+                                      let filename = doc.name || 'downloaded-file';
+
+                                      if (contentDisposition) {
+                                        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                                        if (filenameMatch && filenameMatch[1]) {
+                                          filename = filenameMatch[1].replace(/['"]/g, '');
+                                        }
+                                      }
+
+                                      // Convert response to blob
+                                      const blob = await response.blob();
+
+                                      // Create blob URL and trigger download
+                                      const blobUrl = URL.createObjectURL(blob);
                                       const link = document.createElement('a');
-                                      link.href = downloadUrl;
-                                      link.download = doc.name || 'downloaded-file'; // Use filename from doc or fallback
+                                      link.href = blobUrl;
+                                      link.download = filename;
                                       link.style.display = 'none';
 
                                       // Add to DOM, click, and remove
@@ -1855,7 +1875,12 @@ const KnowledgeBaseManagement: React.FC = () => {
                                       link.click();
                                       document.body.removeChild(link);
 
+                                      // Clean up blob URL
+                                      URL.revokeObjectURL(blobUrl);
+
                                       setSuccess(null); // Clear the "Preparing download..." message
+                                      setSuccess('Download completed successfully!');
+                                      setTimeout(() => setSuccess(null), 3000);
                                     } catch (downloadError) {
                                       console.error('Direct download failed, trying signed URL fallback:', downloadError);
                                       // Fallback to signed URL method
