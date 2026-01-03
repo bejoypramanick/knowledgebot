@@ -500,6 +500,9 @@ export class KnowledgeBaseManager {
   async checkWebsiteExists(url: string): Promise<Document | null> {
     try {
       const response = await this.getDocuments();
+      console.log('checkWebsiteExists: Looking for URL:', url);
+      console.log('checkWebsiteExists: Found', response.documents.length, 'total documents');
+
       // Normalize URL for comparison (remove trailing slashes, protocol variations)
       const normalizeUrl = (u: string) => {
         return u.toLowerCase()
@@ -507,18 +510,26 @@ export class KnowledgeBaseManager {
           .replace(/\/$/, '')
           .replace(/^www\./, '');
       };
-      
+
       const normalizedInput = normalizeUrl(url);
-      
+      console.log('checkWebsiteExists: Normalized input URL:', normalizedInput);
+
       const existingDoc = response.documents.find(doc => {
         if (doc.source !== 'website') return false;
-        const docUrl = doc.originalUrl || doc.metadata.sourceUrl;
-        if (!docUrl) return false;
-        return normalizeUrl(docUrl) === normalizedInput;
+        const docUrl = doc.originalUrl;
+        if (!docUrl) {
+          console.log('checkWebsiteExists: No originalUrl for doc:', doc.name, doc.id);
+          return false;
+        }
+        const normalizedDocUrl = normalizeUrl(docUrl);
+        console.log('checkWebsiteExists: Comparing with doc URL:', docUrl, '->', normalizedDocUrl);
+        return normalizedDocUrl === normalizedInput;
       });
-      
+
+      console.log('checkWebsiteExists: Found existing document:', existingDoc ? 'YES' : 'NO');
       return existingDoc || null;
-    } catch {
+    } catch (error) {
+      console.error('checkWebsiteExists: Error:', error);
       return null;
     }
   }
