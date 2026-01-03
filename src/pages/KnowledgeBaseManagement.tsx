@@ -1950,12 +1950,12 @@ const KnowledgeBaseManagement: React.FC = () => {
               <div className={`text-xs ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>
                 <p className="font-medium mb-1">Supported formats:</p>
                 <div className="flex flex-wrap gap-1">
-                  {['PDF', 'DOCX', 'TXT', 'PPT', 'XLSX', 'CSV', 'HTML', 'JSON', 'XML'].map((type) => (
+                  {['PDF', 'DOCX', 'TXT', 'PPT', 'XLSX', 'CSV', 'HTML', 'JSON', 'XML', 'PNG', 'JPG'].map((type) => (
                     <Badge key={type} variant="outline" className="text-xs px-1.5 py-0.5">
                       {type}
                     </Badge>
                   ))}
-              </div>
+                </div>
                 <p className="mt-2">Max size: {formatFileSize(VALIDATION.MAX_FILE_SIZE)}</p>
               </div>
 
