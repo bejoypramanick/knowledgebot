@@ -50,6 +50,9 @@ import {
   Minus,
   Filter,
   RefreshCw,
+  Maximize2,
+  Minimize2,
+  X as XIcon,
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -156,15 +159,26 @@ const KnowledgeBaseManagement: React.FC = () => {
 
   // Column Filters
   interface ColumnFilters {
+    name: { text: string; mode: 'starts' | 'contains' };
     type: string[];
     source: string[];
     status: string[];
+    size: { value: number; operator: 'less' | 'greater' } | null;
+    version: number | null;
+    updatedAt: { from: string; to: string };
   }
   const [columnFilters, setColumnFilters] = useState<ColumnFilters>({
+    name: { text: '', mode: 'contains' },
     type: [],
     source: [],
     status: [],
+    size: null,
+    version: null,
+    updatedAt: { from: '', to: '' },
   });
+
+  // Table expansion state
+  const [isTableExpanded, setIsTableExpanded] = useState(false);
 
   const { theme } = useTheme();
   const isMobile = useIsMobile();
@@ -705,10 +719,10 @@ const KnowledgeBaseManagement: React.FC = () => {
     return [...new Set(values)].sort();
   }, [documents]);
 
-  // Toggle column filter value
-  const toggleColumnFilter = (column: keyof ColumnFilters, value: string) => {
+  // Toggle column filter value (for array-based filters: type, source, status)
+  const toggleColumnFilter = (column: 'type' | 'source' | 'status', value: string) => {
     setColumnFilters(prev => {
-      const current = prev[column];
+      const current = prev[column] as string[];
       const newValues = current.includes(value)
         ? current.filter(v => v !== value)
         : [...current, value];
@@ -717,7 +731,7 @@ const KnowledgeBaseManagement: React.FC = () => {
   };
 
   // Clear all filters for a column
-  const clearColumnFilter = (column: keyof ColumnFilters) => {
+  const clearColumnFilter = (column: 'type' | 'source' | 'status') => {
     setColumnFilters(prev => ({ ...prev, [column]: [] }));
   };
 
@@ -778,28 +792,99 @@ const KnowledgeBaseManagement: React.FC = () => {
     }
   };
 
+  // Clear all filters
+  const clearAllFilters = () => {
+    setColumnFilters({
+      name: { text: '', mode: 'contains' },
+      type: [],
+      source: [],
+      status: [],
+      size: null,
+      version: null,
+      updatedAt: { from: '', to: '' },
+    });
+    setSearchQuery('');
+  };
+
+  // Check if any filter is active
+  const hasActiveFilters = () => {
+    return (
+      searchQuery.trim() !== '' ||
+      columnFilters.name.text.trim() !== '' ||
+      columnFilters.type.length > 0 ||
+      columnFilters.source.length > 0 ||
+      columnFilters.status.length > 0 ||
+      columnFilters.size !== null ||
+      columnFilters.version !== null ||
+      columnFilters.updatedAt.from !== '' ||
+      columnFilters.updatedAt.to !== ''
+    );
+  };
+
   // Filter documents based on search and column filters
   const filteredDocuments = documents.filter(doc => {
-    // Search filter
+    // Name filter (starts with or contains)
+    if (columnFilters.name.text.trim() !== '') {
+      const nameLower = doc.name.toLowerCase();
+      const filterText = columnFilters.name.text.toLowerCase();
+      if (columnFilters.name.mode === 'starts') {
+        if (!nameLower.startsWith(filterText)) return false;
+      } else {
+        if (!nameLower.includes(filterText)) return false;
+      }
+    }
+
+    // Search filter (general search)
     const matchesSearch = 
       doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       doc.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
       doc.metadata.sourceUrl?.toLowerCase().includes(searchQuery.toLowerCase());
     
-    if (!matchesSearch) return false;
+    if (!matchesSearch && searchQuery.trim() !== '') return false;
 
-    // Column filters
+    // Type filter
     if (columnFilters.type.length > 0) {
       const docType = doc.source === 'website' ? 'www' : (doc.type || 'unknown').toUpperCase();
       if (!columnFilters.type.includes(docType)) return false;
     }
 
+    // Source filter
     if (columnFilters.source.length > 0) {
       if (!columnFilters.source.includes(doc.source)) return false;
     }
 
+    // Status filter
     if (columnFilters.status.length > 0) {
       if (!columnFilters.status.includes(doc.status)) return false;
+    }
+
+    // Size filter
+    if (columnFilters.size !== null) {
+      const docSize = doc.size || 0;
+      if (columnFilters.size.operator === 'less') {
+        if (docSize > columnFilters.size.value) return false;
+      } else {
+        if (docSize < columnFilters.size.value) return false;
+      }
+    }
+
+    // Version filter
+    if (columnFilters.version !== null) {
+      const docVersion = doc.version || 1;
+      if (docVersion !== columnFilters.version) return false;
+    }
+
+    // Date range filter
+    if (columnFilters.updatedAt.from !== '' || columnFilters.updatedAt.to !== '') {
+      const docDate = new Date(doc.updatedAt).getTime();
+      if (columnFilters.updatedAt.from !== '') {
+        const fromDate = new Date(columnFilters.updatedAt.from).getTime();
+        if (docDate < fromDate) return false;
+      }
+      if (columnFilters.updatedAt.to !== '') {
+        const toDate = new Date(columnFilters.updatedAt.to).getTime() + 86400000; // Add 1 day to include the end date
+        if (docDate >= toDate) return false;
+      }
     }
 
     return true;
@@ -929,32 +1014,34 @@ const KnowledgeBaseManagement: React.FC = () => {
         </div>
 
         {/* Error/Success Messages */}
-        {error && (
-          <div className={`flex items-center gap-3 p-4 rounded-lg border ${
-            theme === 'light' ? 'bg-red-50 border-red-200' : 'bg-red-950 border-red-800'
-          }`}>
-            <AlertCircle className={`h-5 w-5 flex-shrink-0 ${theme === 'light' ? 'text-red-600' : 'text-red-400'}`} />
-            <p className={`text-sm flex-1 ${theme === 'light' ? 'text-red-700' : 'text-red-300'}`}>{error}</p>
-            <Button variant="ghost" size="sm" onClick={() => setError(null)} className="h-8 w-8 p-0">
-              <X className="h-4 w-4" />
-            </Button>
-                </div>
-        )}
-        
-        {success && (
-          <div className={`flex items-center gap-3 p-4 rounded-lg border ${
-            theme === 'light' ? 'bg-green-50 border-green-200' : 'bg-green-950 border-green-800'
-          }`}>
-            <CheckCircle className={`h-5 w-5 flex-shrink-0 ${theme === 'light' ? 'text-green-600' : 'text-green-400'}`} />
-            <p className={`text-sm flex-1 ${theme === 'light' ? 'text-green-700' : 'text-green-300'}`}>{success}</p>
-            <Button variant="ghost" size="sm" onClick={() => setSuccess(null)} className="h-8 w-8 p-0">
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
+        {!isTableExpanded && (
+          <>
+            {error && (
+              <div className={`flex items-center gap-3 p-4 rounded-lg border ${
+                theme === 'light' ? 'bg-red-50 border-red-200' : 'bg-red-950 border-red-800'
+              }`}>
+                <AlertCircle className={`h-5 w-5 flex-shrink-0 ${theme === 'light' ? 'text-red-600' : 'text-red-400'}`} />
+                <p className={`text-sm flex-1 ${theme === 'light' ? 'text-red-700' : 'text-red-300'}`}>{error}</p>
+                <Button variant="ghost" size="sm" onClick={() => setError(null)} className="h-8 w-8 p-0">
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+            
+            {success && (
+              <div className={`flex items-center gap-3 p-4 rounded-lg border ${
+                theme === 'light' ? 'bg-green-50 border-green-200' : 'bg-green-950 border-green-800'
+              }`}>
+                <CheckCircle className={`h-5 w-5 flex-shrink-0 ${theme === 'light' ? 'text-green-600' : 'text-green-400'}`} />
+                <p className={`text-sm flex-1 ${theme === 'light' ? 'text-green-700' : 'text-green-300'}`}>{success}</p>
+                <Button variant="ghost" size="sm" onClick={() => setSuccess(null)} className="h-8 w-8 p-0">
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
 
-        {/* Upload and Crawl Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+            {/* Upload and Crawl Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {/* Upload File Card */}
           <Card className={`${theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-900 border-zinc-700'}`}>
             <CardHeader className="pb-3">
@@ -1180,10 +1267,12 @@ const KnowledgeBaseManagement: React.FC = () => {
           </CardContent>
         </Card>
         </div>
+          </>
+        )}
 
         {/* Documents Table */}
-        <Card className={`${theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-900 border-zinc-700'}`}>
-          <CardHeader className="pb-3">
+        <Card className={`${isTableExpanded ? 'fixed inset-0 z-50 m-0 rounded-none' : ''} ${theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-900 border-zinc-700'}`}>
+          <CardHeader className={`pb-3 ${isTableExpanded ? 'sticky top-0 z-10 bg-white dark:bg-zinc-900 border-b' : ''}`}>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-center gap-3">
                 <CardTitle className={`text-lg flex items-center gap-2 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
@@ -1206,13 +1295,32 @@ const KnowledgeBaseManagement: React.FC = () => {
                     Delete ({selectedDocIds.size})
                   </Button>
                 )}
-                {/* Active filters indicator */}
-                {(columnFilters.type.length > 0 || columnFilters.source.length > 0 || columnFilters.status.length > 0) && (
-                  <Badge variant="secondary" className="text-xs">
-                    <Filter className="h-3 w-3 mr-1" />
-                    Filtered
-                  </Badge>
+                {/* Active filters indicator and clear button */}
+                {hasActiveFilters() && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={clearAllFilters}
+                    className="h-8 text-xs"
+                  >
+                    <XIcon className="h-3 w-3 mr-1" />
+                    Clear All Filters
+                  </Button>
                 )}
+                {/* Expand/Collapse button */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsTableExpanded(!isTableExpanded)}
+                  className="h-8 w-8 p-0"
+                  title={isTableExpanded ? 'Collapse table' : 'Expand table'}
+                >
+                  {isTableExpanded ? (
+                    <Minimize2 className="h-4 w-4" />
+                  ) : (
+                    <Maximize2 className="h-4 w-4" />
+                  )}
+                </Button>
               </div>
               <div className="relative w-full sm:w-64">
                 <Search className={`absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 ${
@@ -1241,7 +1349,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                 <p className="text-xs mt-1">Upload files or add URLs to get started</p>
               </div>
             ) : (
-              <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+              <div className={`overflow-x-auto ${isTableExpanded ? 'h-[calc(100vh-180px)]' : 'max-h-[140px]'} overflow-y-auto`}>
               <Table>
                 <TableHeader>
                     <TableRow className={theme === 'light' ? 'border-gray-200' : 'border-zinc-700'}>
@@ -1253,19 +1361,62 @@ const KnowledgeBaseManagement: React.FC = () => {
                           aria-label="Select all"
                         />
                       </TableHead>
-                      <TableHead 
-                        className={`${isMobile ? 'w-[30%]' : 'w-[20%]'} ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'} cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-800`}
-                        onClick={() => handleSort('name')}
-                      >
-                        <div className="flex items-center">
-                          Name {getSortIcon('name')}
+                      <TableHead className={`${isMobile ? 'w-[30%]' : 'w-[20%]'} ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
+                        <div className="flex items-center gap-1">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                <Filter className={`h-3 w-3 ${columnFilters.name.text.trim() !== '' ? 'text-blue-500' : ''}`} />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
+                              <DropdownMenuLabel>Filter by Name</DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              <div className="p-2 space-y-2">
+                                <div className="flex gap-2">
+                                  <Button
+                                    variant={columnFilters.name.mode === 'starts' ? 'default' : 'outline'}
+                                    size="sm"
+                                    onClick={() => setColumnFilters(prev => ({ ...prev, name: { ...prev.name, mode: 'starts' } }))}
+                                    className="h-7 text-xs"
+                                  >
+                                    Starts with
+                                  </Button>
+                                  <Button
+                                    variant={columnFilters.name.mode === 'contains' ? 'default' : 'outline'}
+                                    size="sm"
+                                    onClick={() => setColumnFilters(prev => ({ ...prev, name: { ...prev.name, mode: 'contains' } }))}
+                                    className="h-7 text-xs"
+                                  >
+                                    Contains
+                                  </Button>
+                                </div>
+                                <Input
+                                  placeholder={columnFilters.name.mode === 'starts' ? 'Starts with...' : 'Contains...'}
+                                  value={columnFilters.name.text}
+                                  onChange={(e) => setColumnFilters(prev => ({ ...prev, name: { ...prev.name, text: e.target.value } }))}
+                                  className="h-8"
+                                />
+                                {columnFilters.name.text.trim() !== '' && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setColumnFilters(prev => ({ ...prev, name: { text: '', mode: 'contains' } }))}
+                                    className="h-7 w-full text-xs"
+                                  >
+                                    Clear
+                                  </Button>
+                                )}
+                              </div>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                          <span className="cursor-pointer" onClick={() => handleSort('name')}>
+                            Name {getSortIcon('name')}
+                          </span>
                         </div>
                       </TableHead>
                       <TableHead className={`w-[70px] ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
                         <div className="flex items-center gap-1">
-                          <span className="cursor-pointer" onClick={() => handleSort('type')}>
-                            Type {getSortIcon('type')}
-                          </span>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
@@ -1334,21 +1485,97 @@ const KnowledgeBaseManagement: React.FC = () => {
                         </TableHead>
                       )}
                       {!isMobile && (
-                        <TableHead 
-                          className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'} cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-800`}
-                          onClick={() => handleSort('version')}
-                        >
-                          <div className="flex items-center">
-                            Version {getSortIcon('version')}
+                        <TableHead className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
+                          <div className="flex items-center gap-1">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                  <Filter className={`h-3 w-3 ${columnFilters.version !== null ? 'text-blue-500' : ''}`} />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
+                                <DropdownMenuLabel>Filter by Version</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <div className="p-2">
+                                  <Input
+                                    type="number"
+                                    placeholder="Version number"
+                                    value={columnFilters.version || ''}
+                                    onChange={(e) => setColumnFilters(prev => ({ ...prev, version: e.target.value ? parseInt(e.target.value) : null }))}
+                                    className="h-8"
+                                  />
+                                  {columnFilters.version !== null && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => setColumnFilters(prev => ({ ...prev, version: null }))}
+                                      className="h-7 w-full mt-2 text-xs"
+                                    >
+                                      Clear
+                                    </Button>
+                                  )}
+                                </div>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                            <span className="cursor-pointer" onClick={() => handleSort('version')}>
+                              Version {getSortIcon('version')}
+                            </span>
                           </div>
                         </TableHead>
                       )}
-                      <TableHead 
-                        className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'} cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-800`}
-                        onClick={() => handleSort('size')}
-                      >
-                        <div className="flex items-center">
-                          Size {getSortIcon('size')}
+                      <TableHead className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
+                        <div className="flex items-center gap-1">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                <Filter className={`h-3 w-3 ${columnFilters.size !== null ? 'text-blue-500' : ''}`} />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
+                              <DropdownMenuLabel>Filter by Size</DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              <div className="p-2 space-y-2">
+                                <div className="flex gap-2">
+                                  <Button
+                                    variant={columnFilters.size?.operator === 'less' ? 'default' : 'outline'}
+                                    size="sm"
+                                    onClick={() => setColumnFilters(prev => ({ ...prev, size: prev.size ? { ...prev.size, operator: 'less' } : { value: 0, operator: 'less' } }))}
+                                    className="h-7 text-xs"
+                                  >
+                                    ≤ Less
+                                  </Button>
+                                  <Button
+                                    variant={columnFilters.size?.operator === 'greater' ? 'default' : 'outline'}
+                                    size="sm"
+                                    onClick={() => setColumnFilters(prev => ({ ...prev, size: prev.size ? { ...prev.size, operator: 'greater' } : { value: 0, operator: 'greater' } }))}
+                                    className="h-7 text-xs"
+                                  >
+                                    ≥ Greater
+                                  </Button>
+                                </div>
+                                <Input
+                                  type="number"
+                                  placeholder="Size in bytes"
+                                  value={columnFilters.size?.value || ''}
+                                  onChange={(e) => setColumnFilters(prev => ({ ...prev, size: e.target.value ? { value: parseInt(e.target.value), operator: prev.size?.operator || 'less' } : null }))}
+                                  className="h-8"
+                                />
+                                {columnFilters.size !== null && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setColumnFilters(prev => ({ ...prev, size: null }))}
+                                    className="h-7 w-full text-xs"
+                                  >
+                                    Clear
+                                  </Button>
+                                )}
+                              </div>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                          <span className="cursor-pointer" onClick={() => handleSort('size')}>
+                            Size {getSortIcon('size')}
+                          </span>
                         </div>
                       </TableHead>
                       <TableHead className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
@@ -1387,12 +1614,52 @@ const KnowledgeBaseManagement: React.FC = () => {
                         </div>
                       </TableHead>
                       {!isMobile && (
-                        <TableHead 
-                          className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'} cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-800`}
-                          onClick={() => handleSort('updatedAt')}
-                        >
-                          <div className="flex items-center">
-                            Last Updated {getSortIcon('updatedAt')}
+                        <TableHead className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
+                          <div className="flex items-center gap-1">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                  <Filter className={`h-3 w-3 ${(columnFilters.updatedAt.from !== '' || columnFilters.updatedAt.to !== '') ? 'text-blue-500' : ''}`} />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
+                                <DropdownMenuLabel>Filter by Date Range</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <div className="p-2 space-y-2">
+                                  <div>
+                                    <label className="text-xs text-gray-500 mb-1 block">From Date</label>
+                                    <Input
+                                      type="date"
+                                      value={columnFilters.updatedAt.from}
+                                      onChange={(e) => setColumnFilters(prev => ({ ...prev, updatedAt: { ...prev.updatedAt, from: e.target.value } }))}
+                                      className="h-8"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-xs text-gray-500 mb-1 block">To Date</label>
+                                    <Input
+                                      type="date"
+                                      value={columnFilters.updatedAt.to}
+                                      onChange={(e) => setColumnFilters(prev => ({ ...prev, updatedAt: { ...prev.updatedAt, to: e.target.value } }))}
+                                      className="h-8"
+                                    />
+                                  </div>
+                                  {(columnFilters.updatedAt.from !== '' || columnFilters.updatedAt.to !== '') && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => setColumnFilters(prev => ({ ...prev, updatedAt: { from: '', to: '' } }))}
+                                      className="h-7 w-full text-xs"
+                                    >
+                                      Clear
+                                    </Button>
+                                  )}
+                                </div>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                            <span className="cursor-pointer" onClick={() => handleSort('updatedAt')}>
+                              Last Updated {getSortIcon('updatedAt')}
+                            </span>
                           </div>
                         </TableHead>
                       )}
@@ -1600,7 +1867,6 @@ const KnowledgeBaseManagement: React.FC = () => {
             )}
           </CardContent>
         </Card>
-                </div>
 
       {/* Confirmation Dialog */}
       <Dialog open={confirmDialog.isOpen} onOpenChange={(open) => !open && setConfirmDialog(prev => ({ ...prev, isOpen: false }))}>
@@ -1709,6 +1975,7 @@ const KnowledgeBaseManagement: React.FC = () => {
         onChange={handleUpdateFileSelected}
         accept=".pdf,.doc,.docx,.txt,.rtf,.odt,.ppt,.pptx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.gif,.webp,.mp3,.wav,.html,.json,.xml,.yaml,.yml,.md"
       />
+      </div>
     </div>
   );
 };
