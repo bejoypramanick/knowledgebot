@@ -400,9 +400,16 @@ export class KnowledgeBaseManager {
           originalUrl = `https://${scrapedDomain}`;
         }
 
-        // Use gemini_file_name (doc.name) as the primary identifier for deletion
-        // doc.name is the Gemini file name like 'files/xyz123'
-        const documentId = doc.key || doc.gemini_file_name || doc.name || String(doc.id) || Math.random().toString();
+        // Use gemini_file_name as the primary identifier for deletion
+        // This should be the Gemini file name like 'files/xyz123'
+        const documentId = doc.gemini_file_name || doc.key || doc.name || String(doc.id) || Math.random().toString();
+        console.log('Document ID assignment:', {
+          id: doc.id,
+          key: doc.key,
+          gemini_file_name: doc.gemini_file_name,
+          name: doc.name,
+          final_documentId: documentId
+        });
         
         return {
           id: documentId,
@@ -442,14 +449,19 @@ export class KnowledgeBaseManager {
 
   async deleteDocument(documentKey: string): Promise<{ success: boolean; message: string }> {
     try {
+      console.log('deleteDocument called with documentKey:', documentKey);
+
       // Extract just the file ID if the key is in 'files/xyz123' format
       // The backend will normalize it to the proper Gemini format
       const fileId = documentKey.startsWith('files/')
         ? documentKey.substring(6)  // Remove 'files/' prefix
         : documentKey;
 
+      console.log('deleteDocument - extracted fileId:', fileId, 'from documentKey:', documentKey);
+
       // Use DELETE method with the file ID as path parameter
       const response = await axios.delete(`${this.apiBaseUrl}/api/v1/knowledgebase/files/${encodeURIComponent(fileId)}`);
+      console.log('deleteDocument - API response:', response.status, response.data);
 
       return {
         success: true,

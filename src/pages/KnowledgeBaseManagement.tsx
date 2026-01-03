@@ -460,7 +460,7 @@ const KnowledgeBaseManagement: React.FC = () => {
   };
 
   const handleDeleteDocument = async (documentKey: string, documentName: string) => {
-    console.log('handleDeleteDocument called with:', { documentKey, documentName });
+    console.log('handleDeleteDocument called with:', { documentKey, documentName, type: typeof documentKey });
     setConfirmDialog({
       isOpen: true,
       title: 'Delete Document?',
