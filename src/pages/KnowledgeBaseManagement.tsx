@@ -38,6 +38,7 @@ import {
   ExternalLink,
   Database,
   HardDrive,
+  Cloud,
   AlertTriangle,
   X,
   MapPin,
@@ -753,8 +754,21 @@ const KnowledgeBaseManagement: React.FC = () => {
 
       try {
         // First try with automatic rescraping detection
+        // First ensure documents are loaded
+        if (documents.length === 0) {
+          console.log('No documents loaded, fetching documents first...');
+          await loadDocuments();
+        }
+
         let existingWebsite = await knowledgeBaseManager.checkWebsiteExists(fullUrl);
         let replaceExisting = !!existingWebsite;
+
+        console.log(`Rescraping check for ${fullUrl}:`, {
+          existingWebsite: !!existingWebsite,
+          replaceExisting,
+          existingVersion: existingWebsite?.version,
+          existingOriginalUrl: existingWebsite?.originalUrl
+        });
 
         if (existingWebsite) {
           console.log(`Website ${fullUrl} already exists (version ${existingWebsite.version}), rescraping with replaceExisting=true`);
@@ -762,9 +776,29 @@ const KnowledgeBaseManagement: React.FC = () => {
           setCrawlUrls(prev => prev.map(e =>
             e.id === entry.id ? { ...e, status: 'rescraping' } : e
           ));
+        } else {
+          console.log(`Website ${fullUrl} not found in existing documents, will create new entry`);
         }
 
-        await knowledgeBaseManager.scrapeWebsite(fullUrl, { replaceExisting });
+        // Try to scrape with replaceExisting flag
+        try {
+          await knowledgeBaseManager.scrapeWebsite(fullUrl, { replaceExisting });
+        } catch (scrapeError: unknown) {
+          const errorObj = scrapeError as any;
+          const errorMessage = errorObj?.message || errorObj?.response?.data?.detail?.message || (scrapeError instanceof Error ? scrapeError.message : 'Failed to scrape');
+
+          // If it's a duplicate error and we haven't already tried with replaceExisting=true, try again
+          if ((errorMessage.includes("has already been scraped") || errorMessage.includes("Set replace_existing=true")) && !replaceExisting) {
+            console.log('Backend detected duplicate, retrying with replaceExisting=true');
+            setCrawlUrls(prev => prev.map(e =>
+              e.id === entry.id ? { ...e, status: 'rescraping' } : e
+            ));
+
+            await knowledgeBaseManager.scrapeWebsite(fullUrl, { replaceExisting: true });
+          } else {
+            throw scrapeError; // Re-throw if it's not a duplicate error or we've already tried
+          }
+        }
 
         // Update status to success
         setCrawlUrls(prev => prev.map(e =>
@@ -795,7 +829,9 @@ const KnowledgeBaseManagement: React.FC = () => {
                   ));
 
                   // Retry with replaceExisting = true
+                  console.log('Calling scrapeWebsite with replaceExisting=true for:', fullUrl);
                   await knowledgeBaseManager.scrapeWebsite(fullUrl, { replaceExisting: true });
+                  console.log('ScrapeWebsite call completed successfully');
 
                   // Update status to success
                   setCrawlUrls(prev => prev.map(e =>
@@ -1654,6 +1690,25 @@ const KnowledgeBaseManagement: React.FC = () => {
                               {/* For websites, show original URL as the name */}
                               {doc.source === 'website' && doc.originalUrl ? doc.originalUrl : doc.name}
                             </p>
+                            {/* Storage location indicators */}
+                            <div className="flex items-center gap-1 mt-0.5">
+                              {doc.r2Key && (
+                                <div className="flex items-center gap-1" title="Stored in Cloudflare R2">
+                                  <Cloud className={`h-3 w-3 ${theme === 'light' ? 'text-blue-500' : 'text-blue-400'}`} />
+                                  <span className={`text-[10px] ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>R2</span>
+                                </div>
+                              )}
+                              {doc.geminiFileName && (
+                                <div className="flex items-center gap-1" title="Indexed in Gemini File Search">
+                                  <HardDrive className={`h-3 w-3 ${theme === 'light' ? 'text-green-500' : 'text-green-400'}`} />
+                                  <span className={`text-[10px] ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>Gemini</span>
+                                </div>
+                              )}
+                              <div className="flex items-center gap-1" title="Metadata stored in PostgreSQL">
+                                <Database className={`h-3 w-3 ${theme === 'light' ? 'text-purple-500' : 'text-purple-400'}`} />
+                                <span className={`text-[10px] ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>DB</span>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </TableCell>
