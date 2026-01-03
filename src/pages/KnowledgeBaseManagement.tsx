@@ -1707,43 +1707,45 @@ const KnowledgeBaseManagement: React.FC = () => {
                         />
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2 min-w-0">
-                          {getFileIcon(doc.type, doc.source)}
+                        <div className={`flex items-center gap-2 min-w-0 ${isMobile && !isTableExpanded ? 'gap-1' : 'gap-2'}`}>
+                          <div className={isMobile && !isTableExpanded ? 'scale-75' : ''}>
+                            {getFileIcon(doc.type, doc.source)}
+                          </div>
                           <div className="min-w-0 flex-1">
-                            <p className={`text-sm font-medium truncate ${
+                            <p className={`${isMobile && !isTableExpanded ? 'text-xs' : 'text-sm'} font-medium truncate ${
                               theme === 'light' ? 'text-gray-900' : 'text-white'
                             }`} title={doc.source === 'website' && doc.originalUrl ? doc.originalUrl : doc.name}>
                               {/* For websites, show original URL as the name */}
                               {doc.source === 'website' && doc.originalUrl ? doc.originalUrl : doc.name}
                             </p>
                             {/* Storage location indicators */}
-                            <div className="flex items-center gap-1 mt-0.5">
+                            <div className={`flex items-center gap-1 mt-0.5 ${isMobile && !isTableExpanded ? 'gap-0.5' : 'gap-1'}`}>
                               {doc.r2Key && (
                                 <div className="flex items-center gap-1" title="Stored in Cloudflare R2">
-                                  <Cloud className={`h-3 w-3 ${theme === 'light' ? 'text-blue-500' : 'text-blue-400'}`} />
-                                  <span className={`text-[10px] ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>R2</span>
+                                  <Cloud className={`${isMobile && !isTableExpanded ? 'h-2 w-2' : 'h-3 w-3'} ${theme === 'light' ? 'text-blue-500' : 'text-blue-400'}`} />
+                                  <span className={`${isMobile && !isTableExpanded ? 'text-[8px]' : 'text-[10px]'} ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>R2</span>
                                 </div>
                               )}
                               {doc.geminiFileName && (
                                 <div className="flex items-center gap-1" title="Indexed in Gemini File Search">
-                                  <HardDrive className={`h-3 w-3 ${theme === 'light' ? 'text-green-500' : 'text-green-400'}`} />
-                                  <span className={`text-[10px] ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>Gemini</span>
+                                  <HardDrive className={`${isMobile && !isTableExpanded ? 'h-2 w-2' : 'h-3 w-3'} ${theme === 'light' ? 'text-green-500' : 'text-green-400'}`} />
+                                  <span className={`${isMobile && !isTableExpanded ? 'text-[8px]' : 'text-[10px]'} ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>Gemini</span>
                                 </div>
                               )}
                               <div className="flex items-center gap-1" title="Metadata stored in PostgreSQL">
-                                <Database className={`h-3 w-3 ${theme === 'light' ? 'text-purple-500' : 'text-purple-400'}`} />
-                                <span className={`text-[10px] ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>DB</span>
+                                <Database className={`${isMobile && !isTableExpanded ? 'h-2 w-2' : 'h-3 w-3'} ${theme === 'light' ? 'text-purple-500' : 'text-purple-400'}`} />
+                                <span className={`${isMobile && !isTableExpanded ? 'text-[8px]' : 'text-[10px]'} ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>DB</span>
                               </div>
                             </div>
                           </div>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge 
-                          variant="outline" 
-                          className={`text-xs ${
-                            doc.source === 'website' 
-                              ? 'bg-purple-50 text-purple-600 border-purple-200' 
+                        <Badge
+                          variant="outline"
+                          className={`${isMobile && !isTableExpanded ? 'text-[10px] px-1 py-0' : 'text-xs px-1.5 py-0.5'} ${
+                            doc.source === 'website'
+                              ? 'bg-purple-50 text-purple-600 border-purple-200'
                               : 'bg-gray-50 text-gray-600 border-gray-200'
                           }`}
                         >
@@ -1752,18 +1754,18 @@ const KnowledgeBaseManagement: React.FC = () => {
                         </TableCell>
                       {!isMobile && (
                         <TableCell>
-                          <Badge 
-                            variant="outline" 
-                            className={`text-xs ${
-                              doc.source === 'website' 
-                                ? 'bg-purple-50 text-purple-600 border-purple-200' 
+                          <Badge
+                            variant="outline"
+                            className={`${isTableExpanded ? 'text-xs px-2 py-1' : 'text-xs px-2 py-1'} ${
+                              doc.source === 'website'
+                                ? 'bg-purple-50 text-purple-600 border-purple-200'
                                 : 'bg-blue-50 text-blue-600 border-blue-200'
                             }`}
                           >
                             {doc.source === 'website' ? (
-                              <><Globe className="h-3 w-3 mr-1" /> Website</>
+                              <><Globe className={`${isTableExpanded ? 'h-3 w-3' : 'h-3 w-3'} mr-1`} /> Website</>
                             ) : (
-                              <><Upload className="h-3 w-3 mr-1" /> Upload</>
+                              <><Upload className={`${isTableExpanded ? 'h-3 w-3' : 'h-3 w-3'} mr-1`} /> Upload</>
                             )}
                           </Badge>
                         </TableCell>
@@ -1771,8 +1773,8 @@ const KnowledgeBaseManagement: React.FC = () => {
                       {!isMobile && (
                         <TableCell>
                           <Badge
-                            variant="outline" 
-                            className={`text-xs ${
+                            variant="outline"
+                            className={`${isTableExpanded ? 'text-xs px-1.5 py-0.5' : 'text-xs px-1.5 py-0.5'} ${
                               theme === 'light' ? 'bg-gray-50 text-gray-600 border-gray-200' : 'bg-zinc-800 text-zinc-300 border-zinc-700'
                             }`}
                           >
@@ -1781,13 +1783,13 @@ const KnowledgeBaseManagement: React.FC = () => {
                         </TableCell>
                       )}
                       <TableCell>
-                        <span className={`text-sm ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
+                        <span className={`${isMobile && !isTableExpanded ? 'text-xs' : 'text-sm'} ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
                           {formatFileSize(doc.size || 0)}
                         </span>
                       </TableCell>
                       <TableCell>
                         {isMobile ? (
-                          <Badge variant="outline" className="text-xs">
+                          <Badge variant="outline" className={`${isTableExpanded ? 'text-xs px-1.5 py-0.5' : 'text-[10px] px-1 py-0'}`}>
                             {getStatusBadge(doc.status)}
                           </Badge>
                         ) : (
@@ -1797,11 +1799,11 @@ const KnowledgeBaseManagement: React.FC = () => {
                       {!isMobile && (
                         <TableCell>
                           <div className="flex flex-col">
-                            <span className={`text-sm flex items-center gap-1 ${theme === 'light' ? 'text-gray-600' : 'text-gray-300'}`}>
-                              <Calendar className="h-3 w-3" />
+                            <span className={`${isTableExpanded ? 'text-sm' : 'text-sm'} flex items-center gap-1 ${theme === 'light' ? 'text-gray-600' : 'text-gray-300'}`}>
+                              <Calendar className={`${isTableExpanded ? 'h-3 w-3' : 'h-3 w-3'}`} />
                               {formatDate(doc.updatedAt)}
                             </span>
-                            <span className={`text-[10px] ${theme === 'light' ? 'text-gray-400' : 'text-gray-500'}`}>
+                            <span className={`${isTableExpanded ? 'text-[10px]' : 'text-[10px]'} ${theme === 'light' ? 'text-gray-400' : 'text-gray-500'}`}>
                               {new Date(doc.updatedAt).toLocaleString('en-GB', {
                                 day: '2-digit',
                                 month: '2-digit',
@@ -1816,13 +1818,13 @@ const KnowledgeBaseManagement: React.FC = () => {
                         </TableCell>
                       )}
                         <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
+                        <div className={`flex items-center justify-end ${isMobile && !isTableExpanded ? 'gap-0.5' : 'gap-1'}`}>
                           {/* Download button for uploaded files */}
                           {doc.source === 'upload' && (
                             <Button
                               variant="ghost"
                               size="sm"
-                              className={`h-8 w-8 p-0 ${
+                              className={`${isMobile && !isTableExpanded ? 'h-6 w-6 p-0' : 'h-8 w-8 p-0'} ${
                                 theme === 'light' ? 'hover:bg-blue-50' : 'hover:bg-blue-950'
                               }`}
                               onClick={async () => {
@@ -1900,7 +1902,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                               }}
                               title="Download file"
                             >
-                              <Download className={`h-4 w-4 ${
+                              <Download className={`${isMobile && !isTableExpanded ? 'h-3 w-3' : 'h-4 w-4'} ${
                                 theme === 'light' ? 'text-blue-500' : 'text-blue-400'
                               }`} />
                             </Button>
@@ -1910,13 +1912,13 @@ const KnowledgeBaseManagement: React.FC = () => {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className={`h-8 w-8 p-0 ${
+                              className={`${isMobile && !isTableExpanded ? 'h-6 w-6 p-0' : 'h-8 w-8 p-0'} ${
                                 theme === 'light' ? 'hover:bg-gray-100' : 'hover:bg-zinc-700'
                               }`}
                               onClick={() => window.open(doc.originalUrl, '_blank')}
                               title="Open source URL"
                             >
-                              <ExternalLink className={`h-4 w-4 ${
+                              <ExternalLink className={`${isMobile && !isTableExpanded ? 'h-3 w-3' : 'h-4 w-4'} ${
                                 theme === 'light' ? 'text-gray-500' : 'text-gray-400'
                               }`} />
                             </Button>
@@ -1925,13 +1927,13 @@ const KnowledgeBaseManagement: React.FC = () => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className={`h-8 w-8 p-0 ${
+                            className={`${isMobile && !isTableExpanded ? 'h-6 w-6 p-0' : 'h-8 w-8 p-0'} ${
                               theme === 'light' ? 'hover:bg-orange-50' : 'hover:bg-orange-950'
                             }`}
                             onClick={() => handleOpenUpdateDialog(doc)}
                             title={doc.source === 'website' ? 'Re-scrape website' : 'Replace file'}
                           >
-                            <Pencil className={`h-4 w-4 ${
+                            <Pencil className={`${isMobile && !isTableExpanded ? 'h-3 w-3' : 'h-4 w-4'} ${
                               theme === 'light' ? 'text-orange-500' : 'text-orange-400'
                             }`} />
                           </Button>
@@ -1939,13 +1941,13 @@ const KnowledgeBaseManagement: React.FC = () => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className={`h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600 ${
+                            className={`${isMobile && !isTableExpanded ? 'h-6 w-6 p-0' : 'h-8 w-8 p-0'} hover:bg-red-50 hover:text-red-600 ${
                               theme === 'light' ? '' : 'hover:bg-red-950'
                             }`}
                             onClick={() => handleDeleteDocument(doc.id, doc.name)}
                               title="Delete document"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className={`${isMobile && !isTableExpanded ? 'h-3 w-3' : 'h-4 w-4'}`} />
                             </Button>
                           </div>
                         </TableCell>
