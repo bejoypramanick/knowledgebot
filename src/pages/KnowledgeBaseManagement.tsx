@@ -1837,11 +1837,35 @@ const KnowledgeBaseManagement: React.FC = () => {
                                     link.click();
                                     document.body.removeChild(link);
                                   } else {
-                                    // Private bucket or use signed URL
-                                    setSuccess('Generating download link...');
-                                    const downloadUrl = await knowledgeBaseManager.getSignedDownloadUrl(doc.id);
-                                    setSuccess(null);
-                                    window.open(downloadUrl, '_blank');
+                                    // Private bucket - download directly from backend
+                                    setSuccess('Preparing download...');
+
+                                    try {
+                                      // Call the download endpoint directly - it will return the file with proper headers
+                                      const downloadUrl = `${knowledgeBaseManager.apiBaseUrl}/api/v1/knowledgebase/files/${encodeURIComponent(doc.id)}/download`;
+
+                                      // Create a temporary link element to trigger download
+                                      const link = document.createElement('a');
+                                      link.href = downloadUrl;
+                                      link.download = doc.name || 'downloaded-file'; // Use filename from doc or fallback
+                                      link.style.display = 'none';
+
+                                      // Add to DOM, click, and remove
+                                      document.body.appendChild(link);
+                                      link.click();
+                                      document.body.removeChild(link);
+
+                                      setSuccess(null); // Clear the "Preparing download..." message
+                                    } catch (downloadError) {
+                                      console.error('Direct download failed, trying signed URL fallback:', downloadError);
+                                      // Fallback to signed URL method
+                                      const signedUrl = await knowledgeBaseManager.getSignedDownloadUrl(doc.id);
+                                      window.open(signedUrl, '_blank');
+                                    }
+
+                                    setSuccess('Download started successfully!');
+                                    // Clear success message after 3 seconds
+                                    setTimeout(() => setSuccess(null), 3000);
                                   }
                                 } catch (err: unknown) {
                                   console.error('Download error:', err);
@@ -2106,7 +2130,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                   <Plus className="h-4 w-4 mr-1" />
                   Add URL
                 </Button>
-                </div>
+              </div>
             </CardHeader>
             <CardContent className="space-y-3">
               {/* URL List with Scrollbar */}
