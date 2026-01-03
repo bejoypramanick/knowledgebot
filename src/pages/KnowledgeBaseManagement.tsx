@@ -43,6 +43,7 @@ import {
   MapPin,
   Download,
   Eye,
+  Pencil,
 } from 'lucide-react';
 import {
   KnowledgeBaseManager,
@@ -102,6 +103,18 @@ const KnowledgeBaseManagement: React.FC = () => {
     message: '',
     onConfirm: () => {},
   });
+
+  // Update Dialog State
+  const [updateDialog, setUpdateDialog] = useState<{
+    isOpen: boolean;
+    document: Document | null;
+    newUrl: string;
+  }>({
+    isOpen: false,
+    document: null,
+    newUrl: '',
+  });
+  const updateFileInputRef = useRef<HTMLInputElement>(null);
 
   const { theme } = useTheme();
   const isMobile = useIsMobile();
@@ -317,6 +330,88 @@ const KnowledgeBaseManagement: React.FC = () => {
         }
       },
     });
+  };
+
+  const handleOpenUpdateDialog = (doc: Document) => {
+    setUpdateDialog({
+      isOpen: true,
+      document: doc,
+      newUrl: doc.originalUrl || '',
+    });
+  };
+
+  const handleUpdateDocument = async () => {
+    if (!updateDialog.document) return;
+
+    const doc = updateDialog.document;
+
+    if (doc.source === 'website') {
+      // For websites, re-scrape with the new or existing URL
+      const url = updateDialog.newUrl.trim();
+      if (!url) {
+        setError('Please enter a valid URL');
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        setError(null);
+        setUpdateDialog(prev => ({ ...prev, isOpen: false }));
+
+        // Delete the old document first
+        await knowledgeBaseManager.deleteDocument(doc.id);
+
+        // Re-scrape the URL
+        await knowledgeBaseManager.scrapeWebsite(url);
+
+        setSuccess(`Website "${url}" is being re-scraped. Content will be updated shortly.`);
+        
+        // Reload documents after a delay
+        setTimeout(() => {
+          loadDocuments();
+        }, 3000);
+      } catch (err: any) {
+        console.error('Update error:', err);
+        setError(err.message || 'Failed to update website');
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      // For uploaded files, trigger file input
+      updateFileInputRef.current?.click();
+    }
+  };
+
+  const handleUpdateFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !updateDialog.document) return;
+
+    const file = files[0];
+    const doc = updateDialog.document;
+
+    try {
+      setIsLoading(true);
+      setError(null);
+      setUpdateDialog(prev => ({ ...prev, isOpen: false }));
+
+      // Delete the old document first
+      await knowledgeBaseManager.deleteDocument(doc.id);
+
+      // Upload the new file with replaceExisting flag
+      await knowledgeBaseManager.uploadDocument(file, {}, true);
+
+      setSuccess(`Document "${doc.name}" has been replaced with "${file.name}"`);
+      await loadDocuments();
+    } catch (err: any) {
+      console.error('Update error:', err);
+      setError(err.message || 'Failed to update document');
+    } finally {
+      setIsLoading(false);
+      // Reset file input
+      if (updateFileInputRef.current) {
+        updateFileInputRef.current.value = '';
+      }
+    }
   };
 
   const handleCrawlUrlChange = (value: string) => {
@@ -865,6 +960,21 @@ const KnowledgeBaseManagement: React.FC = () => {
                                 }`} />
                               </Button>
                             )}
+                            {/* Update button */}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className={`h-8 w-8 p-0 ${
+                                theme === 'light' ? 'hover:bg-orange-50' : 'hover:bg-orange-950'
+                              }`}
+                              onClick={() => handleOpenUpdateDialog(doc)}
+                              title={doc.source === 'website' ? 'Re-scrape website' : 'Replace file'}
+                            >
+                              <Pencil className={`h-4 w-4 ${
+                                theme === 'light' ? 'text-orange-500' : 'text-orange-400'
+                              }`} />
+                            </Button>
+                            {/* Delete button */}
                             <Button
                               variant="ghost"
                               size="sm"
@@ -930,6 +1040,71 @@ const KnowledgeBaseManagement: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Update Dialog */}
+      <Dialog open={updateDialog.isOpen} onOpenChange={(open) => !open && setUpdateDialog(prev => ({ ...prev, isOpen: false }))}>
+        <DialogContent className={theme === 'light' ? 'bg-white' : 'bg-zinc-900 border-zinc-700'}>
+          <DialogHeader>
+            <DialogTitle className={`flex items-center gap-2 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
+              <Pencil className="h-5 w-5 text-orange-500" />
+              {updateDialog.document?.source === 'website' ? 'Update Website' : 'Replace Document'}
+            </DialogTitle>
+            <DialogDescription className={theme === 'light' ? 'text-gray-600' : 'text-gray-400'}>
+              {updateDialog.document?.source === 'website'
+                ? 'Re-scrape the website with the same or a new URL. The old content will be replaced.'
+                : `Replace "${updateDialog.document?.name}" with a new file. The old file will be deleted.`
+              }
+            </DialogDescription>
+          </DialogHeader>
+
+          {updateDialog.document?.source === 'website' && (
+            <div className="py-4">
+              <label className={`text-sm font-medium ${theme === 'light' ? 'text-gray-700' : 'text-gray-300'}`}>
+                Website URL
+              </label>
+              <Input
+                type="url"
+                value={updateDialog.newUrl}
+                onChange={(e) => setUpdateDialog(prev => ({ ...prev, newUrl: e.target.value }))}
+                placeholder="https://example.com"
+                className={`mt-1 ${theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-800 border-zinc-700 text-white'}`}
+              />
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setUpdateDialog(prev => ({ ...prev, isOpen: false }))}
+              className={theme === 'light' ? 'border-gray-200' : 'border-zinc-700'}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUpdateDocument}
+              disabled={isLoading}
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+            >
+              {isLoading ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Updating...</>
+              ) : updateDialog.document?.source === 'website' ? (
+                <><RefreshCw className="h-4 w-4 mr-2" /> Re-scrape</>
+              ) : (
+                <><Upload className="h-4 w-4 mr-2" /> Choose New File</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Hidden file input for updating uploaded documents */}
+      <input
+        type="file"
+        ref={updateFileInputRef}
+        className="hidden"
+        onChange={handleUpdateFileSelected}
+        accept=".pdf,.doc,.docx,.txt,.rtf,.odt,.ppt,.pptx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.gif,.webp,.mp3,.wav,.html,.json,.xml,.yaml,.yml,.md"
+      />
     </div>
   );
 };
