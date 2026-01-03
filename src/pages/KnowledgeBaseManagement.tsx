@@ -920,22 +920,36 @@ const KnowledgeBaseManagement: React.FC = () => {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
-                            {/* Download button for uploaded files with R2 URL */}
-                            {doc.source === 'upload' && doc.r2Url && (
+                            {/* Download button for uploaded files with R2 URL or R2 Key */}
+                            {doc.source === 'upload' && (doc.r2Url || doc.r2Key) && (
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 className={`h-8 w-8 p-0 ${
                                   theme === 'light' ? 'hover:bg-blue-50' : 'hover:bg-blue-950'
                                 }`}
-                                onClick={() => {
-                                  const link = document.createElement('a');
-                                  link.href = doc.r2Url!;
-                                  link.download = doc.name;
-                                  link.target = '_blank';
-                                  document.body.appendChild(link);
-                                  link.click();
-                                  document.body.removeChild(link);
+                                onClick={async () => {
+                                  try {
+                                    if (doc.r2Url) {
+                                      // Public bucket - direct download
+                                      const link = document.createElement('a');
+                                      link.href = doc.r2Url;
+                                      link.download = doc.name;
+                                      link.target = '_blank';
+                                      document.body.appendChild(link);
+                                      link.click();
+                                      document.body.removeChild(link);
+                                    } else if (doc.r2Key) {
+                                      // Private bucket - get signed URL first
+                                      setSuccess('Generating download link...');
+                                      const downloadUrl = await knowledgeBaseManager.getSignedDownloadUrl(doc.id);
+                                      setSuccess(null);
+                                      window.open(downloadUrl, '_blank');
+                                    }
+                                  } catch (err: any) {
+                                    console.error('Download error:', err);
+                                    setError(err.message || 'Failed to download file');
+                                  }
                                 }}
                                 title="Download file"
                               >

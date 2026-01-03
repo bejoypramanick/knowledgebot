@@ -476,4 +476,54 @@ export class KnowledgeBaseManager {
       return null;
     }
   }
+
+  async getSignedDownloadUrl(fileId: string, expirationSeconds: number = 3600): Promise<string> {
+    try {
+      const response = await axios.get(
+        `${this.apiBaseUrl}/api/v1/knowledgebase/files/${encodeURIComponent(fileId)}/download`,
+        { params: { expiration: expirationSeconds } }
+      );
+      
+      // The endpoint returns the signed URL in download_url field
+      if (response.data.download_url) {
+        return response.data.download_url;
+      }
+      
+      throw new Error('No download URL returned');
+    } catch (error: unknown) {
+      console.error('Failed to get download URL:', error);
+      const axiosError = error as { 
+        response?: { 
+          status?: number;
+          data?: { 
+            message?: string; 
+            detail?: string | { message?: string };
+          } 
+        };
+        message?: string;
+      };
+      
+      // Handle detail field (FastAPI style)
+      if (axiosError.response?.data?.detail) {
+        const detail = axiosError.response.data.detail;
+        const message = typeof detail === 'string' ? detail : detail.message || JSON.stringify(detail);
+        throw new Error(`Download failed: ${message}`);
+      }
+      
+      // Handle message field
+      if (axiosError.response?.data?.message) {
+        throw new Error(`Download failed: ${axiosError.response.data.message}`);
+      }
+      
+      // Handle HTTP status codes
+      if (axiosError.response?.status) {
+        const status = axiosError.response.status;
+        if (status === 404) throw new Error('Download failed: File not found');
+        if (status === 503) throw new Error('Download failed: Service temporarily unavailable');
+        if (status >= 500) throw new Error(`Download failed: Server error (${status})`);
+      }
+      
+      throw new Error(axiosError.message || 'Download failed: Unknown error');
+    }
+  }
 }
