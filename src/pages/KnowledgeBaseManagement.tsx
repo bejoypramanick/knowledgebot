@@ -33,7 +33,6 @@ import {
   FileSpreadsheet,
   FileCode,
   File as FileIcon,
-  RefreshCw,
   Search,
   ExternalLink,
   Database,
@@ -42,12 +41,13 @@ import {
   X,
   MapPin,
   Download,
-  Eye,
   Pencil,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
   Calendar,
+  Plus,
+  Minus,
 } from 'lucide-react';
 import {
   KnowledgeBaseManager,
@@ -92,13 +92,21 @@ const KnowledgeBaseManagement: React.FC = () => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // URL Crawling State
-  const [crawlUrl, setCrawlUrl] = useState('');
-  const [crawlUrlProtocol, setCrawlUrlProtocol] = useState('https://');
-  const [sitemapUrl, setSitemapUrl] = useState('');
-  const [sitemapUrlProtocol, setSitemapUrlProtocol] = useState('https://');
+  // URL Crawling State - Multi-URL Support
+  interface CrawlUrlEntry {
+    id: string;
+    url: string;
+    protocol: string;
+    sitemap: string;
+    isDetectingSitemap: boolean;
+    error: string | null;
+    status: 'pending' | 'scraping' | 'success' | 'failed';
+  }
+  
+  const [crawlUrls, setCrawlUrls] = useState<CrawlUrlEntry[]>([
+    { id: '1', url: '', protocol: 'https://', sitemap: '', isDetectingSitemap: false, error: null, status: 'pending' }
+  ]);
   const [isScraping, setIsScraping] = useState(false);
-  const [urlError, setUrlError] = useState<string | null>(null);
 
   // Confirmation Dialog
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>({
@@ -525,78 +533,137 @@ const KnowledgeBaseManagement: React.FC = () => {
     }
   };
 
-  const handleCrawlUrlChange = (value: string) => {
-    setCrawlUrl(value);
-    setUrlError(null);
-    
-    // Auto-populate sitemap
-    try {
-      const fullUrl = crawlUrlProtocol + value;
-      const parsedUrl = new URL(fullUrl);
-      const domain = parsedUrl.hostname;
-      setSitemapUrl(`${domain}/sitemap.xml`);
-    } catch {
-      setSitemapUrl('');
-    }
-  };
-
-  const handleFetchData = async () => {
-    const fullUrl = crawlUrl ? crawlUrlProtocol + crawlUrl : '';
-    const fullSitemapUrl = sitemapUrl ? sitemapUrlProtocol + sitemapUrl : '';
-
-    if (!fullUrl && !fullSitemapUrl) {
-      setUrlError('Please enter a URL or Sitemap URL');
-      return;
-    }
-
-    // Validate URL
-    const urlToValidate = fullUrl || fullSitemapUrl;
-    const validation = validateUrl(urlToValidate);
-    if (!validation.valid) {
-      setUrlError(validation.error || 'Invalid URL');
-      return;
-    }
-
-    // Check if URL already exists
-    const existingWebsite = await knowledgeBaseManager.checkWebsiteExists(urlToValidate);
-    if (existingWebsite) {
-      // Show confirmation dialog for duplicate website
-      setConfirmDialog({
-        isOpen: true,
-        title: 'Duplicate Website Detected',
-        message: `This website "${urlToValidate}" has already been scraped (Version ${existingWebsite.version || 1}). Do you want to scrape it again? This will create a new version.`,
-        existingDoc: existingWebsite,
-        onConfirm: async () => await performScrapeWebsite(urlToValidate, true),
-      });
-      return;
-    }
-
-    await performScrapeWebsite(urlToValidate, false);
-  };
-
-  const performScrapeWebsite = async (url: string, isNewVersion: boolean) => {
-    try {
-      setIsScraping(true);
-      setError(null);
-      setSuccess(null);
-      setUrlError(null);
-
-      const response = await knowledgeBaseManager.scrapeWebsite(url);
+  // Handle URL change for a specific entry and auto-detect sitemap
+  const handleCrawlUrlChange = (id: string, value: string) => {
+    setCrawlUrls(prev => prev.map(entry => {
+      if (entry.id !== id) return entry;
       
-      setSuccess(`Scraping started for ${url}. Content will appear in the list once processed.`);
-      setCrawlUrl('');
-      setSitemapUrl('');
+      let sitemap = '';
+      try {
+        const fullUrl = entry.protocol + value;
+        const parsedUrl = new URL(fullUrl);
+        const domain = parsedUrl.hostname;
+        sitemap = `${entry.protocol}${domain}/sitemap.xml`;
+      } catch {
+        // Invalid URL, leave sitemap empty
+      }
+      
+      return { ...entry, url: value, sitemap, error: null };
+    }));
+  };
 
-      // Reload documents after a delay to allow processing
-      setTimeout(() => {
-        loadDocuments();
-      }, 3000);
-    } catch (err: unknown) {
-      console.error('Scrape error:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Failed to start scraping';
-      setError(errorMessage);
-    } finally {
-      setIsScraping(false);
+  // Handle protocol change for a specific entry
+  const handleProtocolChange = (id: string, protocol: string) => {
+    setCrawlUrls(prev => prev.map(entry => {
+      if (entry.id !== id) return entry;
+      
+      // Update sitemap with new protocol
+      let sitemap = entry.sitemap;
+      if (sitemap) {
+        sitemap = sitemap.replace(/^https?:\/\//, protocol);
+      }
+      
+      return { ...entry, protocol, sitemap };
+    }));
+  };
+
+  // Add new URL entry
+  const addCrawlUrl = () => {
+    setCrawlUrls(prev => [
+      ...prev,
+      { id: Date.now().toString(), url: '', protocol: 'https://', sitemap: '', isDetectingSitemap: false, error: null, status: 'pending' }
+    ]);
+  };
+
+  // Remove URL entry
+  const removeCrawlUrl = (id: string) => {
+    setCrawlUrls(prev => prev.filter(entry => entry.id !== id));
+  };
+
+  // Scrape all websites in parallel
+  const handleScrapeWebsites = async () => {
+    const validUrls = crawlUrls.filter(entry => entry.url.trim() !== '');
+    
+    if (validUrls.length === 0) {
+      setError('Please enter at least one URL');
+      return;
+    }
+
+    // Validate all URLs first
+    let hasError = false;
+    setCrawlUrls(prev => prev.map(entry => {
+      if (!entry.url.trim()) return entry;
+      
+      const fullUrl = entry.protocol + entry.url;
+      const validation = validateUrl(fullUrl);
+      if (!validation.valid) {
+        hasError = true;
+        return { ...entry, error: validation.error || 'Invalid URL' };
+      }
+      return { ...entry, error: null };
+    }));
+
+    if (hasError) return;
+
+    setIsScraping(true);
+    setError(null);
+    setSuccess(null);
+
+    // Process all URLs in parallel
+    const scrapePromises = validUrls.map(async (entry) => {
+      const fullUrl = entry.protocol + entry.url;
+      
+      // Update status to scraping
+      setCrawlUrls(prev => prev.map(e => 
+        e.id === entry.id ? { ...e, status: 'scraping' } : e
+      ));
+
+      try {
+        // Check for existing website
+        const existingWebsite = await knowledgeBaseManager.checkWebsiteExists(fullUrl);
+        const replaceExisting = existingWebsite ? true : false;
+        
+        await knowledgeBaseManager.scrapeWebsite(fullUrl, replaceExisting);
+        
+        // Update status to success
+        setCrawlUrls(prev => prev.map(e => 
+          e.id === entry.id ? { ...e, status: 'success' } : e
+        ));
+        
+        return { url: fullUrl, success: true };
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to scrape';
+        
+        // Update status to failed
+        setCrawlUrls(prev => prev.map(e => 
+          e.id === entry.id ? { ...e, status: 'failed', error: errorMessage } : e
+        ));
+        
+        return { url: fullUrl, success: false, error: errorMessage };
+      }
+    });
+
+    const results = await Promise.all(scrapePromises);
+    const successCount = results.filter(r => r.success).length;
+    const failCount = results.filter(r => !r.success).length;
+
+    setIsScraping(false);
+
+    if (successCount > 0) {
+      setSuccess(`Successfully scraped ${successCount} website(s).${failCount > 0 ? ` ${failCount} failed.` : ''}`);
+      // Reset successful entries
+      setCrawlUrls(prev => {
+        const remaining = prev.filter(e => e.status !== 'success');
+        return remaining.length > 0 ? remaining : [
+          { id: Date.now().toString(), url: '', protocol: 'https://', sitemap: '', isDetectingSitemap: false, error: null, status: 'pending' }
+        ];
+      });
+      // Reload documents
+      setTimeout(() => loadDocuments(), 2000);
+    }
+
+    if (failCount > 0 && successCount === 0) {
+      setError(`Failed to scrape ${failCount} website(s). Please check the errors.`);
     }
   };
 
@@ -687,87 +754,40 @@ const KnowledgeBaseManagement: React.FC = () => {
     <div className={`h-full overflow-y-auto ${theme === 'light' ? 'bg-white' : 'bg-black'}`}>
       <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6 animate-fade-in">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className={`text-2xl sm:text-3xl font-bold ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
-              <Database className="inline h-7 w-7 mr-2" />
+        {/* Header with inline stats */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Database className={`h-6 w-6 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`} />
+            <h1 className={`text-xl sm:text-2xl font-bold ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
               Knowledge Base
             </h1>
-            <p className={`text-sm mt-1 ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
-              Manage your AI assistant's knowledge and training data
-            </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={loadDocuments}
-            disabled={isLoading}
-            className={`self-start sm:self-auto ${
-              theme === 'light' ? 'bg-white border-gray-200 hover:bg-gray-50' : 'bg-zinc-900 border-zinc-700 hover:bg-zinc-800'
-            }`}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-          <Card className={`${theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-900 border-zinc-700'}`}>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${theme === 'light' ? 'bg-blue-50' : 'bg-blue-950'}`}>
-                  <FileText className="h-5 w-5 text-blue-500" />
-                </div>
-                <div>
-                  <p className={`text-2xl font-bold ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>{documents.length}</p>
-                  <p className={`text-xs ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>Total Docs</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
           
-          <Card className={`${theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-900 border-zinc-700'}`}>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${theme === 'light' ? 'bg-green-50' : 'bg-green-950'}`}>
-                  <Upload className="h-5 w-5 text-green-500" />
-                </div>
-                <div>
-                  <p className={`text-2xl font-bold ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>{uploadedCount}</p>
-                  <p className={`text-xs ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>Uploaded</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className={`${theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-900 border-zinc-700'}`}>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${theme === 'light' ? 'bg-purple-50' : 'bg-purple-950'}`}>
-                  <Globe className="h-5 w-5 text-purple-500" />
-                </div>
-                <div>
-                  <p className={`text-2xl font-bold ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>{websiteCount}</p>
-                  <p className={`text-xs ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>Websites</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className={`${theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-900 border-zinc-700'}`}>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${theme === 'light' ? 'bg-orange-50' : 'bg-orange-950'}`}>
-                  <HardDrive className="h-5 w-5 text-orange-500" />
-                </div>
-                <div>
-                  <p className={`text-2xl font-bold ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>{formatFileSize(totalSize)}</p>
-                  <p className={`text-xs ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>Total Size</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Inline Stats */}
+          <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <FileText className="h-4 w-4 text-blue-500" />
+              <span className={`text-sm font-medium ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>{documents.length}</span>
+              <span className={`text-xs ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>Docs</span>
+            </div>
+            <div className={`w-px h-4 ${theme === 'light' ? 'bg-gray-300' : 'bg-zinc-700'}`} />
+            <div className="flex items-center gap-1.5">
+              <Upload className="h-4 w-4 text-green-500" />
+              <span className={`text-sm font-medium ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>{uploadedCount}</span>
+              <span className={`text-xs ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>Uploaded</span>
+            </div>
+            <div className={`w-px h-4 ${theme === 'light' ? 'bg-gray-300' : 'bg-zinc-700'}`} />
+            <div className="flex items-center gap-1.5">
+              <Globe className="h-4 w-4 text-purple-500" />
+              <span className={`text-sm font-medium ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>{websiteCount}</span>
+              <span className={`text-xs ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>Websites</span>
+            </div>
+            <div className={`w-px h-4 ${theme === 'light' ? 'bg-gray-300' : 'bg-zinc-700'}`} />
+            <div className="flex items-center gap-1.5">
+              <HardDrive className="h-4 w-4 text-orange-500" />
+              <span className={`text-sm font-medium ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>{formatFileSize(totalSize)}</span>
+            </div>
+          </div>
         </div>
 
         {/* Error/Success Messages */}
@@ -900,86 +920,108 @@ const KnowledgeBaseManagement: React.FC = () => {
           {/* Crawl Links Card */}
           <Card className={`${theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-900 border-zinc-700'}`}>
             <CardHeader className="pb-3">
-              <CardTitle className={`text-lg flex items-center gap-2 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
-                <Globe className="h-5 w-5" />
-                Add Crawl Links
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className={`text-lg flex items-center gap-2 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
+                  <Globe className="h-5 w-5" />
+                  Scrape Websites
+                </CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={addCrawlUrl}
+                  disabled={isScraping}
+                  className={`h-8 ${theme === 'light' ? 'border-gray-200 hover:bg-gray-50' : 'border-zinc-700 hover:bg-zinc-800'}`}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add URL
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {/* URL Input */}
-              <div>
-                <label className={`text-xs font-medium block mb-1.5 ${
-                  theme === 'light' ? 'text-gray-700' : 'text-gray-300'
-                }`}>
-                  <LinkIcon className="h-3 w-3 inline mr-1" />
-                  Website URL
-                </label>
-                <div className="flex gap-2">
-                  <Select value={crawlUrlProtocol} onValueChange={setCrawlUrlProtocol}>
-                    <SelectTrigger className={`w-24 flex-shrink-0 ${
-                      theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-800 border-zinc-700'
-                    }`}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="https://">https://</SelectItem>
-                      <SelectItem value="http://">http://</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    value={crawlUrl}
-                    onChange={(e) => handleCrawlUrlChange(e.target.value)}
-                    placeholder="example.com"
-                    className={`flex-1 ${
-                      theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-800 border-zinc-700'
-                    } ${urlError ? 'border-red-500' : ''}`}
-                  />
-                </div>
+            <CardContent className="space-y-3">
+              {/* URL List with Scrollbar */}
+              <div className="max-h-[300px] overflow-y-auto space-y-3 pr-1">
+                {crawlUrls.map((entry, index) => (
+                  <div key={entry.id} className={`p-3 rounded-lg space-y-2 ${
+                    theme === 'light' ? 'bg-gray-50 border border-gray-200' : 'bg-zinc-800 border border-zinc-700'
+                  } ${entry.status === 'success' ? 'border-green-500' : entry.status === 'failed' ? 'border-red-500' : ''}`}>
+                    {/* URL Input */}
+                    <div className="flex items-center gap-2">
+                      <Select 
+                        value={entry.protocol} 
+                        onValueChange={(val) => handleProtocolChange(entry.id, val)}
+                        disabled={isScraping}
+                      >
+                        <SelectTrigger className={`w-20 flex-shrink-0 h-9 text-xs ${
+                          theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-700 border-zinc-600'
+                        }`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="https://">https://</SelectItem>
+                          <SelectItem value="http://">http://</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        value={entry.url}
+                        onChange={(e) => handleCrawlUrlChange(entry.id, e.target.value)}
+                        placeholder="example.com"
+                        disabled={isScraping}
+                        className={`flex-1 h-9 ${
+                          theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-700 border-zinc-600'
+                        } ${entry.error ? 'border-red-500' : ''}`}
+                      />
+                      {crawlUrls.length > 1 && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeCrawlUrl(entry.id)}
+                          disabled={isScraping}
+                          className={`h-9 w-9 flex-shrink-0 ${
+                            theme === 'light' ? 'hover:bg-red-50 text-red-500' : 'hover:bg-red-950 text-red-400'
+                          }`}
+                        >
+                          <Minus className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                    
+                    {/* Sitemap (readonly, auto-detected) */}
+                    {entry.sitemap && (
+                      <div className="flex items-center gap-2">
+                        <MapPin className={`h-3 w-3 flex-shrink-0 ${theme === 'light' ? 'text-gray-400' : 'text-gray-500'}`} />
+                        <span className={`text-xs truncate ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>
+                          {entry.sitemap}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* Status indicators */}
+                    {entry.status === 'scraping' && (
+                      <div className="flex items-center gap-2 text-blue-500">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <span className="text-xs">Scraping...</span>
+                      </div>
+                    )}
+                    {entry.status === 'success' && (
+                      <div className="flex items-center gap-2 text-green-500">
+                        <CheckCircle className="h-3 w-3" />
+                        <span className="text-xs">Success!</span>
+                      </div>
+                    )}
+                    {entry.error && (
+                      <p className="text-xs text-red-500 flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" />
+                        {entry.error}
+                      </p>
+                    )}
+                  </div>
+                ))}
               </div>
 
-              {/* Sitemap Input */}
-              <div>
-                <label className={`text-xs font-medium block mb-1.5 ${
-                  theme === 'light' ? 'text-gray-700' : 'text-gray-300'
-                }`}>
-                  <MapPin className="h-3 w-3 inline mr-1" />
-                  Sitemap URL (auto-detected)
-                </label>
-                <div className="flex gap-2">
-                  <Select value={sitemapUrlProtocol} onValueChange={setSitemapUrlProtocol}>
-                    <SelectTrigger className={`w-24 flex-shrink-0 ${
-                      theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-800 border-zinc-700'
-                    }`}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="https://">https://</SelectItem>
-                      <SelectItem value="http://">http://</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    value={sitemapUrl}
-                    onChange={(e) => setSitemapUrl(e.target.value)}
-                    placeholder="example.com/sitemap.xml"
-                    className={`flex-1 ${
-                      theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-800 border-zinc-700'
-                    }`}
-                  />
-                </div>
-              </div>
-
-              {/* URL Error */}
-              {urlError && (
-                <p className="text-xs text-red-500 flex items-center gap-1">
-                  <AlertTriangle className="h-3 w-3" />
-                  {urlError}
-                </p>
-              )}
-
-              {/* Fetch Button */}
+              {/* Scrape Button */}
               <Button
-                onClick={handleFetchData}
-                disabled={isScraping || (!crawlUrl && !sitemapUrl)}
+                onClick={handleScrapeWebsites}
+                disabled={isScraping || crawlUrls.every(e => !e.url.trim())}
                 className={`w-full ${
                   theme === 'light'
                     ? 'bg-black hover:bg-gray-800 text-white'
@@ -989,12 +1031,12 @@ const KnowledgeBaseManagement: React.FC = () => {
                 {isScraping ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Fetching...
+                    Scraping {crawlUrls.filter(e => e.status === 'scraping').length} website(s)...
                   </>
                 ) : (
                   <>
-                    <Download className="h-4 w-4 mr-2" />
-                    Fetch Data
+                    <Globe className="h-4 w-4 mr-2" />
+                    Scrape Website{crawlUrls.filter(e => e.url.trim()).length > 1 ? 's' : ''}
                   </>
                 )}
               </Button>

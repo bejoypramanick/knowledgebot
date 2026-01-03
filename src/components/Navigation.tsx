@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { MessageCircle, Settings, BarChart3, Database, Trash2, Menu, X } from "lucide-react";
+import { MessageCircle, Settings, BarChart3, Database, Trash2, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -8,7 +8,6 @@ import { useIsMobile } from "@/hooks/use-media-query";
 import { useTheme } from "@/hooks/use-theme";
 import { useChatContext } from "@/contexts/ChatContext";
 import { ThemeToggle } from "./ThemeToggle";
-import UploadDocumentButton from "./UploadDocumentButton";
 
 const Navigation = () => {
   const isMobile = useIsMobile();
@@ -17,8 +16,6 @@ const Navigation = () => {
   const { onClearChats } = useChatContext();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   
-  // Show upload button only on knowledge-base page
-  const showUploadButton = location.pathname === '/knowledge-base';
   const isChatPage = location.pathname === '/';
   
   const navItems = [
@@ -144,11 +141,6 @@ const Navigation = () => {
                           Clear All Chats
                         </Button>
                       )}
-                      {showUploadButton && (
-                        <div onClick={() => setIsMenuOpen(false)}>
-                          <UploadDocumentButton />
-                        </div>
-                      )}
                     </div>
                   </div>
                 </SheetContent>
@@ -234,7 +226,6 @@ const Navigation = () => {
               </Button>
             )}
             <ThemeToggle />
-            {showUploadButton && <UploadDocumentButton />}
           </div>
         </div>
       </div>
