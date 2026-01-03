@@ -356,6 +356,44 @@ const KnowledgeBaseManagement: React.FC = () => {
     });
   };
 
+  // Helper function to actually perform the website update
+  const performWebsiteUpdate = async (doc: Document, url: string) => {
+    try {
+      setError(null);
+      setUpdateDialog(prev => ({ ...prev, isOpen: false }));
+      
+      // Mark this document as updating (async UI update without full reload)
+      setUpdatingDocIds(prev => new Set(prev).add(doc.id));
+
+      // Delete the old document first
+      await knowledgeBaseManager.deleteDocument(doc.id);
+
+      // Re-scrape the URL
+      await knowledgeBaseManager.scrapeWebsite(url);
+
+      setSuccess(`Website "${url}" is being re-scraped. Content will be updated shortly.`);
+      
+      // Reload documents in background after a delay
+      setTimeout(async () => {
+        await loadDocuments();
+        setUpdatingDocIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(doc.id);
+          return newSet;
+        });
+      }, 3000);
+    } catch (err: unknown) {
+      console.error('Update error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update website';
+      setError(errorMessage);
+      setUpdatingDocIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(doc.id);
+        return newSet;
+      });
+    }
+  };
+
   const handleUpdateDocument = async () => {
     if (!updateDialog.document) return;
 
@@ -363,44 +401,28 @@ const KnowledgeBaseManagement: React.FC = () => {
 
     if (doc.source === 'website') {
       // For websites, re-scrape with the new or existing URL
-      const url = updateDialog.newUrl.trim();
-      if (!url) {
+      const newUrl = updateDialog.newUrl.trim();
+      if (!newUrl) {
         setError('Please enter a valid URL');
         return;
       }
 
-      try {
-        setError(null);
+      // Check if URL is different from original
+      const originalUrl = doc.originalUrl || '';
+      const isUrlDifferent = newUrl.toLowerCase() !== originalUrl.toLowerCase();
+
+      if (isUrlDifferent && originalUrl) {
+        // Show confirmation dialog for different URL
         setUpdateDialog(prev => ({ ...prev, isOpen: false }));
-        
-        // Mark this document as updating (async UI update without full reload)
-        setUpdatingDocIds(prev => new Set(prev).add(doc.id));
-
-        // Delete the old document first
-        await knowledgeBaseManager.deleteDocument(doc.id);
-
-        // Re-scrape the URL
-        await knowledgeBaseManager.scrapeWebsite(url);
-
-        setSuccess(`Website "${url}" is being re-scraped. Content will be updated shortly.`);
-        
-        // Reload documents in background after a delay
-        setTimeout(async () => {
-          await loadDocuments();
-          setUpdatingDocIds(prev => {
-            const newSet = new Set(prev);
-            newSet.delete(doc.id);
-            return newSet;
-          });
-        }, 3000);
-      } catch (err: any) {
-        console.error('Update error:', err);
-        setError(err.message || 'Failed to update website');
-        setUpdatingDocIds(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(doc.id);
-          return newSet;
+        setConfirmDialog({
+          isOpen: true,
+          title: 'Different URL Detected',
+          message: `The updated URL "${newUrl}" is different than the previous one "${originalUrl}". Proceed?`,
+          onConfirm: () => performWebsiteUpdate(doc, newUrl),
         });
+      } else {
+        // Same URL or no original URL, proceed directly
+        await performWebsiteUpdate(doc, newUrl);
       }
     } else {
       // For uploaded files, trigger file input
@@ -408,16 +430,10 @@ const KnowledgeBaseManagement: React.FC = () => {
     }
   };
 
-  const handleUpdateFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0 || !updateDialog.document) return;
-
-    const file = files[0];
-    const doc = updateDialog.document;
-
+  // Helper function to actually perform the file update
+  const performFileUpdate = async (doc: Document, file: File) => {
     try {
       setError(null);
-      setUpdateDialog(prev => ({ ...prev, isOpen: false }));
       
       // Mark this document as updating (async UI update without full reload)
       setUpdatingDocIds(prev => new Set(prev).add(doc.id));
@@ -437,9 +453,10 @@ const KnowledgeBaseManagement: React.FC = () => {
         newSet.delete(doc.id);
         return newSet;
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Update error:', err);
-      setError(err.message || 'Failed to update document');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update document';
+      setError(errorMessage);
       setUpdatingDocIds(prev => {
         const newSet = new Set(prev);
         newSet.delete(doc.id);
@@ -450,6 +467,55 @@ const KnowledgeBaseManagement: React.FC = () => {
       if (updateFileInputRef.current) {
         updateFileInputRef.current.value = '';
       }
+    }
+  };
+
+  const handleUpdateFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !updateDialog.document) return;
+
+    const file = files[0];
+    const doc = updateDialog.document;
+
+    // Get file extension
+    const getExtension = (filename: string) => filename.split('.').pop()?.toLowerCase() || '';
+    const getBaseName = (filename: string) => filename.substring(0, filename.lastIndexOf('.')) || filename;
+
+    const originalName = doc.name;
+    const originalExtension = doc.type.toLowerCase();
+    const newName = file.name;
+    const newExtension = getExtension(file.name);
+    const newBaseName = getBaseName(file.name);
+    const originalBaseName = getBaseName(originalName);
+
+    // Check if name or type is different
+    const isNameDifferent = newBaseName.toLowerCase() !== originalBaseName.toLowerCase();
+    const isTypeDifferent = newExtension !== originalExtension;
+
+    if (isNameDifferent || isTypeDifferent) {
+      // Build confirmation message
+      let message = 'The updated file ';
+      if (isNameDifferent && isTypeDifferent) {
+        message += `name "${newBaseName}" and type ".${newExtension}" are different than the previous "${originalBaseName}" (.${originalExtension})`;
+      } else if (isNameDifferent) {
+        message += `name "${newBaseName}" is different than the previous "${originalBaseName}"`;
+      } else {
+        message += `type ".${newExtension}" is different than the previous ".${originalExtension}"`;
+      }
+      message += '. Proceed?';
+
+      // Close update dialog and show confirmation
+      setUpdateDialog(prev => ({ ...prev, isOpen: false }));
+      setConfirmDialog({
+        isOpen: true,
+        title: 'Different File Detected',
+        message: message,
+        onConfirm: () => performFileUpdate(doc, file),
+      });
+    } else {
+      // Same name and type, proceed directly
+      setUpdateDialog(prev => ({ ...prev, isOpen: false }));
+      await performFileUpdate(doc, file);
     }
   };
 
