@@ -201,8 +201,21 @@ const KnowledgeBaseManagement: React.FC = () => {
   const handleFileChange = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     
-    for (const file of Array.from(files)) {
-      await processFile(file);
+    const fileArray = Array.from(files);
+    const totalFiles = fileArray.length;
+    
+    if (totalFiles > 1) {
+      setSuccess(`Processing ${totalFiles} files...`);
+    }
+    
+    // Process files sequentially
+    for (let i = 0; i < fileArray.length; i++) {
+      await processFile(fileArray[i]);
+    }
+    
+    // Clear the input to allow re-selecting the same files
+    if (inputRef.current) {
+      inputRef.current.value = '';
     }
   };
 
@@ -812,6 +825,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                   type="file"
                   ref={inputRef}
                   className="hidden"
+                  multiple
                   onChange={(e) => handleFileChange(e.target.files)}
                   accept={VALIDATION.ALLOWED_FILE_TYPES.map(t => `.${t}`).join(',')}
                   multiple
@@ -1023,7 +1037,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                 <p className="text-xs mt-1">Upload files or add URLs to get started</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className={theme === 'light' ? 'border-gray-200' : 'border-zinc-700'}>
