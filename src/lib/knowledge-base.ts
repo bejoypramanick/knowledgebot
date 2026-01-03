@@ -241,6 +241,8 @@ export class KnowledgeBaseManager {
       replace_existing: options.replaceExisting || false
     };
 
+    console.log('ScrapeWebsite payload being sent:', payload);
+
     try {
       const response = await axios.post(`${this.apiBaseUrl}/api/v1/scrape`, payload);
       

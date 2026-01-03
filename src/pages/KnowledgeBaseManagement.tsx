@@ -856,8 +856,9 @@ const KnowledgeBaseManagement: React.FC = () => {
 
                   // Retry with replaceExisting = true
                   console.log('Calling scrapeWebsite with replaceExisting=true for:', fullUrl);
-                  await knowledgeBaseManager.scrapeWebsite(fullUrl, { replaceExisting: true });
-                  console.log('ScrapeWebsite call completed successfully');
+                  console.log('Sending payload:', { url: fullUrl, replaceExisting: true });
+                  const result = await knowledgeBaseManager.scrapeWebsite(fullUrl, { replaceExisting: true });
+                  console.log('ScrapeWebsite call completed successfully, result:', result);
 
                   // Update status to success
                   setCrawlUrls(prev => prev.map(e =>
