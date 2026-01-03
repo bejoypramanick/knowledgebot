@@ -1770,7 +1770,7 @@ const KnowledgeBaseManagement: React.FC = () => {
             </CardHeader>
             <CardContent className="space-y-3">
               {/* URL List with Scrollbar */}
-              <div className="max-h-[300px] overflow-y-auto space-y-3 pr-1">
+              <div className={`${crawlUrls.length >= 2 ? 'max-h-[300px] overflow-y-auto pr-1' : ''} space-y-3`}>
                 {crawlUrls.map((entry, index) => (
                   <div key={entry.id} className={`p-3 rounded-lg space-y-2 ${
                     theme === 'light' ? 'bg-gray-50 border border-gray-200' : 'bg-zinc-800 border border-zinc-700'
