@@ -760,8 +760,11 @@ const KnowledgeBaseManagement: React.FC = () => {
     setError(null);
     setSuccess(null);
 
-    // Process all URLs in parallel
-    const scrapePromises = validUrls.map(async (entry) => {
+    // Process URLs sequentially - one after another, only starting next when previous succeeds
+    const results: Array<{ url: string; success: boolean; error?: string }> = [];
+    
+    // Helper function to process a single URL
+    const processSingleUrl = async (entry: typeof validUrls[0]): Promise<{ url: string; success: boolean; error?: string }> => {
       const fullUrl = entry.protocol + entry.url;
 
       // Update status to scraping
@@ -908,9 +911,21 @@ const KnowledgeBaseManagement: React.FC = () => {
 
         return { url: fullUrl, success: false, error: errorMessage };
       }
-    });
+    };
 
-    const results = await Promise.all(scrapePromises) as Array<{ url: string; success: boolean; error?: string }>;
+    // Process URLs sequentially - only start next when previous succeeds
+    for (const entry of validUrls) {
+      const result = await processSingleUrl(entry);
+      results.push(result);
+      
+      // Only continue to next URL if current one succeeded
+      if (!result.success) {
+        console.log(`Stopping sequential processing: ${result.url} failed with error: ${result.error}`);
+        break; // Stop processing remaining URLs if one fails
+      }
+      
+      console.log(`Completed crawling ${result.url}, proceeding to next URL...`);
+    }
     const successCount = results.filter(r => r.success).length;
     const failCount = results.filter(r => !r.success).length;
 
