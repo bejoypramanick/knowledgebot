@@ -95,6 +95,9 @@ interface ConfirmDialogState {
   existingDoc?: Document;
   newFile?: File;
   onConfirm: () => void;
+  onCancel?: () => void;
+  confirmText?: string;
+  cancelText?: string;
 }
 
 const KnowledgeBaseManagement: React.FC = () => {
@@ -129,6 +132,9 @@ const KnowledgeBaseManagement: React.FC = () => {
     title: '',
     message: '',
     onConfirm: () => {},
+    onCancel: () => {},
+    confirmText: 'Confirm',
+    cancelText: 'Cancel',
   });
 
   // Update Dialog State
@@ -746,9 +752,9 @@ const KnowledgeBaseManagement: React.FC = () => {
       ));
 
       try {
-        // Check for existing website
-        const existingWebsite = await knowledgeBaseManager.checkWebsiteExists(fullUrl);
-        const replaceExisting = !!existingWebsite;
+        // First try with automatic rescraping detection
+        let existingWebsite = await knowledgeBaseManager.checkWebsiteExists(fullUrl);
+        let replaceExisting = !!existingWebsite;
 
         if (existingWebsite) {
           console.log(`Website ${fullUrl} already exists (version ${existingWebsite.version}), rescraping with replaceExisting=true`);
@@ -767,14 +773,66 @@ const KnowledgeBaseManagement: React.FC = () => {
 
         return { url: fullUrl, success: true };
       } catch (err: unknown) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to scrape';
-        
-        // Update status to failed
-        setCrawlUrls(prev => prev.map(e => 
-          e.id === entry.id ? { ...e, status: 'failed', error: errorMessage } : e
-        ));
-        
-        return { url: fullUrl, success: false, error: errorMessage };
+        const errorObj = err as any;
+        const errorMessage = errorObj?.message || errorObj?.response?.data?.detail?.message || (err instanceof Error ? err.message : 'Failed to scrape');
+
+        // Check if this is a "website already exists" error
+        const isDuplicateError = errorMessage.includes("has already been scraped") ||
+                                errorMessage.includes("Set replace_existing=true");
+
+        if (isDuplicateError) {
+          // Show confirmation dialog for rescraping
+          return new Promise((resolve) => {
+            setConfirmDialog({
+              isOpen: true,
+              title: 'Website Already Exists',
+              message: `The website "${fullUrl}" has already been scraped. Would you like to re-scrape it and create a new version?`,
+              onConfirm: async () => {
+                try {
+                  // Update status to show rescraping
+                  setCrawlUrls(prev => prev.map(e =>
+                    e.id === entry.id ? { ...e, status: 'rescraping' } : e
+                  ));
+
+                  // Retry with replaceExisting = true
+                  await knowledgeBaseManager.scrapeWebsite(fullUrl, { replaceExisting: true });
+
+                  // Update status to success
+                  setCrawlUrls(prev => prev.map(e =>
+                    e.id === entry.id ? { ...e, status: 'success' } : e
+                  ));
+
+                  resolve({ url: fullUrl, success: true });
+                } catch (retryErr: unknown) {
+                  const retryErrorMessage = retryErr instanceof Error ? retryErr.message : 'Failed to rescrape';
+
+                  // Update status to failed
+                  setCrawlUrls(prev => prev.map(e =>
+                    e.id === entry.id ? { ...e, status: 'failed', error: retryErrorMessage } : e
+                  ));
+
+                  resolve({ url: fullUrl, success: false, error: retryErrorMessage });
+                }
+              },
+              onCancel: () => {
+                // Update status to cancelled/failed
+                setCrawlUrls(prev => prev.map(e =>
+                  e.id === entry.id ? { ...e, status: 'failed', error: 'Cancelled by user' } : e
+                ));
+                resolve({ url: fullUrl, success: false, error: 'Cancelled by user' });
+              },
+              confirmText: 'Re-scrape',
+              cancelText: 'Cancel'
+            });
+          });
+        } else {
+          // Regular error handling
+          setCrawlUrls(prev => prev.map(e =>
+            e.id === entry.id ? { ...e, status: 'failed', error: errorMessage } : e
+          ));
+
+          return { url: fullUrl, success: false, error: errorMessage };
+        }
       }
     });
 
@@ -2105,14 +2163,20 @@ const KnowledgeBaseManagement: React.FC = () => {
           <DialogFooter className="gap-2 sm:gap-0">
             <Button
               variant="outline"
-              onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+              onClick={() => {
+                confirmDialog.onCancel?.();
+                setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+              }}
               className={theme === 'light' ? '' : 'border-zinc-700'}
             >
-              Cancel
+              {confirmDialog.cancelText || 'Cancel'}
             </Button>
             <Button
               variant="destructive"
-              onClick={confirmDialog.onConfirm}
+              onClick={() => {
+                confirmDialog.onConfirm();
+                setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+              }}
             >
               {confirmDialog.confirmText || 'Confirm'}
             </Button>
