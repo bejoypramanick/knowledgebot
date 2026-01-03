@@ -268,7 +268,10 @@ const KnowledgeBaseManagement: React.FC = () => {
     try {
       setIsLoading(true);
       setError(null);
+      console.log('Loading documents from API...');
       const response = await knowledgeBaseManager.getDocuments();
+      console.log('Loaded documents:', response.documents.length, 'total');
+      console.log('Document list:', response.documents.map(d => ({ id: d.id, name: d.name })));
       setDocuments(response.documents);
     } catch (err: any) {
       console.error('Error loading documents:', err);
@@ -457,6 +460,7 @@ const KnowledgeBaseManagement: React.FC = () => {
   };
 
   const handleDeleteDocument = async (documentKey: string, documentName: string) => {
+    console.log('handleDeleteDocument called with:', { documentKey, documentName });
     setConfirmDialog({
       isOpen: true,
       title: 'Delete Document?',
@@ -465,13 +469,26 @@ const KnowledgeBaseManagement: React.FC = () => {
         try {
           setIsLoading(true);
           setError(null);
-          await knowledgeBaseManager.deleteDocument(documentKey);
-      setSuccess(`Document "${documentName}" deleted successfully!`);
+          console.log('Starting deletion of:', documentKey, documentName);
 
-          // Force refresh documents after a short delay to ensure backend changes are committed
+          const deleteResult = await knowledgeBaseManager.deleteDocument(documentKey);
+          console.log('Delete result:', deleteResult);
+
+          setSuccess(`Document "${documentName}" deleted successfully!`);
+
+          // Force refresh documents after a delay to ensure backend changes are committed
+          console.log('Scheduling document refresh in 2 seconds...');
           setTimeout(async () => {
-      await loadDocuments();
-          }, 1000);
+            console.log('Refreshing documents after deletion...');
+            await loadDocuments();
+            console.log('Document refresh completed');
+
+            // Double-check after another delay in case of caching issues
+            setTimeout(async () => {
+              console.log('Double-checking document list...');
+              await loadDocuments();
+            }, 500);
+          }, 2000);
     } catch (err: any) {
       console.error('Error deleting document:', err);
       setError(err.message || 'Failed to delete document');
