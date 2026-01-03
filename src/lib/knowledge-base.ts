@@ -349,14 +349,27 @@ export class KnowledgeBaseManager {
         return 0;
       };
       
+      // Helper to extract domain from scraped filename pattern: scraped_{domain}_{tmpfile}.md
+      const extractDomainFromScrapedFilename = (filename: string): string | null => {
+        const match = filename.match(/^scraped_([^_]+\.[^_]+)_/i);
+        if (match) {
+          return match[1]; // e.g., "globistaan.com"
+        }
+        return null;
+      };
+
       // Transform response to include proper document information
       const documents: Document[] = (response.data.files || []).map((doc: ResponseDocument) => {
-        // Determine source - 'website' for scraped, 'upload' for uploaded files
-        const isScraped = doc.source === 'scrape' || doc.source_url || doc.url || doc.domain;
-        const source: 'upload' | 'website' = isScraped ? 'website' : 'upload';
-        
         // Get name from appropriate field
         const name = doc.original_name || doc.display_name || doc.name || 'Unknown';
+        
+        // Check if filename indicates scraped content (starts with "scraped_")
+        const scrapedDomain = extractDomainFromScrapedFilename(name);
+        const isFilenameScraped = scrapedDomain !== null;
+        
+        // Determine source - 'website' for scraped, 'upload' for uploaded files
+        const isScraped = doc.source === 'scrape' || doc.source_url || doc.url || doc.domain || isFilenameScraped;
+        const source: 'upload' | 'website' = isScraped ? 'website' : 'upload';
         
         // Get file extension/type - for websites, show 'url'
         const extension = isScraped ? 'url' : (doc.file_type || doc.type || getFileExtension(name));
@@ -364,8 +377,12 @@ export class KnowledgeBaseManager {
         // Get size (backend provides size_bytes) - parse string or number
         const size = parseSize(doc.size_bytes) || parseSize(doc.size);
 
-        // Get original URL for scraped websites
-        const originalUrl = doc.source_url || doc.url;
+        // Get original URL for scraped websites - try to reconstruct from filename if not provided
+        let originalUrl = doc.source_url || doc.url;
+        if (!originalUrl && scrapedDomain) {
+          // Reconstruct URL from domain extracted from filename
+          originalUrl = `https://${scrapedDomain}`;
+        }
 
         return {
           id: doc.key || String(doc.id) || Math.random().toString(),
