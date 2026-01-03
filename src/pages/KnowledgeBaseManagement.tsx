@@ -115,7 +115,7 @@ const KnowledgeBaseManagement: React.FC = () => {
     sitemap: string;
     isDetectingSitemap: boolean;
     error: string | null;
-    status: 'pending' | 'scraping' | 'success' | 'failed';
+    status: 'pending' | 'scraping' | 'rescraping' | 'success' | 'failed';
   }
   
   const [crawlUrls, setCrawlUrls] = useState<CrawlUrlEntry[]>([
@@ -459,11 +459,11 @@ const KnowledgeBaseManagement: React.FC = () => {
           setIsLoading(true);
           setError(null);
           await knowledgeBaseManager.deleteDocument(documentKey);
-          setSuccess(`Document "${documentName}" deleted successfully!`);
+      setSuccess(`Document "${documentName}" deleted successfully!`);
 
           // Force refresh documents after a short delay to ensure backend changes are committed
           setTimeout(async () => {
-            await loadDocuments();
+      await loadDocuments();
           }, 1000);
     } catch (err: any) {
       console.error('Error deleting document:', err);
@@ -739,9 +739,9 @@ const KnowledgeBaseManagement: React.FC = () => {
     // Process all URLs in parallel
     const scrapePromises = validUrls.map(async (entry) => {
       const fullUrl = entry.protocol + entry.url;
-      
+
       // Update status to scraping
-      setCrawlUrls(prev => prev.map(e => 
+      setCrawlUrls(prev => prev.map(e =>
         e.id === entry.id ? { ...e, status: 'scraping' } : e
       ));
 
@@ -749,14 +749,22 @@ const KnowledgeBaseManagement: React.FC = () => {
         // Check for existing website
         const existingWebsite = await knowledgeBaseManager.checkWebsiteExists(fullUrl);
         const replaceExisting = !!existingWebsite;
-        
+
+        if (existingWebsite) {
+          console.log(`Website ${fullUrl} already exists (version ${existingWebsite.version}), rescraping with replaceExisting=true`);
+          // Update status to show it's rescraping
+          setCrawlUrls(prev => prev.map(e =>
+            e.id === entry.id ? { ...e, status: 'rescraping' } : e
+          ));
+        }
+
         await knowledgeBaseManager.scrapeWebsite(fullUrl, { replaceExisting });
-        
+
         // Update status to success
-        setCrawlUrls(prev => prev.map(e => 
+        setCrawlUrls(prev => prev.map(e =>
           e.id === entry.id ? { ...e, status: 'success' } : e
         ));
-        
+
         return { url: fullUrl, success: true };
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to scrape';
@@ -1280,7 +1288,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                         <span className="cursor-pointer" onClick={() => handleSort('source')}>
                           Source {getSortIcon('source')}
                         </span>
-                      </div>
+            </div>
                     </TableHead>
                   )}
                   {!isMobile && (
@@ -1352,7 +1360,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                                 ≥ Greater
                               </Button>
                             </div>
-                            <Input
+                <Input
                               type="number"
                               placeholder="Size in bytes"
                               value={columnFilters.size?.value || ''}
@@ -1369,7 +1377,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                                 Clear
                               </Button>
                             )}
-                          </div>
+              </div>
                         </DropdownMenuContent>
                       </DropdownMenu>
                       <span className="cursor-pointer" onClick={() => handleSort('size')}>
@@ -1429,9 +1437,9 @@ const KnowledgeBaseManagement: React.FC = () => {
                               <div className="space-y-2">
                                 <div className="text-xs text-gray-500 font-medium">Quick Filters:</div>
                                 <div className="grid grid-cols-2 gap-1">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
+              <Button
+                variant="outline"
+                size="sm"
                                     onClick={() => applyDatePreset('last1hour')}
                                     className="h-7 text-xs"
                                   >
@@ -1468,8 +1476,8 @@ const KnowledgeBaseManagement: React.FC = () => {
                                     className="h-7 text-xs"
                                   >
                                     Last 5h
-                                  </Button>
-                                </div>
+              </Button>
+            </div>
                                 <div className="grid grid-cols-3 gap-1">
                                   <Button
                                     variant="outline"
@@ -2024,11 +2032,17 @@ const KnowledgeBaseManagement: React.FC = () => {
                         <span className="text-xs">Scraping...</span>
                       </div>
                     )}
+                    {entry.status === 'rescraping' && (
+                      <div className="flex items-center gap-2 text-orange-500">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <span className="text-xs">Re-scraping...</span>
+                      </div>
+                    )}
                     {entry.status === 'success' && (
                       <div className="flex items-center gap-2 text-green-500">
                         <CheckCircle className="h-3 w-3" />
                         <span className="text-xs">Success!</span>
-              </div>
+                      </div>
                     )}
                     {entry.error && (
                       <p className="text-xs text-red-500 flex items-center gap-1">
@@ -2053,7 +2067,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                 {isScraping ? (
                   <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Scraping {crawlUrls.filter(e => e.status === 'scraping').length} website(s)...
+                    Scraping {crawlUrls.filter(e => e.status === 'scraping' || e.status === 'rescraping').length} website(s)...
                   </>
                 ) : (
                   <>
