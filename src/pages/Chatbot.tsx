@@ -351,9 +351,9 @@ const Chatbot = () => {
     
     const validFiles = Array.from(files).filter(file => {
       // Accept all file types
-      const maxSize = 50 * 1024 * 1024; // 50MB
+      const maxSize = 1 * 1024 * 1024; // 1MB
       if (file.size > maxSize) {
-        alert(`File ${file.name} is too large. Maximum size is 50MB.`);
+        alert(`File ${file.name} is too large. Maximum size is 1MB.`);
         return false;
       }
       return true;
