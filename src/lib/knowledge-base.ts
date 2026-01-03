@@ -133,7 +133,11 @@ export class KnowledgeBaseManager {
     this.apiBaseUrl = apiBaseUrl;
   }
 
-  async uploadDocument(file: File, metadata: Partial<DocumentMetadata> = {}): Promise<DocumentUploadResponse> {
+  async uploadDocument(
+    file: File, 
+    metadata: Partial<DocumentMetadata> = {},
+    replaceExisting: boolean = false
+  ): Promise<DocumentUploadResponse> {
     // Client-side validation
     const validation = validateFile(file);
     if (!validation.valid) {
@@ -145,6 +149,8 @@ export class KnowledgeBaseManager {
     if (metadata.title) {
       formData.append('display_name', metadata.title);
     }
+    // Pass replace_existing flag to backend
+    formData.append('replace_existing', replaceExisting.toString());
 
     try {
       const response = await axios.post(`${this.apiBaseUrl}/api/v1/knowledgebase/upload`, formData, {
@@ -156,12 +162,18 @@ export class KnowledgeBaseManager {
       return {
         message: response.data.message || 'Upload successful',
         chunks_created: response.data.chunks_created || 0,
-        filename: response.data.filename || file.name,
-        size: file.size
+        filename: response.data.file?.original_filename || response.data.filename || file.name,
+        size: response.data.file?.size_bytes ? parseInt(response.data.file.size_bytes) : file.size
       };
     } catch (error: unknown) {
       console.error('Upload failed:', error);
-      const axiosError = error as { response?: { data?: { message?: string } } };
+      const axiosError = error as { response?: { data?: { message?: string; errors?: Array<{field: string; message: string}> } } };
+      
+      // Handle validation errors from backend
+      if (axiosError.response?.data?.errors) {
+        const errorMessages = axiosError.response.data.errors.map(e => e.message).join('; ');
+        throw new Error(errorMessages);
+      }
       if (axiosError.response?.data?.message) {
         throw new Error(axiosError.response.data.message);
       }
@@ -218,73 +230,69 @@ export class KnowledgeBaseManager {
     try {
       const response = await axios.get(`${this.apiBaseUrl}/api/v1/knowledgebase/files`);
       
-      // Define response document type
+      // Define response document type (matches new backend format)
       interface ResponseDocument {
         key?: string;
         id?: string;
-        document_id?: string;
-        original_name?: string;
-        original_filename?: string;
-        filename?: string;
         name?: string;
+        original_name?: string;
+        display_name?: string;
         file_type?: string;
         type?: string;
+        mime_type?: string;
         size?: number;
-        file_size?: number;
-        status?: string;
+        size_bytes?: number;
+        source?: 'upload' | 'scrape' | 'gemini';
         source_url?: string;
         url?: string;
-        scraped_from?: string;
-        category?: string;
-        tags?: string[];
-        author?: string;
-        last_modified?: string;
+        domain?: string;
+        pages_scraped?: number;
+        status?: string;
+        gemini_file_name?: string;
+        r2_url?: string;
+        r2_key?: string;
         created_at?: string;
-        uploaded_at?: string;
-        updated_at?: string;
+        last_modified?: string;
       }
       
       // Transform response to include proper document information
       const documents: Document[] = (response.data.files || []).map((doc: ResponseDocument) => {
-        // Determine source (upload or scrape) based on data
-        const isScraped = doc.source_url || doc.scraped_from || doc.type === 'url';
+        // Use source field from backend (now properly set)
+        const source = doc.source || (doc.source_url || doc.url || doc.domain ? 'scrape' : 'upload');
         
         // Get name from appropriate field
-        const name = doc.original_name || doc.original_filename || doc.filename || doc.name || 'Unknown';
+        const name = doc.original_name || doc.display_name || doc.name || 'Unknown';
         
         // Get file extension/type
         const extension = doc.file_type || doc.type || getFileExtension(name);
         
-        // Get size
-        const size = doc.size || doc.file_size || 0;
+        // Get size (backend now provides size_bytes)
+        const size = doc.size_bytes || doc.size || 0;
 
         return {
-          id: doc.key || doc.id || doc.document_id || Math.random().toString(),
+          id: doc.key || doc.id || Math.random().toString(),
           name: name,
           type: extension,
-          status: doc.status || 'processed',
+          status: (doc.status || 'processed') as 'uploaded' | 'processing' | 'processed' | 'failed',
           size: size,
           chunks: [],
           metadata: {
             title: name,
-            category: doc.category || 'general',
-            tags: doc.tags || [],
-            author: doc.author || 'unknown',
             sourceUrl: doc.source_url || doc.url,
             key: doc.key,
             size: size,
             originalFilename: name,
             fileType: extension
           },
-          createdAt: doc.last_modified || doc.created_at || doc.uploaded_at || new Date().toISOString(),
-          updatedAt: doc.last_modified || doc.updated_at || new Date().toISOString(),
-          source: isScraped ? 'scrape' : 'upload'
+          createdAt: doc.created_at || new Date().toISOString(),
+          updatedAt: doc.last_modified || doc.created_at || new Date().toISOString(),
+          source: source as 'upload' | 'scrape'
         };
       });
 
       return {
         documents,
-        count: documents.length
+        count: response.data.count || documents.length
       };
     } catch (error: unknown) {
       console.error('Error in getDocuments:', error);

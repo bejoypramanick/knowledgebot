@@ -188,33 +188,33 @@ const KnowledgeBaseManagement: React.FC = () => {
       return;
     }
 
-    // Check if file with same name already exists
-    const existingDoc = await knowledgeBaseManager.checkDocumentExists(file.name, getFileExtension(file.name));
-    
-    if (existingDoc) {
-      // Check if name or type differs
-      const existingExt = existingDoc.type?.toLowerCase() || '';
-      const newExt = getFileExtension(file.name);
-      const namesDiffer = existingDoc.name.toLowerCase() !== file.name.toLowerCase();
-      const typesDiffer = existingExt !== newExt;
+      // Check if file with same name already exists
+      const existingDoc = await knowledgeBaseManager.checkDocumentExists(file.name, getFileExtension(file.name));
+      
+      if (existingDoc) {
+        // Check if name or type differs
+        const existingExt = existingDoc.type?.toLowerCase() || '';
+        const newExt = getFileExtension(file.name);
+        const namesDiffer = existingDoc.name.toLowerCase() !== file.name.toLowerCase();
+        const typesDiffer = existingExt !== newExt;
 
-      if (namesDiffer || typesDiffer) {
-        setConfirmDialog({
-          isOpen: true,
-          title: 'Replace Existing Document?',
-          message: `A document "${existingDoc.name}" already exists. The file name or type is different than previously uploaded. This will replace the old content with new. Proceed?`,
-          existingDoc,
-          newFile: file,
-          onConfirm: () => uploadFile(file, fileId),
-        });
-        return;
+        if (namesDiffer || typesDiffer) {
+          setConfirmDialog({
+            isOpen: true,
+            title: 'Replace Existing Document?',
+            message: `A document "${existingDoc.name}" already exists. The file name or type is different than previously uploaded. This will replace the old content with new. Proceed?`,
+            existingDoc,
+            newFile: file,
+            onConfirm: () => uploadFile(file, fileId, true), // Pass replaceExisting=true
+          });
+          return;
+        }
       }
-    }
 
-    await uploadFile(file, fileId);
+      await uploadFile(file, fileId, false);
   };
 
-  const uploadFile = async (file: File, fileId: string) => {
+  const uploadFile = async (file: File, fileId: string, replaceExisting: boolean = false) => {
     setUploadingFiles(prev => new Map(prev).set(fileId, {
       id: fileId,
       file,
@@ -243,7 +243,7 @@ const KnowledgeBaseManagement: React.FC = () => {
         fileType: getFileExtension(file.name),
       };
 
-      await knowledgeBaseManager.uploadDocument(file, metadata);
+      await knowledgeBaseManager.uploadDocument(file, metadata, replaceExisting);
 
       clearInterval(progressInterval);
 
