@@ -314,7 +314,8 @@ export class KnowledgeBaseManager {
 
   async getDocuments(): Promise<DocumentsListResponse> {
     try {
-      const response = await axios.get(`${this.apiBaseUrl}/api/v1/knowledgebase/files`);
+      // Add timestamp to avoid caching issues
+      const response = await axios.get(`${this.apiBaseUrl}/api/v1/knowledgebase/files?t=${Date.now()}`);
       
       // Define response document type (matches new backend format)
       interface ResponseDocument {
