@@ -651,18 +651,27 @@ const KnowledgeBaseManagement: React.FC = () => {
   const handleCrawlUrlChange = (id: string, value: string) => {
     setCrawlUrls(prev => prev.map(entry => {
       if (entry.id !== id) return entry;
-      
+
+      const fullUrl = entry.protocol + value;
+      const validation = validateUrl(fullUrl);
+
       let sitemap = '';
-      try {
-        const fullUrl = entry.protocol + value;
-        const parsedUrl = new URL(fullUrl);
-        const domain = parsedUrl.hostname;
-        sitemap = `${entry.protocol}${domain}/sitemap.xml`;
-      } catch {
-        // Invalid URL, leave sitemap empty
+      let error = null;
+
+      if (validation.valid) {
+        try {
+          const parsedUrl = new URL(fullUrl);
+          const domain = parsedUrl.hostname;
+          sitemap = `${entry.protocol}${domain}/sitemap.xml`;
+        } catch {
+          // Shouldn't happen if validation passed, but just in case
+          sitemap = '';
+        }
+      } else {
+        error = validation.error;
       }
-      
-      return { ...entry, url: value, sitemap, error: null };
+
+      return { ...entry, url: value, sitemap, error };
     }));
   };
 
@@ -696,10 +705,14 @@ const KnowledgeBaseManagement: React.FC = () => {
 
   // Scrape all websites in parallel
   const handleScrapeWebsites = async () => {
-    const validUrls = crawlUrls.filter(entry => entry.url.trim() !== '');
-    
+    const validUrls = crawlUrls.filter(entry => entry.url.trim() !== '' && !entry.error);
+
     if (validUrls.length === 0) {
-      setError('Please enter at least one URL');
+      if (crawlUrls.some(entry => entry.url.trim() !== '' && entry.error)) {
+        setError('Please fix the URL validation errors before scraping');
+      } else {
+        setError('Please enter at least one valid URL');
+      }
       return;
     }
 
@@ -1976,6 +1989,9 @@ const KnowledgeBaseManagement: React.FC = () => {
                           theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-700 border-zinc-600'
                         } ${entry.error ? 'border-red-500' : ''}`}
                 />
+                {entry.error && (
+                  <p className="text-xs text-red-500 mt-1">{entry.error}</p>
+                )}
                       {crawlUrls.length > 1 && (
               <Button
                           variant="ghost"
@@ -2027,7 +2043,7 @@ const KnowledgeBaseManagement: React.FC = () => {
               {/* Scrape Button */}
               <Button
                 onClick={handleScrapeWebsites}
-                disabled={isScraping || crawlUrls.every(e => !e.url.trim())}
+                disabled={isScraping || crawlUrls.every(e => !e.url.trim()) || crawlUrls.some(e => e.error)}
                 className={`w-full ${
                   theme === 'light'
                     ? 'bg-black hover:bg-gray-800 text-white'
