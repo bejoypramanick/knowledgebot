@@ -38,11 +38,9 @@ import {
   ExternalLink,
   Database,
   HardDrive,
-  Cloud,
   AlertTriangle,
   X,
   MapPin,
-  Download,
   Pencil,
   ArrowUpDown,
   ArrowUp,
@@ -1623,12 +1621,6 @@ const KnowledgeBaseManagement: React.FC = () => {
 
                       {/* Storage indicators */}
                       <div className="flex items-center gap-1 mb-2">
-                        {doc.r2Key && (
-                          <div className="flex items-center gap-1" title="Stored in Cloudflare R2">
-                            <Cloud className={`h-3 w-3 ${theme === 'light' ? 'text-blue-500' : 'text-blue-400'}`} />
-                            <span className={`text-[10px] ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>R2</span>
-                          </div>
-                        )}
                         {doc.geminiFileName && (
                           <div className="flex items-center gap-1" title="Indexed in Gemini File Search">
                             <HardDrive className={`h-3 w-3 ${theme === 'light' ? 'text-green-500' : 'text-green-400'}`} />
@@ -1656,59 +1648,6 @@ const KnowledgeBaseManagement: React.FC = () => {
 
                       {/* Action buttons */}
                       <div className="flex items-center justify-end gap-1 mt-3 pt-3 border-t border-gray-200 dark:border-zinc-700">
-                        {/* Download button for uploaded files */}
-                        {doc.source === 'upload' && (
-              <Button
-                            variant="ghost"
-                size="sm"
-                            className="h-8 w-8 p-0"
-                            onClick={async () => {
-                              try {
-                                setSuccess('Preparing download...');
-                                const downloadUrl = `${knowledgeBaseManager.apiBaseUrl}/api/v1/knowledgebase/files/${encodeURIComponent(doc.id)}/download`;
-
-                                const response = await fetch(downloadUrl);
-                                if (!response.ok) {
-                                  throw new Error(`Download failed: ${response.status} ${response.statusText}`);
-                                }
-
-                                const contentDisposition = response.headers.get('Content-Disposition');
-                                let filename = doc.name || 'downloaded-file';
-
-                                if (contentDisposition) {
-                                  const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-                                  if (filenameMatch && filenameMatch[1]) {
-                                    filename = filenameMatch[1].replace(/['"]/g, '');
-                                  }
-                                }
-
-                                const blob = await response.blob();
-                                const blobUrl = URL.createObjectURL(blob);
-                                const link = document.createElement('a');
-                                link.href = blobUrl;
-                                link.download = filename;
-                                link.style.display = 'none';
-
-                                document.body.appendChild(link);
-                                link.click();
-                                document.body.removeChild(link);
-                                URL.revokeObjectURL(blobUrl);
-
-                                setSuccess(null);
-                                setSuccess('Download completed successfully!');
-                                setTimeout(() => setSuccess(null), 3000);
-                              } catch (err: unknown) {
-                                console.error('Download error:', err);
-                                const errorMessage = err instanceof Error ? err.message : 'Failed to download file';
-                                setError(errorMessage);
-                              }
-                            }}
-                            title="Download file"
-                          >
-                            <Download className="h-4 w-4" />
-              </Button>
-                        )}
-
                         {/* External link for websites */}
                         {doc.source === 'website' && doc.originalUrl && (
                           <Button
@@ -2128,12 +2067,6 @@ const KnowledgeBaseManagement: React.FC = () => {
                             </p>
                             {/* Storage location indicators */}
                             <div className={`flex items-center gap-1 mt-0.5 ${isMobile && !isTableExpanded ? 'gap-0.5' : 'gap-1'}`}>
-                              {doc.r2Key && (
-                                <div className="flex items-center gap-1" title="Stored in Cloudflare R2">
-                                  <Cloud className={`${isMobile && !isTableExpanded ? 'h-2 w-2' : 'h-3 w-3'} ${theme === 'light' ? 'text-blue-500' : 'text-blue-400'}`} />
-                                  <span className={`${isMobile && !isTableExpanded ? 'text-[8px]' : 'text-[10px]'} ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>R2</span>
-                                </div>
-                              )}
                               {doc.geminiFileName && (
                                 <div className="flex items-center gap-1" title="Indexed in Gemini File Search">
                                   <HardDrive className={`${isMobile && !isTableExpanded ? 'h-2 w-2' : 'h-3 w-3'} ${theme === 'light' ? 'text-green-500' : 'text-green-400'}`} />
@@ -2200,94 +2133,6 @@ const KnowledgeBaseManagement: React.FC = () => {
                       )}
                         <TableCell className="text-right">
                         <div className={`flex items-center justify-end ${isMobile && !isTableExpanded ? 'gap-0.5' : 'gap-1'}`}>
-                          {/* Download button for uploaded files */}
-                          {doc.source === 'upload' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className={`${isMobile && !isTableExpanded ? 'h-6 w-6 p-0' : 'h-8 w-8 p-0'} ${
-                                theme === 'light' ? 'hover:bg-blue-50' : 'hover:bg-blue-950'
-                              }`}
-                              onClick={async () => {
-                                try {
-                                  if (doc.r2Url) {
-                                    // Public bucket - direct download
-                                    const link = document.createElement('a');
-                                    link.href = doc.r2Url;
-                                    link.download = doc.name;
-                                    link.target = '_blank';
-                                    document.body.appendChild(link);
-                                    link.click();
-                                    document.body.removeChild(link);
-                                  } else {
-                                    // Private bucket - download directly from backend
-                                    setSuccess('Preparing download...');
-
-                                    try {
-                                      // Fetch the file content from the download endpoint
-                                      const downloadUrl = `${knowledgeBaseManager.apiBaseUrl}/api/v1/knowledgebase/files/${encodeURIComponent(doc.id)}/download`;
-
-                                      const response = await fetch(downloadUrl);
-                                      if (!response.ok) {
-                                        throw new Error(`Download failed: ${response.status} ${response.statusText}`);
-                                      }
-
-                                      // Get the filename from the Content-Disposition header or fallback to doc.name
-                                      const contentDisposition = response.headers.get('Content-Disposition');
-                                      let filename = doc.name || 'downloaded-file';
-
-                                      if (contentDisposition) {
-                                        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-                                        if (filenameMatch && filenameMatch[1]) {
-                                          filename = filenameMatch[1].replace(/['"]/g, '');
-                                        }
-                                      }
-
-                                      // Convert response to blob
-                                      const blob = await response.blob();
-
-                                      // Create blob URL and trigger download
-                                      const blobUrl = URL.createObjectURL(blob);
-                                      const link = document.createElement('a');
-                                      link.href = blobUrl;
-                                      link.download = filename;
-                                      link.style.display = 'none';
-
-                                      // Add to DOM, click, and remove
-                                      document.body.appendChild(link);
-                                      link.click();
-                                      document.body.removeChild(link);
-
-                                      // Clean up blob URL
-                                      URL.revokeObjectURL(blobUrl);
-
-                                      setSuccess(null); // Clear the "Preparing download..." message
-                                      setSuccess('Download completed successfully!');
-                                      setTimeout(() => setSuccess(null), 3000);
-                                    } catch (downloadError) {
-                                      console.error('Direct download failed, trying signed URL fallback:', downloadError);
-                                      // Fallback to signed URL method
-                                      const signedUrl = await knowledgeBaseManager.getSignedDownloadUrl(doc.id);
-                                      window.open(signedUrl, '_blank');
-                                    }
-
-                                    setSuccess('Download started successfully!');
-                                    // Clear success message after 3 seconds
-                                    setTimeout(() => setSuccess(null), 3000);
-                                  }
-                                } catch (err: unknown) {
-                                  console.error('Download error:', err);
-                                  const errorMessage = err instanceof Error ? err.message : 'Failed to download file';
-                                  setError(errorMessage);
-                                }
-                              }}
-                              title="Download file"
-                            >
-                              <Download className={`${isMobile && !isTableExpanded ? 'h-3 w-3' : 'h-4 w-4'} ${
-                                theme === 'light' ? 'text-blue-500' : 'text-blue-400'
-                              }`} />
-                            </Button>
-                          )}
                           {/* External link for websites */}
                           {doc.source === 'website' && doc.originalUrl && (
                             <Button

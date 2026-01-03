@@ -26,8 +26,6 @@ export interface Document {
   updatedAt: string;
   source: 'upload' | 'website';
   originalUrl?: string; // For scraped websites
-  r2Url?: string; // For downloadable files from R2
-  r2Key?: string; // R2 storage key
   version?: number; // Document version number
 }
 
@@ -344,10 +342,6 @@ export class KnowledgeBaseManager {
         pages_scraped?: number;
         status?: string;
         gemini_file_name?: string;
-        r2_url?: string;
-        r2_key?: string;
-        cloudflare_r2_url?: string;
-        cloudflare_r2_key?: string;
         created_at?: string;
         updated_at?: string;
         last_modified?: string;
@@ -431,8 +425,6 @@ export class KnowledgeBaseManager {
           updatedAt: doc.updated_at || doc.last_modified || doc.created_at || new Date().toISOString(),
           source: source,
           originalUrl: originalUrl,
-          r2Url: doc.r2_url || doc.cloudflare_r2_url,
-          r2Key: doc.r2_key || doc.cloudflare_r2_key,
           version: doc.version || 1
         };
       });
@@ -552,55 +544,4 @@ export class KnowledgeBaseManager {
     }
   }
 
-  async getSignedDownloadUrl(fileId: string, expirationSeconds: number = 3600): Promise<string> {
-    try {
-      // Use the signed-url endpoint, not the download endpoint
-      // The download endpoint streams files directly, while signed-url returns a URL
-      const response = await axios.get(
-        `${this.apiBaseUrl}/api/v1/knowledgebase/files/${encodeURIComponent(fileId)}/signed-url`,
-        { params: { expiration: expirationSeconds } }
-      );
-      
-      // The endpoint returns the signed URL in download_url field
-      if (response.data.download_url) {
-        return response.data.download_url;
-      }
-      
-      throw new Error('No download URL returned');
-    } catch (error: unknown) {
-      console.error('Failed to get download URL:', error);
-      const axiosError = error as { 
-        response?: { 
-          status?: number;
-          data?: { 
-            message?: string; 
-            detail?: string | { message?: string };
-          } 
-        };
-        message?: string;
-      };
-      
-      // Handle detail field (FastAPI style)
-      if (axiosError.response?.data?.detail) {
-        const detail = axiosError.response.data.detail;
-        const message = typeof detail === 'string' ? detail : detail.message || JSON.stringify(detail);
-        throw new Error(`Download failed: ${message}`);
-      }
-      
-      // Handle message field
-      if (axiosError.response?.data?.message) {
-        throw new Error(`Download failed: ${axiosError.response.data.message}`);
-      }
-      
-      // Handle HTTP status codes
-      if (axiosError.response?.status) {
-        const status = axiosError.response.status;
-        if (status === 404) throw new Error('Download failed: File not found');
-        if (status === 503) throw new Error('Download failed: Service temporarily unavailable');
-        if (status >= 500) throw new Error(`Download failed: Server error (${status})`);
-      }
-      
-      throw new Error(axiosError.message || 'Download failed: Unknown error');
-    }
-  }
 }
