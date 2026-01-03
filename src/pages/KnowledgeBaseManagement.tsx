@@ -1040,13 +1040,7 @@ const KnowledgeBaseManagement: React.FC = () => {
     if (diffDays < 7) return `${diffDays}d ago`;
     if (diffWeeks < 4) return `${diffWeeks}w ago`;
     if (diffMonths < 12) return `${diffMonths}mo ago`;
-    if (diffYears < 10) return `${diffYears}y ago`;
-
-    return date.toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
-    });
+    return `${diffYears}y ago`;
   };
 
   // Calculate total size
