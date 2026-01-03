@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -973,9 +974,615 @@ const KnowledgeBaseManagement: React.FC = () => {
   const uploadedCount = documents.filter(d => d.source === 'upload').length;
   const websiteCount = documents.filter(d => d.source === 'website').length;
 
+  // Render expanded table in portal to cover everything
+  const tableContent = (
+    <Card className={`${isTableExpanded ? 'fixed inset-0 z-[9999] m-0 rounded-none border-0' : ''} ${theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-900 border-zinc-700'}`}>
+      <CardHeader className={`pb-3 ${isTableExpanded ? 'sticky top-0 z-10 border-b ' : ''} ${isTableExpanded ? (theme === 'light' ? 'bg-white' : 'bg-zinc-900') : ''}`}>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <CardTitle className={`text-lg flex items-center gap-2 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
+              <FileText className="h-5 w-5" />
+              Documents ({filteredDocuments.length})
+            </CardTitle>
+            {selectedDocIds.size > 0 && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleBulkDelete}
+                disabled={isDeleting}
+                className="h-8"
+              >
+                {isDeleting ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4 mr-1" />
+                )}
+                Delete ({selectedDocIds.size})
+              </Button>
+            )}
+            {/* Active filters indicator and clear button */}
+            {hasActiveFilters() && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearAllFilters}
+                className="h-8 text-xs"
+              >
+                <XIcon className="h-3 w-3 mr-1" />
+                Clear All Filters
+              </Button>
+            )}
+            {/* Expand/Collapse button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsTableExpanded(!isTableExpanded)}
+              className="h-8 w-8 p-0"
+              title={isTableExpanded ? 'Collapse table' : 'Expand table'}
+            >
+              {isTableExpanded ? (
+                <Minimize2 className="h-4 w-4" />
+              ) : (
+                <Maximize2 className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+          <div className="relative w-full sm:w-64">
+            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 ${
+              theme === 'light' ? 'text-gray-400' : 'text-gray-500'
+            }`} />
+            <Input
+              placeholder="Search documents..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className={`pl-9 ${
+                theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-800 border-zinc-700'
+              }`}
+            />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className={`p-0 overflow-hidden ${isTableExpanded ? 'h-[calc(100vh-80px)]' : ''}`}>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className={`h-8 w-8 animate-spin ${theme === 'light' ? 'text-gray-400' : 'text-gray-500'}`} />
+          </div>
+        ) : filteredDocuments.length === 0 ? (
+          <div className={`text-center py-12 ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>
+            <FileIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+            <p className="text-sm">No documents found</p>
+            <p className="text-xs mt-1">Upload files or add URLs to get started</p>
+          </div>
+        ) : (
+          <div className={`overflow-x-auto ${isTableExpanded ? 'h-full' : 'max-h-[140px]'} overflow-y-auto`}>
+          <Table>
+            <TableHeader>
+                <TableRow className={theme === 'light' ? 'border-gray-200' : 'border-zinc-700'}>
+                  {/* Checkbox column */}
+                  <TableHead className="w-[40px]">
+                    <Checkbox
+                      checked={selectedDocIds.size === sortedDocuments.length && sortedDocuments.length > 0}
+                      onCheckedChange={toggleSelectAll}
+                      aria-label="Select all"
+                    />
+                  </TableHead>
+                  <TableHead className={`${isMobile ? 'w-[30%]' : 'w-[20%]'} ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
+                    <div className="flex items-center gap-1">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                            <Filter className={`h-3 w-3 ${columnFilters.name.text.trim() !== '' ? 'text-blue-500' : ''}`} />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
+                          <DropdownMenuLabel>Filter by Name</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <div className="p-2 space-y-2">
+                            <div className="flex gap-2">
+                              <Button
+                                variant={columnFilters.name.mode === 'starts' ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => setColumnFilters(prev => ({ ...prev, name: { ...prev.name, mode: 'starts' } }))}
+                                className="h-7 text-xs"
+                              >
+                                Starts with
+                              </Button>
+                              <Button
+                                variant={columnFilters.name.mode === 'contains' ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => setColumnFilters(prev => ({ ...prev, name: { ...prev.name, mode: 'contains' } }))}
+                                className="h-7 text-xs"
+                              >
+                                Contains
+                              </Button>
+                            </div>
+                            <Input
+                              placeholder={columnFilters.name.mode === 'starts' ? 'Starts with...' : 'Contains...'}
+                              value={columnFilters.name.text}
+                              onChange={(e) => setColumnFilters(prev => ({ ...prev, name: { ...prev.name, text: e.target.value } }))}
+                              className="h-8"
+                            />
+                            {columnFilters.name.text.trim() !== '' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setColumnFilters(prev => ({ ...prev, name: { text: '', mode: 'contains' } }))}
+                                className="h-7 w-full text-xs"
+                              >
+                                Clear
+                              </Button>
+                            )}
+                          </div>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      <span className="cursor-pointer" onClick={() => handleSort('name')}>
+                        Name {getSortIcon('name')}
+                      </span>
+                    </div>
+                  </TableHead>
+                  <TableHead className={`w-[70px] ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
+                    <div className="flex items-center gap-1">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                            <Filter className={`h-3 w-3 ${columnFilters.type.length > 0 ? 'text-blue-500' : ''}`} />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
+                          <DropdownMenuLabel>Filter by Type</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          {getUniqueValues('type').map(value => (
+                            <DropdownMenuCheckboxItem
+                              key={value}
+                              checked={columnFilters.type.includes(value)}
+                              onCheckedChange={() => toggleColumnFilter('type', value)}
+                            >
+                              {value}
+                            </DropdownMenuCheckboxItem>
+                          ))}
+                          {columnFilters.type.length > 0 && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuCheckboxItem onCheckedChange={() => clearColumnFilter('type')}>
+                                Clear filter
+                              </DropdownMenuCheckboxItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      <span className="cursor-pointer" onClick={() => handleSort('type')}>
+                        Type {getSortIcon('type')}
+                      </span>
+                    </div>
+                  </TableHead>
+                  {!isMobile && (
+                    <TableHead className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
+                      <div className="flex items-center gap-1">
+                        <span className="cursor-pointer" onClick={() => handleSort('source')}>
+                          Source {getSortIcon('source')}
+                        </span>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                              <Filter className={`h-3 w-3 ${columnFilters.source.length > 0 ? 'text-blue-500' : ''}`} />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
+                            <DropdownMenuLabel>Filter by Source</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            {getUniqueValues('source').map(value => (
+                              <DropdownMenuCheckboxItem
+                                key={value}
+                                checked={columnFilters.source.includes(value)}
+                                onCheckedChange={() => toggleColumnFilter('source', value)}
+                              >
+                                {value === 'website' ? 'Website' : 'Upload'}
+                              </DropdownMenuCheckboxItem>
+                            ))}
+                            {columnFilters.source.length > 0 && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuCheckboxItem onCheckedChange={() => clearColumnFilter('source')}>
+                                  Clear filter
+                                </DropdownMenuCheckboxItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </TableHead>
+                  )}
+                  {!isMobile && (
+                    <TableHead className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
+                      <div className="flex items-center gap-1">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                              <Filter className={`h-3 w-3 ${columnFilters.version !== null ? 'text-blue-500' : ''}`} />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
+                            <DropdownMenuLabel>Filter by Version</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <div className="p-2">
+                              <Input
+                                type="number"
+                                placeholder="Version number"
+                                value={columnFilters.version || ''}
+                                onChange={(e) => setColumnFilters(prev => ({ ...prev, version: e.target.value ? parseInt(e.target.value) : null }))}
+                                className="h-8"
+                              />
+                              {columnFilters.version !== null && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setColumnFilters(prev => ({ ...prev, version: null }))}
+                                  className="h-7 w-full mt-2 text-xs"
+                                >
+                                  Clear
+                                </Button>
+                              )}
+                            </div>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <span className="cursor-pointer" onClick={() => handleSort('version')}>
+                          Version {getSortIcon('version')}
+                        </span>
+                      </div>
+                    </TableHead>
+                  )}
+                  <TableHead className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
+                    <div className="flex items-center gap-1">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                            <Filter className={`h-3 w-3 ${columnFilters.size !== null ? 'text-blue-500' : ''}`} />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
+                          <DropdownMenuLabel>Filter by Size</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <div className="p-2 space-y-2">
+                            <div className="flex gap-2">
+                              <Button
+                                variant={columnFilters.size?.operator === 'less' ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => setColumnFilters(prev => ({ ...prev, size: prev.size ? { ...prev.size, operator: 'less' } : { value: 0, operator: 'less' } }))}
+                                className="h-7 text-xs"
+                              >
+                                ≤ Less
+                              </Button>
+                              <Button
+                                variant={columnFilters.size?.operator === 'greater' ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => setColumnFilters(prev => ({ ...prev, size: prev.size ? { ...prev.size, operator: 'greater' } : { value: 0, operator: 'greater' } }))}
+                                className="h-7 text-xs"
+                              >
+                                ≥ Greater
+                              </Button>
+                            </div>
+                            <Input
+                              type="number"
+                              placeholder="Size in bytes"
+                              value={columnFilters.size?.value || ''}
+                              onChange={(e) => setColumnFilters(prev => ({ ...prev, size: e.target.value ? { value: parseInt(e.target.value), operator: prev.size?.operator || 'less' } : null }))}
+                              className="h-8"
+                            />
+                            {columnFilters.size !== null && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setColumnFilters(prev => ({ ...prev, size: null }))}
+                                className="h-7 w-full text-xs"
+                              >
+                                Clear
+                              </Button>
+                            )}
+                          </div>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      <span className="cursor-pointer" onClick={() => handleSort('size')}>
+                        Size {getSortIcon('size')}
+                      </span>
+                    </div>
+                  </TableHead>
+                  <TableHead className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
+                    <div className="flex items-center gap-1">
+                      <span className="cursor-pointer" onClick={() => handleSort('status')}>
+                        Status {getSortIcon('status')}
+                      </span>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                            <Filter className={`h-3 w-3 ${columnFilters.status.length > 0 ? 'text-blue-500' : ''}`} />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
+                          <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          {getUniqueValues('status').map(value => (
+                            <DropdownMenuCheckboxItem
+                              key={value}
+                              checked={columnFilters.status.includes(value)}
+                              onCheckedChange={() => toggleColumnFilter('status', value)}
+                            >
+                              {value}
+                            </DropdownMenuCheckboxItem>
+                          ))}
+                          {columnFilters.status.length > 0 && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuCheckboxItem onCheckedChange={() => clearColumnFilter('status')}>
+                                Clear filter
+                              </DropdownMenuCheckboxItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </TableHead>
+                  {!isMobile && (
+                    <TableHead className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
+                      <div className="flex items-center gap-1">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                              <Filter className={`h-3 w-3 ${(columnFilters.updatedAt.from !== '' || columnFilters.updatedAt.to !== '') ? 'text-blue-500' : ''}`} />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
+                            <DropdownMenuLabel>Filter by Date Range</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <div className="p-2 space-y-2">
+                              <div>
+                                <label className="text-xs text-gray-500 mb-1 block">From Date</label>
+                                <Input
+                                  type="date"
+                                  value={columnFilters.updatedAt.from}
+                                  onChange={(e) => setColumnFilters(prev => ({ ...prev, updatedAt: { ...prev.updatedAt, from: e.target.value } }))}
+                                  className="h-8"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs text-gray-500 mb-1 block">To Date</label>
+                                <Input
+                                  type="date"
+                                  value={columnFilters.updatedAt.to}
+                                  onChange={(e) => setColumnFilters(prev => ({ ...prev, updatedAt: { ...prev.updatedAt, to: e.target.value } }))}
+                                  className="h-8"
+                                />
+                              </div>
+                              {(columnFilters.updatedAt.from !== '' || columnFilters.updatedAt.to !== '') && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setColumnFilters(prev => ({ ...prev, updatedAt: { from: '', to: '' } }))}
+                                  className="h-7 w-full text-xs"
+                                >
+                                  Clear
+                                </Button>
+                              )}
+                            </div>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <span className="cursor-pointer" onClick={() => handleSort('updatedAt')}>
+                          Last Updated {getSortIcon('updatedAt')}
+                        </span>
+                      </div>
+                    </TableHead>
+                  )}
+                  <TableHead className={`text-right ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
+                    Actions
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                  {sortedDocuments.map((doc) => (
+                    <TableRow 
+                      key={doc.id}
+                      className={`${theme === 'light' ? 'border-gray-100 hover:bg-gray-50' : 'border-zinc-800 hover:bg-zinc-800'} ${selectedDocIds.has(doc.id) ? (theme === 'light' ? 'bg-blue-50' : 'bg-blue-950') : ''}`}
+                    >
+                      {/* Checkbox cell */}
+                      <TableCell className="w-[40px]">
+                        <Checkbox
+                          checked={selectedDocIds.has(doc.id)}
+                          onCheckedChange={() => toggleSelectDoc(doc.id)}
+                          aria-label={`Select ${doc.name}`}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2 min-w-0">
+                          {getFileIcon(doc.type, doc.source)}
+                          <div className="min-w-0 flex-1">
+                            <p className={`text-sm font-medium truncate ${
+                              theme === 'light' ? 'text-gray-900' : 'text-white'
+                            }`} title={doc.source === 'website' && doc.originalUrl ? doc.originalUrl : doc.name}>
+                              {/* For websites, show original URL as the name */}
+                              {doc.source === 'website' && doc.originalUrl ? doc.originalUrl : doc.name}
+                            </p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge 
+                          variant="outline" 
+                          className={`text-xs ${
+                            doc.source === 'website' 
+                              ? 'bg-purple-50 text-purple-600 border-purple-200' 
+                              : 'bg-gray-50 text-gray-600 border-gray-200'
+                          }`}
+                        >
+                          {doc.source === 'website' ? 'www' : (doc.type || 'unknown').toUpperCase()}
+                        </Badge>
+                      </TableCell>
+                      {!isMobile && (
+                        <TableCell>
+                          <Badge 
+                            variant="outline" 
+                            className={`text-xs ${
+                              doc.source === 'website' 
+                                ? 'bg-purple-50 text-purple-600 border-purple-200' 
+                                : 'bg-blue-50 text-blue-600 border-blue-200'
+                            }`}
+                          >
+                            {doc.source === 'website' ? (
+                              <><Globe className="h-3 w-3 mr-1" /> Website</>
+                            ) : (
+                              <><Upload className="h-3 w-3 mr-1" /> Upload</>
+                            )}
+                          </Badge>
+                        </TableCell>
+                      )}
+                      {!isMobile && (
+                        <TableCell>
+                          <Badge 
+                            variant="outline" 
+                            className={`text-xs ${
+                              theme === 'light' ? 'bg-gray-50 text-gray-600 border-gray-200' : 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                            }`}
+                          >
+                            {doc.version || 1}
+                          </Badge>
+                        </TableCell>
+                      )}
+                      <TableCell>
+                        <span className={`text-sm ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
+                          {formatFileSize(doc.size || 0)}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        {isMobile ? (
+                          <Badge variant="outline" className="text-xs">
+                            {getStatusBadge(doc.status)}
+                          </Badge>
+                        ) : (
+                          getStatusBadge(doc.status)
+                        )}
+                      </TableCell>
+                      {!isMobile && (
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className={`text-sm flex items-center gap-1 ${theme === 'light' ? 'text-gray-600' : 'text-gray-300'}`}>
+                              <Calendar className="h-3 w-3" />
+                              {formatDate(doc.updatedAt)}
+                            </span>
+                            <span className={`text-[10px] ${theme === 'light' ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {new Date(doc.updatedAt).toLocaleString('en-GB', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit',
+                                hour12: false
+                              })}
+                            </span>
+                          </div>
+                        </TableCell>
+                      )}
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          {/* Download button for uploaded files */}
+                          {doc.source === 'upload' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className={`h-8 w-8 p-0 ${
+                                theme === 'light' ? 'hover:bg-blue-50' : 'hover:bg-blue-950'
+                              }`}
+                              onClick={async () => {
+                                try {
+                                  if (doc.r2Url) {
+                                    // Public bucket - direct download
+                                    const link = document.createElement('a');
+                                    link.href = doc.r2Url;
+                                    link.download = doc.name;
+                                    link.target = '_blank';
+                                    document.body.appendChild(link);
+                                    link.click();
+                                    document.body.removeChild(link);
+                                  } else {
+                                    // Private bucket or use signed URL
+                                    setSuccess('Generating download link...');
+                                    const downloadUrl = await knowledgeBaseManager.getSignedDownloadUrl(doc.id);
+                                    setSuccess(null);
+                                    window.open(downloadUrl, '_blank');
+                                  }
+                                } catch (err: unknown) {
+                                  console.error('Download error:', err);
+                                  const errorMessage = err instanceof Error ? err.message : 'Failed to download file';
+                                  setError(errorMessage);
+                                }
+                              }}
+                              title="Download file"
+                            >
+                              <Download className={`h-4 w-4 ${
+                                theme === 'light' ? 'text-blue-500' : 'text-blue-400'
+                              }`} />
+                            </Button>
+                          )}
+                          {/* External link for websites */}
+                          {doc.source === 'website' && doc.originalUrl && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className={`h-8 w-8 p-0 ${
+                                theme === 'light' ? 'hover:bg-gray-100' : 'hover:bg-zinc-700'
+                              }`}
+                              onClick={() => window.open(doc.originalUrl, '_blank')}
+                              title="Open source URL"
+                            >
+                              <ExternalLink className={`h-4 w-4 ${
+                                theme === 'light' ? 'text-gray-500' : 'text-gray-400'
+                              }`} />
+                            </Button>
+                          )}
+                          {/* Update button */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={`h-8 w-8 p-0 ${
+                              theme === 'light' ? 'hover:bg-orange-50' : 'hover:bg-orange-950'
+                            }`}
+                            onClick={() => handleOpenUpdateDialog(doc)}
+                            title={doc.source === 'website' ? 'Re-scrape website' : 'Replace file'}
+                          >
+                            <Pencil className={`h-4 w-4 ${
+                              theme === 'light' ? 'text-orange-500' : 'text-orange-400'
+                            }`} />
+                          </Button>
+                          {/* Delete button */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={`h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600 ${
+                              theme === 'light' ? '' : 'hover:bg-red-950'
+                            }`}
+                            onClick={() => handleDeleteDocument(doc.id, doc.name)}
+                            title="Delete document"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+
   return (
     <div className={`h-full overflow-y-auto ${theme === 'light' ? 'bg-white' : 'bg-black'}`}>
-      <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6 animate-fade-in">
+      {isTableExpanded && createPortal(
+        tableContent,
+        document.body
+      )}
+      {!isTableExpanded && (
+        <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6 animate-fade-in">
         {/* Header */}
         {/* Header with inline stats */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -1270,603 +1877,8 @@ const KnowledgeBaseManagement: React.FC = () => {
           </>
         )}
 
-        {/* Documents Table */}
-        <Card className={`${isTableExpanded ? 'fixed inset-0 z-50 m-0 rounded-none' : ''} ${theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-900 border-zinc-700'}`}>
-          <CardHeader className={`pb-3 ${isTableExpanded ? 'sticky top-0 z-10 bg-white dark:bg-zinc-900 border-b' : ''}`}>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <CardTitle className={`text-lg flex items-center gap-2 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
-                  <FileText className="h-5 w-5" />
-                  Documents ({filteredDocuments.length})
-                </CardTitle>
-                {selectedDocIds.size > 0 && (
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={handleBulkDelete}
-                    disabled={isDeleting}
-                    className="h-8"
-                  >
-                    {isDeleting ? (
-                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-4 w-4 mr-1" />
-                    )}
-                    Delete ({selectedDocIds.size})
-                  </Button>
-                )}
-                {/* Active filters indicator and clear button */}
-                {hasActiveFilters() && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={clearAllFilters}
-                    className="h-8 text-xs"
-                  >
-                    <XIcon className="h-3 w-3 mr-1" />
-                    Clear All Filters
-                  </Button>
-                )}
-                {/* Expand/Collapse button */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsTableExpanded(!isTableExpanded)}
-                  className="h-8 w-8 p-0"
-                  title={isTableExpanded ? 'Collapse table' : 'Expand table'}
-                >
-                  {isTableExpanded ? (
-                    <Minimize2 className="h-4 w-4" />
-                  ) : (
-                    <Maximize2 className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-              <div className="relative w-full sm:w-64">
-                <Search className={`absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 ${
-                  theme === 'light' ? 'text-gray-400' : 'text-gray-500'
-                }`} />
-                <Input
-                  placeholder="Search documents..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className={`pl-9 ${
-                    theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-800 border-zinc-700'
-                  }`}
-                />
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0 overflow-hidden">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className={`h-8 w-8 animate-spin ${theme === 'light' ? 'text-gray-400' : 'text-gray-500'}`} />
-              </div>
-            ) : filteredDocuments.length === 0 ? (
-              <div className={`text-center py-12 ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>
-                <FileIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                <p className="text-sm">No documents found</p>
-                <p className="text-xs mt-1">Upload files or add URLs to get started</p>
-              </div>
-            ) : (
-              <div className={`overflow-x-auto ${isTableExpanded ? 'h-[calc(100vh-180px)]' : 'max-h-[140px]'} overflow-y-auto`}>
-              <Table>
-                <TableHeader>
-                    <TableRow className={theme === 'light' ? 'border-gray-200' : 'border-zinc-700'}>
-                      {/* Checkbox column */}
-                      <TableHead className="w-[40px]">
-                        <Checkbox
-                          checked={selectedDocIds.size === sortedDocuments.length && sortedDocuments.length > 0}
-                          onCheckedChange={toggleSelectAll}
-                          aria-label="Select all"
-                        />
-                      </TableHead>
-                      <TableHead className={`${isMobile ? 'w-[30%]' : 'w-[20%]'} ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
-                        <div className="flex items-center gap-1">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                                <Filter className={`h-3 w-3 ${columnFilters.name.text.trim() !== '' ? 'text-blue-500' : ''}`} />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
-                              <DropdownMenuLabel>Filter by Name</DropdownMenuLabel>
-                              <DropdownMenuSeparator />
-                              <div className="p-2 space-y-2">
-                                <div className="flex gap-2">
-                                  <Button
-                                    variant={columnFilters.name.mode === 'starts' ? 'default' : 'outline'}
-                                    size="sm"
-                                    onClick={() => setColumnFilters(prev => ({ ...prev, name: { ...prev.name, mode: 'starts' } }))}
-                                    className="h-7 text-xs"
-                                  >
-                                    Starts with
-                                  </Button>
-                                  <Button
-                                    variant={columnFilters.name.mode === 'contains' ? 'default' : 'outline'}
-                                    size="sm"
-                                    onClick={() => setColumnFilters(prev => ({ ...prev, name: { ...prev.name, mode: 'contains' } }))}
-                                    className="h-7 text-xs"
-                                  >
-                                    Contains
-                                  </Button>
-                                </div>
-                                <Input
-                                  placeholder={columnFilters.name.mode === 'starts' ? 'Starts with...' : 'Contains...'}
-                                  value={columnFilters.name.text}
-                                  onChange={(e) => setColumnFilters(prev => ({ ...prev, name: { ...prev.name, text: e.target.value } }))}
-                                  className="h-8"
-                                />
-                                {columnFilters.name.text.trim() !== '' && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setColumnFilters(prev => ({ ...prev, name: { text: '', mode: 'contains' } }))}
-                                    className="h-7 w-full text-xs"
-                                  >
-                                    Clear
-                                  </Button>
-                                )}
-                              </div>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                          <span className="cursor-pointer" onClick={() => handleSort('name')}>
-                            Name {getSortIcon('name')}
-                          </span>
-                        </div>
-                      </TableHead>
-                      <TableHead className={`w-[70px] ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
-                        <div className="flex items-center gap-1">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                                <Filter className={`h-3 w-3 ${columnFilters.type.length > 0 ? 'text-blue-500' : ''}`} />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
-                              <DropdownMenuLabel>Filter by Type</DropdownMenuLabel>
-                              <DropdownMenuSeparator />
-                              {getUniqueValues('type').map(value => (
-                                <DropdownMenuCheckboxItem
-                                  key={value}
-                                  checked={columnFilters.type.includes(value)}
-                                  onCheckedChange={() => toggleColumnFilter('type', value)}
-                                >
-                                  {value}
-                                </DropdownMenuCheckboxItem>
-                              ))}
-                              {columnFilters.type.length > 0 && (
-                                <>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuCheckboxItem onCheckedChange={() => clearColumnFilter('type')}>
-                                    Clear filter
-                                  </DropdownMenuCheckboxItem>
-                                </>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </TableHead>
-                      {!isMobile && (
-                        <TableHead className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
-                          <div className="flex items-center gap-1">
-                            <span className="cursor-pointer" onClick={() => handleSort('source')}>
-                              Source {getSortIcon('source')}
-                            </span>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                                  <Filter className={`h-3 w-3 ${columnFilters.source.length > 0 ? 'text-blue-500' : ''}`} />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
-                                <DropdownMenuLabel>Filter by Source</DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                {getUniqueValues('source').map(value => (
-                                  <DropdownMenuCheckboxItem
-                                    key={value}
-                                    checked={columnFilters.source.includes(value)}
-                                    onCheckedChange={() => toggleColumnFilter('source', value)}
-                                  >
-                                    {value === 'website' ? 'Website' : 'Upload'}
-                                  </DropdownMenuCheckboxItem>
-                                ))}
-                                {columnFilters.source.length > 0 && (
-                                  <>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuCheckboxItem onCheckedChange={() => clearColumnFilter('source')}>
-                                      Clear filter
-                                    </DropdownMenuCheckboxItem>
-                                  </>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        </TableHead>
-                      )}
-                      {!isMobile && (
-                        <TableHead className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
-                          <div className="flex items-center gap-1">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                                  <Filter className={`h-3 w-3 ${columnFilters.version !== null ? 'text-blue-500' : ''}`} />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
-                                <DropdownMenuLabel>Filter by Version</DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                <div className="p-2">
-                                  <Input
-                                    type="number"
-                                    placeholder="Version number"
-                                    value={columnFilters.version || ''}
-                                    onChange={(e) => setColumnFilters(prev => ({ ...prev, version: e.target.value ? parseInt(e.target.value) : null }))}
-                                    className="h-8"
-                                  />
-                                  {columnFilters.version !== null && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => setColumnFilters(prev => ({ ...prev, version: null }))}
-                                      className="h-7 w-full mt-2 text-xs"
-                                    >
-                                      Clear
-                                    </Button>
-                                  )}
-                                </div>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                            <span className="cursor-pointer" onClick={() => handleSort('version')}>
-                              Version {getSortIcon('version')}
-                            </span>
-                          </div>
-                        </TableHead>
-                      )}
-                      <TableHead className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
-                        <div className="flex items-center gap-1">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                                <Filter className={`h-3 w-3 ${columnFilters.size !== null ? 'text-blue-500' : ''}`} />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
-                              <DropdownMenuLabel>Filter by Size</DropdownMenuLabel>
-                              <DropdownMenuSeparator />
-                              <div className="p-2 space-y-2">
-                                <div className="flex gap-2">
-                                  <Button
-                                    variant={columnFilters.size?.operator === 'less' ? 'default' : 'outline'}
-                                    size="sm"
-                                    onClick={() => setColumnFilters(prev => ({ ...prev, size: prev.size ? { ...prev.size, operator: 'less' } : { value: 0, operator: 'less' } }))}
-                                    className="h-7 text-xs"
-                                  >
-                                    ≤ Less
-                                  </Button>
-                                  <Button
-                                    variant={columnFilters.size?.operator === 'greater' ? 'default' : 'outline'}
-                                    size="sm"
-                                    onClick={() => setColumnFilters(prev => ({ ...prev, size: prev.size ? { ...prev.size, operator: 'greater' } : { value: 0, operator: 'greater' } }))}
-                                    className="h-7 text-xs"
-                                  >
-                                    ≥ Greater
-                                  </Button>
-                                </div>
-                                <Input
-                                  type="number"
-                                  placeholder="Size in bytes"
-                                  value={columnFilters.size?.value || ''}
-                                  onChange={(e) => setColumnFilters(prev => ({ ...prev, size: e.target.value ? { value: parseInt(e.target.value), operator: prev.size?.operator || 'less' } : null }))}
-                                  className="h-8"
-                                />
-                                {columnFilters.size !== null && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setColumnFilters(prev => ({ ...prev, size: null }))}
-                                    className="h-7 w-full text-xs"
-                                  >
-                                    Clear
-                                  </Button>
-                                )}
-                              </div>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                          <span className="cursor-pointer" onClick={() => handleSort('size')}>
-                            Size {getSortIcon('size')}
-                          </span>
-                        </div>
-                      </TableHead>
-                      <TableHead className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
-                        <div className="flex items-center gap-1">
-                          <span className="cursor-pointer" onClick={() => handleSort('status')}>
-                            Status {getSortIcon('status')}
-                          </span>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                                <Filter className={`h-3 w-3 ${columnFilters.status.length > 0 ? 'text-blue-500' : ''}`} />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
-                              <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
-                              <DropdownMenuSeparator />
-                              {getUniqueValues('status').map(value => (
-                                <DropdownMenuCheckboxItem
-                                  key={value}
-                                  checked={columnFilters.status.includes(value)}
-                                  onCheckedChange={() => toggleColumnFilter('status', value)}
-                                >
-                                  {value}
-                                </DropdownMenuCheckboxItem>
-                              ))}
-                              {columnFilters.status.length > 0 && (
-                                <>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuCheckboxItem onCheckedChange={() => clearColumnFilter('status')}>
-                                    Clear filter
-                                  </DropdownMenuCheckboxItem>
-                                </>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </TableHead>
-                      {!isMobile && (
-                        <TableHead className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
-                          <div className="flex items-center gap-1">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                                  <Filter className={`h-3 w-3 ${(columnFilters.updatedAt.from !== '' || columnFilters.updatedAt.to !== '') ? 'text-blue-500' : ''}`} />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="start" className={theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'}>
-                                <DropdownMenuLabel>Filter by Date Range</DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                <div className="p-2 space-y-2">
-                                  <div>
-                                    <label className="text-xs text-gray-500 mb-1 block">From Date</label>
-                                    <Input
-                                      type="date"
-                                      value={columnFilters.updatedAt.from}
-                                      onChange={(e) => setColumnFilters(prev => ({ ...prev, updatedAt: { ...prev.updatedAt, from: e.target.value } }))}
-                                      className="h-8"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="text-xs text-gray-500 mb-1 block">To Date</label>
-                                    <Input
-                                      type="date"
-                                      value={columnFilters.updatedAt.to}
-                                      onChange={(e) => setColumnFilters(prev => ({ ...prev, updatedAt: { ...prev.updatedAt, to: e.target.value } }))}
-                                      className="h-8"
-                                    />
-                                  </div>
-                                  {(columnFilters.updatedAt.from !== '' || columnFilters.updatedAt.to !== '') && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => setColumnFilters(prev => ({ ...prev, updatedAt: { from: '', to: '' } }))}
-                                      className="h-7 w-full text-xs"
-                                    >
-                                      Clear
-                                    </Button>
-                                  )}
-                                </div>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                            <span className="cursor-pointer" onClick={() => handleSort('updatedAt')}>
-                              Last Updated {getSortIcon('updatedAt')}
-                            </span>
-                          </div>
-                        </TableHead>
-                      )}
-                      <TableHead className={`text-right ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
-                        Actions
-                      </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {sortedDocuments.map((doc) => (
-                      <TableRow 
-                        key={doc.id}
-                        className={`${theme === 'light' ? 'border-gray-100 hover:bg-gray-50' : 'border-zinc-800 hover:bg-zinc-800'} ${selectedDocIds.has(doc.id) ? (theme === 'light' ? 'bg-blue-50' : 'bg-blue-950') : ''}`}
-                      >
-                        {/* Checkbox cell */}
-                        <TableCell className="w-[40px]">
-                          <Checkbox
-                            checked={selectedDocIds.has(doc.id)}
-                            onCheckedChange={() => toggleSelectDoc(doc.id)}
-                            aria-label={`Select ${doc.name}`}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2 min-w-0">
-                            {getFileIcon(doc.type, doc.source)}
-                            <div className="min-w-0 flex-1">
-                              <p className={`text-sm font-medium truncate ${
-                                theme === 'light' ? 'text-gray-900' : 'text-white'
-                              }`} title={doc.source === 'website' && doc.originalUrl ? doc.originalUrl : doc.name}>
-                                {/* For websites, show original URL as the name */}
-                                {doc.source === 'website' && doc.originalUrl ? doc.originalUrl : doc.name}
-                              </p>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge 
-                            variant="outline" 
-                            className={`text-xs ${
-                              doc.source === 'website' 
-                                ? 'bg-purple-50 text-purple-600 border-purple-200' 
-                                : 'bg-gray-50 text-gray-600 border-gray-200'
-                            }`}
-                          >
-                            {doc.source === 'website' ? 'www' : (doc.type || 'unknown').toUpperCase()}
-                          </Badge>
-                        </TableCell>
-                        {!isMobile && (
-                          <TableCell>
-                            <Badge 
-                              variant="outline" 
-                              className={`text-xs ${
-                                doc.source === 'website' 
-                                  ? 'bg-purple-50 text-purple-600 border-purple-200' 
-                                  : 'bg-blue-50 text-blue-600 border-blue-200'
-                              }`}
-                            >
-                              {doc.source === 'website' ? (
-                                <><Globe className="h-3 w-3 mr-1" /> Website</>
-                              ) : (
-                                <><Upload className="h-3 w-3 mr-1" /> Upload</>
-                              )}
-                            </Badge>
-                          </TableCell>
-                        )}
-                        {!isMobile && (
-                        <TableCell>
-                            <Badge 
-                              variant="outline"
-                              className={`text-xs ${
-                                theme === 'light' 
-                                  ? 'bg-gray-50 text-gray-600 border-gray-200' 
-                                  : 'bg-zinc-800 text-gray-300 border-zinc-700'
-                              }`}
-                            >
-                              v{doc.version || 1}
-                          </Badge>
-                        </TableCell>
-                        )}
-                        <TableCell>
-                          <span className={`text-sm ${theme === 'light' ? 'text-gray-600' : 'text-gray-300'}`}>
-                            {doc.size > 0 ? formatFileSize(doc.size) : '—'}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {updatingDocIds.has(doc.id) ? (
-                            <Badge className="bg-blue-100 text-blue-700 border-blue-200">
-                              <Loader2 className="h-3 w-3 mr-1 animate-spin" /> Updating
-                          </Badge>
-                          ) : (
-                            getStatusBadge(doc.status)
-                          )}
-                        </TableCell>
-                        {!isMobile && (
-                          <TableCell>
-                            <div className="flex flex-col">
-                              <span className={`text-sm flex items-center gap-1 ${theme === 'light' ? 'text-gray-600' : 'text-gray-300'}`}>
-                                <Calendar className="h-3 w-3" />
-                                {formatDate(doc.updatedAt)}
-                              </span>
-                              <span className={`text-[10px] ${theme === 'light' ? 'text-gray-400' : 'text-gray-500'}`}>
-                                {new Date(doc.updatedAt).toLocaleString('en-GB', {
-                                  day: '2-digit',
-                                  month: '2-digit',
-                                  year: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  second: '2-digit',
-                                  hour12: false
-                                })}
-                              </span>
-                            </div>
-                          </TableCell>
-                        )}
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            {/* Download button for uploaded files */}
-                            {doc.source === 'upload' && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className={`h-8 w-8 p-0 ${
-                                  theme === 'light' ? 'hover:bg-blue-50' : 'hover:bg-blue-950'
-                                }`}
-                                onClick={async () => {
-                                  try {
-                                    if (doc.r2Url) {
-                                      // Public bucket - direct download
-                                      const link = document.createElement('a');
-                                      link.href = doc.r2Url;
-                                      link.download = doc.name;
-                                      link.target = '_blank';
-                                      document.body.appendChild(link);
-                                      link.click();
-                                      document.body.removeChild(link);
-                                    } else {
-                                      // Private bucket or use signed URL
-                                      setSuccess('Generating download link...');
-                                      const downloadUrl = await knowledgeBaseManager.getSignedDownloadUrl(doc.id);
-                                      setSuccess(null);
-                                      window.open(downloadUrl, '_blank');
-                                    }
-                                  } catch (err: unknown) {
-                                    console.error('Download error:', err);
-                                    const errorMessage = err instanceof Error ? err.message : 'Failed to download file';
-                                    setError(errorMessage);
-                                  }
-                                }}
-                                title="Download file"
-                              >
-                                <Download className={`h-4 w-4 ${
-                                  theme === 'light' ? 'text-blue-500' : 'text-blue-400'
-                                }`} />
-                              </Button>
-                            )}
-                            {/* External link for websites */}
-                            {doc.source === 'website' && doc.originalUrl && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                                className={`h-8 w-8 p-0 ${
-                                  theme === 'light' ? 'hover:bg-gray-100' : 'hover:bg-zinc-700'
-                                }`}
-                                onClick={() => window.open(doc.originalUrl, '_blank')}
-                                title="Open source URL"
-                              >
-                                <ExternalLink className={`h-4 w-4 ${
-                                  theme === 'light' ? 'text-gray-500' : 'text-gray-400'
-                                }`} />
-                              </Button>
-                            )}
-                            {/* Update button */}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className={`h-8 w-8 p-0 ${
-                                theme === 'light' ? 'hover:bg-orange-50' : 'hover:bg-orange-950'
-                              }`}
-                              onClick={() => handleOpenUpdateDialog(doc)}
-                              title={doc.source === 'website' ? 'Re-scrape website' : 'Replace file'}
-                            >
-                              <Pencil className={`h-4 w-4 ${
-                                theme === 'light' ? 'text-orange-500' : 'text-orange-400'
-                              }`} />
-                            </Button>
-                            {/* Delete button */}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className={`h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600 ${
-                                theme === 'light' ? '' : 'hover:bg-red-950'
-                              }`}
-                              onClick={() => handleDeleteDocument(doc.id, doc.name)}
-                              title="Delete document"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
-            </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Documents Table - render normally when not expanded */}
+        {!isTableExpanded && tableContent}
 
       {/* Confirmation Dialog */}
       <Dialog open={confirmDialog.isOpen} onOpenChange={(open) => !open && setConfirmDialog(prev => ({ ...prev, isOpen: false }))}>
@@ -1884,84 +1896,15 @@ const KnowledgeBaseManagement: React.FC = () => {
             <Button
               variant="outline"
               onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
-              className={theme === 'light' ? 'border-gray-200' : 'border-zinc-700'}
+              className={theme === 'light' ? '' : 'border-zinc-700'}
             >
               Cancel
             </Button>
             <Button
-              onClick={() => {
-                confirmDialog.onConfirm();
-                setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-              }}
-              className={
-                confirmDialog.title.includes('Delete')
-                  ? 'bg-red-600 hover:bg-red-700 text-white'
-                  : theme === 'light'
-                    ? 'bg-black hover:bg-gray-800 text-white'
-                    : 'bg-white hover:bg-gray-200 text-black'
-              }
+              variant="destructive"
+              onClick={confirmDialog.onConfirm}
             >
-              {confirmDialog.title.includes('Delete') ? (
-                <><Trash2 className="h-4 w-4 mr-2" /> Delete</>
-              ) : (
-                <><CheckCircle className="h-4 w-4 mr-2" /> Proceed</>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Update Dialog */}
-      <Dialog open={updateDialog.isOpen} onOpenChange={(open) => !open && setUpdateDialog(prev => ({ ...prev, isOpen: false }))}>
-        <DialogContent className={theme === 'light' ? 'bg-white' : 'bg-zinc-900 border-zinc-700'}>
-          <DialogHeader>
-            <DialogTitle className={`flex items-center gap-2 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
-              <Pencil className="h-5 w-5 text-orange-500" />
-              {updateDialog.document?.source === 'website' ? 'Update Website' : 'Replace Document'}
-            </DialogTitle>
-            <DialogDescription className={theme === 'light' ? 'text-gray-600' : 'text-gray-400'}>
-              {updateDialog.document?.source === 'website'
-                ? 'Re-scrape the website with the same or a new URL. The old content will be replaced.'
-                : `Replace "${updateDialog.document?.name}" with a new file. The old file will be deleted.`
-              }
-            </DialogDescription>
-          </DialogHeader>
-
-          {updateDialog.document?.source === 'website' && (
-            <div className="py-4">
-              <label className={`text-sm font-medium ${theme === 'light' ? 'text-gray-700' : 'text-gray-300'}`}>
-                Website URL
-              </label>
-              <Input
-                type="url"
-                value={updateDialog.newUrl}
-                onChange={(e) => setUpdateDialog(prev => ({ ...prev, newUrl: e.target.value }))}
-                placeholder="https://example.com"
-                className={`mt-1 ${theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-800 border-zinc-700 text-white'}`}
-              />
-                </div>
-          )}
-
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              onClick={() => setUpdateDialog(prev => ({ ...prev, isOpen: false }))}
-              className={theme === 'light' ? 'border-gray-200' : 'border-zinc-700'}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleUpdateDocument}
-              disabled={isLoading}
-              className="bg-orange-600 hover:bg-orange-700 text-white"
-            >
-              {isLoading ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Updating...</>
-              ) : updateDialog.document?.source === 'website' ? (
-                <><RefreshCw className="h-4 w-4 mr-2" /> Re-scrape</>
-              ) : (
-                <><Upload className="h-4 w-4 mr-2" /> Choose New File</>
-              )}
+              {confirmDialog.confirmText || 'Confirm'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1975,9 +1918,9 @@ const KnowledgeBaseManagement: React.FC = () => {
         onChange={handleUpdateFileSelected}
         accept=".pdf,.doc,.docx,.txt,.rtf,.odt,.ppt,.pptx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.gif,.webp,.mp3,.wav,.html,.json,.xml,.yaml,.yml,.md"
       />
-      </div>
+        </div>
+      )}
     </div>
   );
 };
-
 export default KnowledgeBaseManagement;
