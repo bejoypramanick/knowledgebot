@@ -336,6 +336,8 @@ export class KnowledgeBaseManager {
         gemini_file_name?: string;
         r2_url?: string;
         r2_key?: string;
+        cloudflare_r2_url?: string;
+        cloudflare_r2_key?: string;
         created_at?: string;
         updated_at?: string;
         last_modified?: string;
@@ -412,8 +414,8 @@ export class KnowledgeBaseManager {
           updatedAt: doc.updated_at || doc.last_modified || doc.created_at || new Date().toISOString(),
           source: source,
           originalUrl: originalUrl,
-          r2Url: doc.r2_url,
-          r2Key: doc.r2_key,
+          r2Url: doc.r2_url || doc.cloudflare_r2_url,
+          r2Key: doc.r2_key || doc.cloudflare_r2_key,
           version: doc.version || 1
         };
       });

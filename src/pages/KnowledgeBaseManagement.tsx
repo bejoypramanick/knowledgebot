@@ -131,7 +131,7 @@ const KnowledgeBaseManagement: React.FC = () => {
   const updateFileInputRef = useRef<HTMLInputElement>(null);
 
   // Sorting State
-  type SortField = 'name' | 'source' | 'version' | 'size' | 'status' | 'updatedAt';
+  type SortField = 'name' | 'type' | 'source' | 'version' | 'size' | 'status' | 'updatedAt';
   type SortDirection = 'asc' | 'desc';
   const [sortField, setSortField] = useState<SortField>('updatedAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -351,12 +351,12 @@ const KnowledgeBaseManagement: React.FC = () => {
           await knowledgeBaseManager.deleteDocument(documentKey);
           setSuccess(`Document "${documentName}" deleted successfully!`);
           await loadDocuments();
-        } catch (err: any) {
-          console.error('Error deleting document:', err);
-          setError(err.message || 'Failed to delete document');
-        } finally {
-          setIsLoading(false);
-        }
+    } catch (err: any) {
+      console.error('Error deleting document:', err);
+      setError(err.message || 'Failed to delete document');
+    } finally {
+      setIsLoading(false);
+    }
       },
     });
   };
@@ -682,6 +682,12 @@ const KnowledgeBaseManagement: React.FC = () => {
       case 'name':
         comparison = a.name.localeCompare(b.name);
         break;
+      case 'type':
+        // For websites, use 'www', otherwise use the file type
+        const typeA = a.source === 'website' ? 'www' : (a.type || '').toUpperCase();
+        const typeB = b.source === 'website' ? 'www' : (b.type || '').toUpperCase();
+        comparison = typeA.localeCompare(typeB);
+        break;
       case 'source':
         comparison = a.source.localeCompare(b.source);
         break;
@@ -800,7 +806,7 @@ const KnowledgeBaseManagement: React.FC = () => {
             <Button variant="ghost" size="sm" onClick={() => setError(null)} className="h-8 w-8 p-0">
               <X className="h-4 w-4" />
             </Button>
-          </div>
+                </div>
         )}
         
         {success && (
@@ -859,7 +865,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                 <p className={`text-xs mt-1 ${theme === 'light' ? 'text-gray-500' : 'text-gray-500'}`}>
                   or click to browse
                 </p>
-              </div>
+                </div>
 
               {/* File Type Info */}
               <div className={`text-xs ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>
@@ -870,7 +876,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                       {type}
                     </Badge>
                   ))}
-                </div>
+              </div>
                 <p className="mt-2">Max size: {formatFileSize(VALIDATION.MAX_FILE_SIZE)}</p>
               </div>
 
@@ -961,17 +967,17 @@ const KnowledgeBaseManagement: React.FC = () => {
                           <SelectItem value="http://">http://</SelectItem>
                         </SelectContent>
                       </Select>
-                      <Input
+                <Input
                         value={entry.url}
                         onChange={(e) => handleCrawlUrlChange(entry.id, e.target.value)}
                         placeholder="example.com"
-                        disabled={isScraping}
+                  disabled={isScraping}
                         className={`flex-1 h-9 ${
                           theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-700 border-zinc-600'
                         } ${entry.error ? 'border-red-500' : ''}`}
-                      />
+                />
                       {crawlUrls.length > 1 && (
-                        <Button
+              <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => removeCrawlUrl(entry.id)}
@@ -981,9 +987,9 @@ const KnowledgeBaseManagement: React.FC = () => {
                           }`}
                         >
                           <Minus className="h-4 w-4" />
-                        </Button>
+              </Button>
                       )}
-                    </div>
+            </div>
                     
                     {/* Sitemap (readonly, auto-detected) */}
                     {entry.sitemap && (
@@ -1006,7 +1012,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                       <div className="flex items-center gap-2 text-green-500">
                         <CheckCircle className="h-3 w-3" />
                         <span className="text-xs">Success!</span>
-                      </div>
+              </div>
                     )}
                     {entry.error && (
                       <p className="text-xs text-red-500 flex items-center gap-1">
@@ -1030,7 +1036,7 @@ const KnowledgeBaseManagement: React.FC = () => {
               >
                 {isScraping ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Scraping {crawlUrls.filter(e => e.status === 'scraping').length} website(s)...
                   </>
                 ) : (
@@ -1040,8 +1046,8 @@ const KnowledgeBaseManagement: React.FC = () => {
                   </>
                 )}
               </Button>
-            </CardContent>
-          </Card>
+          </CardContent>
+        </Card>
         </div>
 
         {/* Documents Table */}
@@ -1051,7 +1057,7 @@ const KnowledgeBaseManagement: React.FC = () => {
               <CardTitle className={`text-lg flex items-center gap-2 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
                 <FileText className="h-5 w-5" />
                 Documents ({filteredDocuments.length})
-              </CardTitle>
+            </CardTitle>
               <div className="relative w-full sm:w-64">
                 <Search className={`absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 ${
                   theme === 'light' ? 'text-gray-400' : 'text-gray-500'
@@ -1080,15 +1086,23 @@ const KnowledgeBaseManagement: React.FC = () => {
               </div>
             ) : (
               <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
-                <Table>
-                  <TableHeader>
+              <Table>
+                <TableHeader>
                     <TableRow className={theme === 'light' ? 'border-gray-200' : 'border-zinc-700'}>
                       <TableHead 
-                        className={`${isMobile ? 'w-[35%]' : 'w-[30%]'} ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'} cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-800`}
+                        className={`${isMobile ? 'w-[35%]' : 'w-[25%]'} ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'} cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-800`}
                         onClick={() => handleSort('name')}
                       >
                         <div className="flex items-center">
                           Name {getSortIcon('name')}
+                        </div>
+                      </TableHead>
+                      <TableHead 
+                        className={`w-[60px] ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'} cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-800`}
+                        onClick={() => handleSort('type')}
+                      >
+                        <div className="flex items-center">
+                          Type {getSortIcon('type')}
                         </div>
                       </TableHead>
                       {!isMobile && (
@@ -1140,9 +1154,9 @@ const KnowledgeBaseManagement: React.FC = () => {
                       <TableHead className={`text-right ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
                         Actions
                       </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                     {sortedDocuments.map((doc) => (
                       <TableRow 
                         key={doc.id}
@@ -1158,23 +1172,20 @@ const KnowledgeBaseManagement: React.FC = () => {
                                 {/* For websites, show original URL as the name */}
                                 {doc.source === 'website' && doc.originalUrl ? doc.originalUrl : doc.name}
                               </p>
-                              <p className={`text-xs truncate ${
-                                theme === 'light' ? 'text-gray-500' : 'text-gray-400'
-                              }`}>
-                                {doc.source === 'website' ? (
-                                  <span className="flex items-center gap-1">
-                                    <Globe className="h-3 w-3 inline" />
-                                    <span>Scraped website</span>
-                                  </span>
-                                ) : (
-                                  <>.{doc.type}</>
-                                )}
-                                {isMobile && doc.source === 'website' && (
-                                  <span className="ml-1">• <Globe className="h-3 w-3 inline" /></span>
-                                )}
-                              </p>
                             </div>
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant="outline" 
+                            className={`text-xs ${
+                              doc.source === 'website' 
+                                ? 'bg-purple-50 text-purple-600 border-purple-200' 
+                                : 'bg-gray-50 text-gray-600 border-gray-200'
+                            }`}
+                          >
+                            {doc.source === 'website' ? 'www' : (doc.type || 'unknown').toUpperCase()}
+                          </Badge>
                         </TableCell>
                         {!isMobile && (
                           <TableCell>
@@ -1195,7 +1206,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                           </TableCell>
                         )}
                         {!isMobile && (
-                          <TableCell>
+                        <TableCell>
                             <Badge 
                               variant="outline"
                               className={`text-xs ${
@@ -1205,8 +1216,8 @@ const KnowledgeBaseManagement: React.FC = () => {
                               }`}
                             >
                               v{doc.version || 1}
-                            </Badge>
-                          </TableCell>
+                          </Badge>
+                        </TableCell>
                         )}
                         <TableCell>
                           <span className={`text-sm ${theme === 'light' ? 'text-gray-600' : 'text-gray-300'}`}>
@@ -1217,7 +1228,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                           {updatingDocIds.has(doc.id) ? (
                             <Badge className="bg-blue-100 text-blue-700 border-blue-200">
                               <Loader2 className="h-3 w-3 mr-1 animate-spin" /> Updating
-                            </Badge>
+                          </Badge>
                           ) : (
                             getStatusBadge(doc.status)
                           )}
@@ -1232,8 +1243,8 @@ const KnowledgeBaseManagement: React.FC = () => {
                         )}
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
-                            {/* Download button for uploaded files with R2 URL or R2 Key */}
-                            {doc.source === 'upload' && (doc.r2Url || doc.r2Key) && (
+                            {/* Download button for uploaded files */}
+                            {doc.source === 'upload' && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -1251,16 +1262,17 @@ const KnowledgeBaseManagement: React.FC = () => {
                                       document.body.appendChild(link);
                                       link.click();
                                       document.body.removeChild(link);
-                                    } else if (doc.r2Key) {
-                                      // Private bucket - get signed URL first
+                                    } else {
+                                      // Private bucket or use signed URL
                                       setSuccess('Generating download link...');
                                       const downloadUrl = await knowledgeBaseManager.getSignedDownloadUrl(doc.id);
                                       setSuccess(null);
                                       window.open(downloadUrl, '_blank');
                                     }
-                                  } catch (err: any) {
+                                  } catch (err: unknown) {
                                     console.error('Download error:', err);
-                                    setError(err.message || 'Failed to download file');
+                                    const errorMessage = err instanceof Error ? err.message : 'Failed to download file';
+                                    setError(errorMessage);
                                   }
                                 }}
                                 title="Download file"
@@ -1272,9 +1284,9 @@ const KnowledgeBaseManagement: React.FC = () => {
                             )}
                             {/* External link for websites */}
                             {doc.source === 'website' && doc.originalUrl && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
+                            <Button
+                              variant="ghost"
+                              size="sm"
                                 className={`h-8 w-8 p-0 ${
                                   theme === 'light' ? 'hover:bg-gray-100' : 'hover:bg-zinc-700'
                                 }`}
@@ -1316,13 +1328,13 @@ const KnowledgeBaseManagement: React.FC = () => {
                         </TableCell>
                       </TableRow>
                     ))}
-                  </TableBody>
-                </Table>
-              </div>
+                </TableBody>
+              </Table>
+            </div>
             )}
           </CardContent>
         </Card>
-      </div>
+                </div>
 
       {/* Confirmation Dialog */}
       <Dialog open={confirmDialog.isOpen} onOpenChange={(open) => !open && setConfirmDialog(prev => ({ ...prev, isOpen: false }))}>
@@ -1395,7 +1407,7 @@ const KnowledgeBaseManagement: React.FC = () => {
                 placeholder="https://example.com"
                 className={`mt-1 ${theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-800 border-zinc-700 text-white'}`}
               />
-            </div>
+                </div>
           )}
 
           <DialogFooter className="gap-2 sm:gap-0">
