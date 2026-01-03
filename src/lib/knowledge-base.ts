@@ -23,7 +23,8 @@ export interface Document {
   metadata: DocumentMetadata;
   createdAt: string;
   updatedAt: string;
-  source: 'upload' | 'scrape';
+  source: 'upload' | 'website';
+  originalUrl?: string; // For scraped websites
 }
 
 export interface DocumentUploadResponse {
@@ -114,12 +115,21 @@ export const validateUrl = (url: string): { valid: boolean; error?: string } => 
   }
 };
 
-export const formatFileSize = (bytes: number): string => {
+export const formatFileSize = (bytes: number | undefined | null): string => {
+  // Handle undefined, null, NaN, or negative values
+  if (bytes === undefined || bytes === null || isNaN(bytes) || bytes < 0) {
+    return '—';
+  }
   if (bytes === 0) return '0 B';
+  
   const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  
+  // Ensure index is within bounds
+  const safeIndex = Math.min(i, sizes.length - 1);
+  
+  return parseFloat((bytes / Math.pow(k, safeIndex)).toFixed(2)) + ' ' + sizes[safeIndex];
 };
 
 export const getFileExtension = (filename: string): string => {
@@ -167,17 +177,49 @@ export class KnowledgeBaseManager {
       };
     } catch (error: unknown) {
       console.error('Upload failed:', error);
-      const axiosError = error as { response?: { data?: { message?: string; errors?: Array<{field: string; message: string}> } } };
+      const axiosError = error as { 
+        response?: { 
+          status?: number;
+          data?: { 
+            message?: string; 
+            detail?: string | { message?: string };
+            errors?: Array<{field: string; message: string}> 
+          } 
+        };
+        message?: string;
+      };
       
       // Handle validation errors from backend
-      if (axiosError.response?.data?.errors) {
+      if (axiosError.response?.data?.errors && Array.isArray(axiosError.response.data.errors)) {
         const errorMessages = axiosError.response.data.errors.map(e => e.message).join('; ');
-        throw new Error(errorMessages);
+        throw new Error(`Upload failed: ${errorMessages}`);
       }
+      
+      // Handle detail field (FastAPI style)
+      if (axiosError.response?.data?.detail) {
+        const detail = axiosError.response.data.detail;
+        const message = typeof detail === 'string' ? detail : detail.message || JSON.stringify(detail);
+        throw new Error(`Upload failed: ${message}`);
+      }
+      
+      // Handle message field
       if (axiosError.response?.data?.message) {
-        throw new Error(axiosError.response.data.message);
+        throw new Error(`Upload failed: ${axiosError.response.data.message}`);
       }
-      throw error;
+      
+      // Handle HTTP status codes
+      if (axiosError.response?.status) {
+        const status = axiosError.response.status;
+        if (status === 413) throw new Error('Upload failed: File too large');
+        if (status === 415) throw new Error('Upload failed: Unsupported file type');
+        if (status === 409) throw new Error('Upload failed: File already exists');
+        if (status === 503) throw new Error('Upload failed: Service temporarily unavailable');
+        if (status >= 500) throw new Error(`Upload failed: Server error (${status})`);
+        if (status >= 400) throw new Error(`Upload failed: Request error (${status})`);
+      }
+      
+      // Fallback
+      throw new Error(axiosError.message || 'Upload failed: Unknown error');
     }
   }
 
@@ -218,11 +260,50 @@ export class KnowledgeBaseManager {
       };
     } catch (error: unknown) {
       console.error('Scrape failed:', error);
-      const axiosError = error as { response?: { data?: { message?: string } } };
-      if (axiosError.response?.data?.message) {
-        throw new Error(axiosError.response.data.message);
+      const axiosError = error as { 
+        response?: { 
+          status?: number;
+          data?: { 
+            message?: string; 
+            detail?: string | { message?: string };
+            errors?: Array<{field: string; message: string}> 
+          } 
+        };
+        message?: string;
+      };
+      
+      // Handle validation errors from backend
+      if (axiosError.response?.data?.errors && Array.isArray(axiosError.response.data.errors)) {
+        const errorMessages = axiosError.response.data.errors.map(e => e.message).join('; ');
+        throw new Error(`Scraping failed: ${errorMessages}`);
       }
-      throw error;
+      
+      // Handle detail field (FastAPI style)
+      if (axiosError.response?.data?.detail) {
+        const detail = axiosError.response.data.detail;
+        const message = typeof detail === 'string' ? detail : detail.message || JSON.stringify(detail);
+        throw new Error(`Scraping failed: ${message}`);
+      }
+      
+      // Handle message field
+      if (axiosError.response?.data?.message) {
+        throw new Error(`Scraping failed: ${axiosError.response.data.message}`);
+      }
+      
+      // Handle HTTP status codes
+      if (axiosError.response?.status) {
+        const status = axiosError.response.status;
+        if (status === 400) throw new Error('Scraping failed: Invalid URL format');
+        if (status === 403) throw new Error('Scraping failed: Access denied to this website');
+        if (status === 404) throw new Error('Scraping failed: Website not found');
+        if (status === 408) throw new Error('Scraping failed: Request timeout');
+        if (status === 503) throw new Error('Scraping failed: Service temporarily unavailable');
+        if (status >= 500) throw new Error(`Scraping failed: Server error (${status})`);
+        if (status >= 400) throw new Error(`Scraping failed: Request error (${status})`);
+      }
+      
+      // Fallback
+      throw new Error(axiosError.message || 'Scraping failed: Unknown error');
     }
   }
 
@@ -257,17 +338,22 @@ export class KnowledgeBaseManager {
       
       // Transform response to include proper document information
       const documents: Document[] = (response.data.files || []).map((doc: ResponseDocument) => {
-        // Use source field from backend (now properly set)
-        const source = doc.source || (doc.source_url || doc.url || doc.domain ? 'scrape' : 'upload');
+        // Determine source - 'website' for scraped, 'upload' for uploaded files
+        const isScraped = doc.source === 'scrape' || doc.source_url || doc.url || doc.domain;
+        const source: 'upload' | 'website' = isScraped ? 'website' : 'upload';
         
         // Get name from appropriate field
         const name = doc.original_name || doc.display_name || doc.name || 'Unknown';
         
-        // Get file extension/type
-        const extension = doc.file_type || doc.type || getFileExtension(name);
+        // Get file extension/type - for websites, show 'url'
+        const extension = isScraped ? 'url' : (doc.file_type || doc.type || getFileExtension(name));
         
-        // Get size (backend now provides size_bytes)
-        const size = doc.size_bytes || doc.size || 0;
+        // Get size (backend now provides size_bytes) - ensure it's a valid number
+        const rawSize = doc.size_bytes || doc.size;
+        const size = typeof rawSize === 'number' && !isNaN(rawSize) ? rawSize : 0;
+
+        // Get original URL for scraped websites
+        const originalUrl = doc.source_url || doc.url;
 
         return {
           id: doc.key || doc.id || Math.random().toString(),
@@ -278,7 +364,7 @@ export class KnowledgeBaseManager {
           chunks: [],
           metadata: {
             title: name,
-            sourceUrl: doc.source_url || doc.url,
+            sourceUrl: originalUrl,
             key: doc.key,
             size: size,
             originalFilename: name,
@@ -286,7 +372,8 @@ export class KnowledgeBaseManager {
           },
           createdAt: doc.created_at || new Date().toISOString(),
           updatedAt: doc.last_modified || doc.created_at || new Date().toISOString(),
-          source: source as 'upload' | 'scrape'
+          source: source,
+          originalUrl: originalUrl
         };
       });
 

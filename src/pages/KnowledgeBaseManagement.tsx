@@ -125,8 +125,8 @@ const KnowledgeBaseManagement: React.FC = () => {
     }
   };
 
-  const getFileIcon = (type: string, source: 'upload' | 'scrape') => {
-    if (source === 'scrape') {
+  const getFileIcon = (type: string, source: 'upload' | 'website') => {
+    if (source === 'website') {
       return <Globe className="h-4 w-4 text-blue-500" />;
     }
     
@@ -390,7 +390,7 @@ const KnowledgeBaseManagement: React.FC = () => {
   // Calculate total size
   const totalSize = documents.reduce((acc, doc) => acc + (doc.size || 0), 0);
   const uploadedCount = documents.filter(d => d.source === 'upload').length;
-  const scrapedCount = documents.filter(d => d.source === 'scrape').length;
+  const websiteCount = documents.filter(d => d.source === 'website').length;
 
   return (
     <div className={`h-full overflow-y-auto ${theme === 'light' ? 'bg-white' : 'bg-black'}`}>
@@ -457,8 +457,8 @@ const KnowledgeBaseManagement: React.FC = () => {
                   <Globe className="h-5 w-5 text-purple-500" />
                 </div>
                 <div>
-                  <p className={`text-2xl font-bold ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>{scrapedCount}</p>
-                  <p className={`text-xs ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>Scraped</p>
+                  <p className={`text-2xl font-bold ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>{websiteCount}</p>
+                  <p className={`text-xs ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>Websites</p>
                 </div>
               </div>
             </CardContent>
@@ -783,8 +783,12 @@ const KnowledgeBaseManagement: React.FC = () => {
                               <p className={`text-xs truncate ${
                                 theme === 'light' ? 'text-gray-500' : 'text-gray-400'
                               }`}>
-                                .{doc.type}
-                                {isMobile && doc.source === 'scrape' && (
+                                {doc.source === 'website' && doc.originalUrl ? (
+                                  <span className="truncate" title={doc.originalUrl}>{doc.originalUrl}</span>
+                                ) : (
+                                  <>.{doc.type}</>
+                                )}
+                                {isMobile && doc.source === 'website' && (
                                   <span className="ml-1">• <Globe className="h-3 w-3 inline" /></span>
                                 )}
                               </p>
@@ -796,13 +800,13 @@ const KnowledgeBaseManagement: React.FC = () => {
                             <Badge 
                               variant="outline" 
                               className={`text-xs ${
-                                doc.source === 'scrape' 
+                                doc.source === 'website' 
                                   ? 'bg-purple-50 text-purple-600 border-purple-200' 
                                   : 'bg-blue-50 text-blue-600 border-blue-200'
                               }`}
                             >
-                              {doc.source === 'scrape' ? (
-                                <><Globe className="h-3 w-3 mr-1" /> Web</>
+                              {doc.source === 'website' ? (
+                                <><Globe className="h-3 w-3 mr-1" /> Website</>
                               ) : (
                                 <><Upload className="h-3 w-3 mr-1" /> Upload</>
                               )}
