@@ -40,6 +40,7 @@ import {
   HardDrive,
   AlertTriangle,
   X,
+  Check,
   MapPin,
   Pencil,
   ArrowUpDown,
@@ -158,6 +159,10 @@ const KnowledgeBaseManagement: React.FC = () => {
 
   // Track documents being updated (for async UI updates)
   const [updatingDocIds, setUpdatingDocIds] = useState<Set<string>>(new Set());
+
+  // Inline editing state
+  const [editingDocId, setEditingDocId] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState<string>('');
 
   // Multi-select for bulk operations
   const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
@@ -617,6 +622,63 @@ const KnowledgeBaseManagement: React.FC = () => {
       if (updateFileInputRef.current) {
         updateFileInputRef.current.value = '';
       }
+    }
+  };
+
+  // Inline editing handlers
+  const handleStartEdit = (doc: Document) => {
+    const displayName = doc.source === 'website' && doc.originalUrl ? doc.originalUrl : doc.name;
+    setEditingDocId(doc.id);
+    setEditingValue(displayName);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingDocId(null);
+    setEditingValue('');
+  };
+
+  const handleSaveEdit = async (doc: Document) => {
+    if (!editingValue.trim()) {
+      setError('Name cannot be empty');
+      return;
+    }
+
+    const newName = editingValue.trim();
+    const currentName = doc.source === 'website' && doc.originalUrl ? doc.originalUrl : doc.name;
+
+    // If name hasn't changed, just cancel
+    if (newName === currentName) {
+      handleCancelEdit();
+      return;
+    }
+
+    try {
+      setError(null);
+      
+      // Update local state optimistically
+      setDocuments(prev => prev.map(d => 
+        d.id === doc.id 
+          ? { ...d, name: newName, ...(doc.source === 'website' ? { originalUrl: newName } : {}) }
+          : d
+      ));
+
+      // TODO: Add backend API call to update display_name
+      // For now, we just update the local state
+      // await knowledgeBaseManager.updateDocumentName(doc.id, newName);
+
+      setEditingDocId(null);
+      setEditingValue('');
+      setSuccess(`Document name updated to "${newName}"`);
+    } catch (err: unknown) {
+      console.error('Edit error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update document name';
+      setError(errorMessage);
+      // Revert optimistic update
+      setDocuments(prev => prev.map(d => 
+        d.id === doc.id 
+          ? { ...d, name: currentName, ...(doc.source === 'website' ? { originalUrl: currentName } : {}) }
+          : d
+      ));
     }
   };
 
@@ -1614,9 +1676,62 @@ const KnowledgeBaseManagement: React.FC = () => {
                     <div className="flex-1 min-w-0">
                       {/* Filename */}
                       <div className="flex items-center justify-between mb-2">
-                        <p className={`text-sm font-medium truncate ${theme === 'light' ? 'text-gray-900' : 'text-white'}`} title={doc.source === 'website' && doc.originalUrl ? doc.originalUrl : doc.name}>
-                          {doc.source === 'website' && doc.originalUrl ? doc.originalUrl : doc.name}
-                        </p>
+                        {editingDocId === doc.id ? (
+                          <div className="flex items-center gap-1 flex-1">
+                            <Input
+                              value={editingValue}
+                              onChange={(e) => setEditingValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleSaveEdit(doc);
+                                } else if (e.key === 'Escape') {
+                                  handleCancelEdit();
+                                }
+                              }}
+                              onBlur={() => handleSaveEdit(doc)}
+                              autoFocus
+                              className="h-7 text-sm font-medium flex-1"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSaveEdit(doc);
+                              }}
+                              title="Save"
+                            >
+                              <Check className={`h-4 w-4 ${theme === 'light' ? 'text-green-600' : 'text-green-400'}`} />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCancelEdit();
+                              }}
+                              title="Cancel"
+                            >
+                              <X className={`h-4 w-4 ${theme === 'light' ? 'text-red-600' : 'text-red-400'}`} />
+                            </Button>
+                          </div>
+                        ) : (
+                          <p 
+                            className={`text-sm font-medium truncate cursor-pointer hover:bg-opacity-10 hover:bg-blue-500 px-1 py-0.5 rounded flex-1 ${
+                              theme === 'light' ? 'text-gray-900' : 'text-white'
+                            }`} 
+                            title={`${doc.source === 'website' && doc.originalUrl ? doc.originalUrl : doc.name} (Double-click to edit)`}
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              handleStartEdit(doc);
+                            }}
+                          >
+                            {doc.source === 'website' && doc.originalUrl ? doc.originalUrl : doc.name}
+                          </p>
+                        )}
               </div>
 
                       {/* Storage indicators */}
@@ -1644,15 +1759,15 @@ const KnowledgeBaseManagement: React.FC = () => {
                           </span>
               </div>
 
-                      </div>
+              </div>
 
                       {/* Action buttons */}
                       <div className="flex items-center justify-end gap-1 mt-3 pt-3 border-t border-gray-200 dark:border-zinc-700">
                         {/* External link for websites */}
                         {doc.source === 'website' && doc.originalUrl && (
-                          <Button
+              <Button
                             variant="ghost"
-                            size="sm"
+                size="sm"
                             className="h-8 w-8 p-0"
                             onClick={() => window.open(doc.originalUrl, '_blank')}
                             title="Open source URL"
@@ -2059,25 +2174,78 @@ const KnowledgeBaseManagement: React.FC = () => {
                             {getFileIcon(doc.type, doc.source)}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className={`${isMobile && !isTableExpanded ? 'text-xs' : 'text-sm'} font-medium truncate ${
-                              theme === 'light' ? 'text-gray-900' : 'text-white'
-                            }`} title={doc.source === 'website' && doc.originalUrl ? doc.originalUrl : doc.name}>
-                              {/* For websites, show original URL as the name */}
-                              {doc.source === 'website' && doc.originalUrl ? doc.originalUrl : doc.name}
-                            </p>
-                            {/* Storage location indicators */}
-                            <div className={`flex items-center gap-1 mt-0.5 ${isMobile && !isTableExpanded ? 'gap-0.5' : 'gap-1'}`}>
-                              {doc.geminiFileName && (
-                                <div className="flex items-center gap-1" title="Indexed in Gemini File Search">
-                                  <HardDrive className={`${isMobile && !isTableExpanded ? 'h-2 w-2' : 'h-3 w-3'} ${theme === 'light' ? 'text-green-500' : 'text-green-400'}`} />
-                                  <span className={`${isMobile && !isTableExpanded ? 'text-[8px]' : 'text-[10px]'} ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>Gemini</span>
-                                </div>
-                              )}
-                              <div className="flex items-center gap-1" title="Metadata stored in PostgreSQL">
-                                <Database className={`${isMobile && !isTableExpanded ? 'h-2 w-2' : 'h-3 w-3'} ${theme === 'light' ? 'text-purple-500' : 'text-purple-400'}`} />
-                                <span className={`${isMobile && !isTableExpanded ? 'text-[8px]' : 'text-[10px]'} ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>DB</span>
+                            {editingDocId === doc.id ? (
+                              <div className="flex items-center gap-1">
+                                <Input
+                                  value={editingValue}
+                                  onChange={(e) => setEditingValue(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      handleSaveEdit(doc);
+                                    } else if (e.key === 'Escape') {
+                                      handleCancelEdit();
+                                    }
+                                  }}
+                                  onBlur={() => handleSaveEdit(doc)}
+                                  autoFocus
+                                  className={`${isMobile && !isTableExpanded ? 'h-6 text-xs' : 'h-7 text-sm'} font-medium`}
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className={`${isMobile && !isTableExpanded ? 'h-6 w-6 p-0' : 'h-7 w-7 p-0'}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSaveEdit(doc);
+                                  }}
+                                  title="Save"
+                                >
+                                  <Check className={`${isMobile && !isTableExpanded ? 'h-3 w-3' : 'h-4 w-4'} ${theme === 'light' ? 'text-green-600' : 'text-green-400'}`} />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className={`${isMobile && !isTableExpanded ? 'h-6 w-6 p-0' : 'h-7 w-7 p-0'}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCancelEdit();
+                                  }}
+                                  title="Cancel"
+                                >
+                                  <X className={`${isMobile && !isTableExpanded ? 'h-3 w-3' : 'h-4 w-4'} ${theme === 'light' ? 'text-red-600' : 'text-red-400'}`} />
+                                </Button>
                               </div>
-                            </div>
+                            ) : (
+                              <p 
+                                className={`${isMobile && !isTableExpanded ? 'text-xs' : 'text-sm'} font-medium truncate cursor-pointer hover:bg-opacity-10 hover:bg-blue-500 px-1 py-0.5 rounded ${
+                                  theme === 'light' ? 'text-gray-900' : 'text-white'
+                                }`} 
+                                title={`${doc.source === 'website' && doc.originalUrl ? doc.originalUrl : doc.name} (Double-click to edit)`}
+                                onDoubleClick={(e) => {
+                                  e.stopPropagation();
+                                  handleStartEdit(doc);
+                                }}
+                              >
+                                {/* For websites, show original URL as the name */}
+                                {doc.source === 'website' && doc.originalUrl ? doc.originalUrl : doc.name}
+                              </p>
+                            )}
+                            {/* Storage location indicators */}
+                            {editingDocId !== doc.id && (
+                              <div className={`flex items-center gap-1 mt-0.5 ${isMobile && !isTableExpanded ? 'gap-0.5' : 'gap-1'}`}>
+                                {doc.geminiFileName && (
+                                  <div className="flex items-center gap-1" title="Indexed in Gemini File Search">
+                                    <HardDrive className={`${isMobile && !isTableExpanded ? 'h-2 w-2' : 'h-3 w-3'} ${theme === 'light' ? 'text-green-500' : 'text-green-400'}`} />
+                                    <span className={`${isMobile && !isTableExpanded ? 'text-[8px]' : 'text-[10px]'} ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>Gemini</span>
+                                  </div>
+                                )}
+                                <div className="flex items-center gap-1" title="Metadata stored in PostgreSQL">
+                                  <Database className={`${isMobile && !isTableExpanded ? 'h-2 w-2' : 'h-3 w-3'} ${theme === 'light' ? 'text-purple-500' : 'text-purple-400'}`} />
+                                  <span className={`${isMobile && !isTableExpanded ? 'text-[8px]' : 'text-[10px]'} ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>DB</span>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                         </TableCell>
@@ -2150,9 +2318,9 @@ const KnowledgeBaseManagement: React.FC = () => {
                             </Button>
                           )}
                           {/* Update button */}
-                          <Button
-                            variant="ghost"
-                            size="sm"
+                            <Button
+                              variant="ghost"
+                              size="sm"
                             className={`${isMobile && !isTableExpanded ? 'h-6 w-6 p-0' : 'h-8 w-8 p-0'} ${
                               theme === 'light' ? 'hover:bg-orange-50' : 'hover:bg-orange-950'
                             }`}
@@ -2308,9 +2476,19 @@ const KnowledgeBaseManagement: React.FC = () => {
               <div className={`text-xs ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>
                 <p className="font-medium mb-1">Supported formats:</p>
                 <div className="flex flex-wrap gap-1">
-                  {['PDF', 'DOCX', 'TXT', 'PPT', 'XLSX', 'CSV', 'HTML', 'JSON', 'XML', 'PNG', 'JPG'].map((type) => (
-                    <Badge key={type} variant="outline" className="text-xs px-1.5 py-0.5">
-                      {type}
+                  {[
+                    { label: 'PDF', ext: '.pdf' },
+                    { label: 'DOCX', ext: '.docx' },
+                    { label: 'TXT', ext: '.txt' },
+                    { label: 'JSON', ext: '.json' },
+                    { label: 'HTML', ext: '.html' },
+                    { label: 'Markdown', ext: '.md' },
+                    { label: 'CSV', ext: '.csv' },
+                    { label: 'XLSX', ext: '.xlsx' },
+                    { label: 'PPTX', ext: '.pptx' },
+                  ].map(({ label, ext }) => (
+                    <Badge key={label} variant="outline" className="text-xs px-1.5 py-0.5">
+                      {label} ({ext})
                     </Badge>
                   ))}
                 </div>
@@ -2548,7 +2726,7 @@ const KnowledgeBaseManagement: React.FC = () => {
         ref={updateFileInputRef}
         className="hidden"
         onChange={handleUpdateFileSelected}
-        accept=".pdf,.doc,.docx,.txt,.rtf,.odt,.ppt,.pptx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.gif,.webp,.mp3,.wav,.html,.json,.xml,.yaml,.yml,.md"
+        accept=".pdf,.docx,.txt,.json,.html,.md,.csv,.xlsx,.pptx"
       />
       </div>
       )}
