@@ -185,6 +185,74 @@ const KnowledgeBaseManagement: React.FC = () => {
   const isMobile = useIsMobile();
   const knowledgeBaseManager = new KnowledgeBaseManager(AWS_CONFIG.endpoints.pharmaApiGateway);
 
+  // Quick date filter presets
+  const applyDatePreset = (preset: string) => {
+    const now = new Date();
+    let fromDate = '';
+    let fromTime = '00:00';
+    let toDate = '';
+    let toTime = '23:59';
+
+    switch (preset) {
+      case 'last1hour':
+        fromDate = now.toISOString().split('T')[0];
+        fromTime = new Date(now.getTime() - 60 * 60 * 1000).toTimeString().slice(0, 5);
+        toDate = now.toISOString().split('T')[0];
+        toTime = now.toTimeString().slice(0, 5);
+        break;
+      case 'last2hours':
+        fromDate = now.toISOString().split('T')[0];
+        fromTime = new Date(now.getTime() - 2 * 60 * 60 * 1000).toTimeString().slice(0, 5);
+        toDate = now.toISOString().split('T')[0];
+        toTime = now.toTimeString().slice(0, 5);
+        break;
+      case 'last3hours':
+        fromDate = now.toISOString().split('T')[0];
+        fromTime = new Date(now.getTime() - 3 * 60 * 60 * 1000).toTimeString().slice(0, 5);
+        toDate = now.toISOString().split('T')[0];
+        toTime = now.toTimeString().slice(0, 5);
+        break;
+      case 'last4hours':
+        fromDate = now.toISOString().split('T')[0];
+        fromTime = new Date(now.getTime() - 4 * 60 * 60 * 1000).toTimeString().slice(0, 5);
+        toDate = now.toISOString().split('T')[0];
+        toTime = now.toTimeString().slice(0, 5);
+        break;
+      case 'last5hours':
+        fromDate = now.toISOString().split('T')[0];
+        fromTime = new Date(now.getTime() - 5 * 60 * 60 * 1000).toTimeString().slice(0, 5);
+        toDate = now.toISOString().split('T')[0];
+        toTime = now.toTimeString().slice(0, 5);
+        break;
+      case 'lastWeek':
+        const lastWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        fromDate = lastWeek.toISOString().split('T')[0];
+        fromTime = '00:00';
+        toDate = now.toISOString().split('T')[0];
+        toTime = '23:59';
+        break;
+      case 'lastMonth':
+        const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+        fromDate = lastMonth.toISOString().split('T')[0];
+        fromTime = '00:00';
+        toDate = now.toISOString().split('T')[0];
+        toTime = '23:59';
+        break;
+      case 'lastYear':
+        const lastYear = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+        fromDate = lastYear.toISOString().split('T')[0];
+        fromTime = '00:00';
+        toDate = now.toISOString().split('T')[0];
+        toTime = '23:59';
+        break;
+    }
+
+    setColumnFilters(prev => ({
+      ...prev,
+      updatedAt: { from: fromDate, fromTime, to: toDate, toTime }
+    }));
+  };
+
   useEffect(() => {
     loadDocuments();
   }, []);
@@ -1346,6 +1414,80 @@ const KnowledgeBaseManagement: React.FC = () => {
                             <DropdownMenuLabel>Filter by Date & Time Range</DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             <div className="p-2 space-y-3">
+                              {/* Quick preset filters */}
+                              <div className="space-y-2">
+                                <div className="text-xs text-gray-500 font-medium">Quick Filters:</div>
+                                <div className="grid grid-cols-2 gap-1">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => applyDatePreset('last1hour')}
+                                    className="h-7 text-xs"
+                                  >
+                                    Last 1h
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => applyDatePreset('last2hours')}
+                                    className="h-7 text-xs"
+                                  >
+                                    Last 2h
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => applyDatePreset('last3hours')}
+                                    className="h-7 text-xs"
+                                  >
+                                    Last 3h
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => applyDatePreset('last4hours')}
+                                    className="h-7 text-xs"
+                                  >
+                                    Last 4h
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => applyDatePreset('last5hours')}
+                                    className="h-7 text-xs"
+                                  >
+                                    Last 5h
+                                  </Button>
+                                </div>
+                                <div className="grid grid-cols-3 gap-1">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => applyDatePreset('lastWeek')}
+                                    className="h-7 text-xs"
+                                  >
+                                    Last Week
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => applyDatePreset('lastMonth')}
+                                    className="h-7 text-xs"
+                                  >
+                                    Last Month
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => applyDatePreset('lastYear')}
+                                    className="h-7 text-xs"
+                                  >
+                                    Last Year
+                                  </Button>
+                                </div>
+                              </div>
+                              <DropdownMenuSeparator />
+                              {/* Manual date/time inputs */}
                               <div className="grid grid-cols-2 gap-2">
                                 <div>
                                   <label className="text-xs text-gray-500 mb-1 block">From Date</label>
