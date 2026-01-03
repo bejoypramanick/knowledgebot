@@ -1044,8 +1044,6 @@ const KnowledgeBaseManagement: React.FC = () => {
       searchQuery.trim() !== '' ||
       columnFilters.name.text.trim() !== '' ||
       columnFilters.type.length > 0 ||
-      columnFilters.source.length > 0 ||
-      columnFilters.status.length > 0 ||
       columnFilters.size !== null ||
       columnFilters.version !== null ||
       columnFilters.updatedAt.from !== '' ||
@@ -1053,6 +1051,20 @@ const KnowledgeBaseManagement: React.FC = () => {
       columnFilters.updatedAt.fromTime !== '00:00' ||
       columnFilters.updatedAt.toTime !== '23:59'
     );
+  };
+
+  const getActiveFilterCount = () => {
+    let count = 0;
+    if (searchQuery.trim() !== '') count++;
+    if (columnFilters.name.text.trim() !== '') count++;
+    if (columnFilters.type.length > 0) count++;
+    if (columnFilters.size !== null) count++;
+    if (columnFilters.version !== null) count++;
+    if (columnFilters.updatedAt.from !== '') count++;
+    if (columnFilters.updatedAt.to !== '') count++;
+    if (columnFilters.updatedAt.fromTime !== '00:00') count++;
+    if (columnFilters.updatedAt.toTime !== '23:59') count++;
+    return count;
   };
 
   // Filter documents based on search and column filters
@@ -1350,9 +1362,6 @@ const KnowledgeBaseManagement: React.FC = () => {
                           </span>
                         </div>
 
-                        <Badge variant="outline" className="text-[10px] px-1 py-0">
-                          {getStatusBadge(doc.status)}
-                        </Badge>
                       </div>
 
                       {/* Action buttons */}
@@ -1560,43 +1569,6 @@ const KnowledgeBaseManagement: React.FC = () => {
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                              <Filter className={`h-3 w-3 ${columnFilters.source.length > 0 ? 'text-blue-500' : ''}`} />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start" className={`${theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'} ${isTableExpanded ? 'z-[10000]' : ''}`}>
-                            <DropdownMenuLabel>Filter by Source</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            {getUniqueValues('source').map(value => (
-                              <DropdownMenuCheckboxItem
-                                key={value}
-                                checked={columnFilters.source.includes(value)}
-                                onCheckedChange={() => toggleColumnFilter('source', value)}
-                              >
-                                {value === 'website' ? 'Website' : 'Upload'}
-                              </DropdownMenuCheckboxItem>
-                            ))}
-                            {columnFilters.source.length > 0 && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuCheckboxItem onCheckedChange={() => clearColumnFilter('source')}>
-                                  Clear filter
-                                </DropdownMenuCheckboxItem>
-                  </>
-                )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                        <span className="cursor-pointer" onClick={() => handleSort('source')}>
-                          Source {getSortIcon('source')}
-                        </span>
-            </div>
-                    </TableHead>
-                  )}
-                  {!isMobile && (
-                    <TableHead className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
-                      <div className="flex items-center gap-1">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
                               <Filter className={`h-3 w-3 ${columnFilters.version !== null ? 'text-blue-500' : ''}`} />
               </Button>
                           </DropdownMenuTrigger>
@@ -1682,41 +1654,6 @@ const KnowledgeBaseManagement: React.FC = () => {
                       </DropdownMenu>
                       <span className="cursor-pointer" onClick={() => handleSort('size')}>
                         Size {getSortIcon('size')}
-                      </span>
-                    </div>
-                  </TableHead>
-                  <TableHead className={`${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
-                    <div className="flex items-center gap-1">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                            <Filter className={`h-3 w-3 ${columnFilters.status.length > 0 ? 'text-blue-500' : ''}`} />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className={`${theme === 'light' ? 'bg-white' : 'bg-zinc-800 border-zinc-700'} ${isTableExpanded ? 'z-[10000]' : ''}`}>
-                          <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          {getUniqueValues('status').map(value => (
-                            <DropdownMenuCheckboxItem
-                              key={value}
-                              checked={columnFilters.status.includes(value)}
-                              onCheckedChange={() => toggleColumnFilter('status', value)}
-                            >
-                              {value}
-                            </DropdownMenuCheckboxItem>
-                          ))}
-                          {columnFilters.status.length > 0 && (
-                            <>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuCheckboxItem onCheckedChange={() => clearColumnFilter('status')}>
-                                Clear filter
-                              </DropdownMenuCheckboxItem>
-                            </>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                      <span className="cursor-pointer" onClick={() => handleSort('status')}>
-                        Status {getSortIcon('status')}
                       </span>
                     </div>
                   </TableHead>
@@ -1966,15 +1903,6 @@ const KnowledgeBaseManagement: React.FC = () => {
                         <span className={`${isMobile && !isTableExpanded ? 'text-xs' : 'text-sm'} ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
                           {formatFileSize(doc.size || 0)}
                         </span>
-                      </TableCell>
-                      <TableCell>
-                        {isMobile ? (
-                          <Badge variant="outline" className={`${isTableExpanded ? 'text-xs px-1.5 py-0.5' : 'text-[10px] px-1 py-0'}`}>
-                            {getStatusBadge(doc.status)}
-                          </Badge>
-                        ) : (
-                          getStatusBadge(doc.status)
-                        )}
                       </TableCell>
                       {!isMobile && (
                         <TableCell>
